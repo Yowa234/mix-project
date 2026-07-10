@@ -1,0 +1,4380 @@
+import cors from "cors";
+import express from "express";
+import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import nodemailer from "nodemailer";
+import { z } from "zod";
+import { canManageAccounts, canManageRole, canSeeOwner, canSeePersonalData, publicUser, requireAuth, signToken } from "./auth.js";
+import { createMysqlStore } from "./mysql-store.js";
+import { getStore, setStore } from "./store.js";
+import { LEAD_PROVIDERS, getProvider, providerMeta } from "./lead-providers.js";
+export const app = express();
+app.use(cors());
+app.use(express.json());
+function asyncRoute(handler) {
+    return (req, res, next) => {
+        handler(req, res, next).catch(next);
+    };
+}
+function accountUser(user) {
+    return { ...publicUser(user), status: user.status };
+}
+async function sendOutboundEmail(user, payload) {
+    if (!user.outboundEmail || !user.smtpHost || !user.smtpUser || !user.smtpPassword) {
+        throw new Error("请先在个人信息页完整配置发件邮箱、SMTP服务器、账号和授权码");
+    }
+    const transport = process.env.NODE_ENV === "test"
+        ? nodemailer.createTransport({ streamTransport: true, newline: "unix", buffer: true })
+        : nodemailer.createTransport({
+            host: user.smtpHost,
+            port: user.smtpPort || 465,
+            secure: user.smtpSecure ?? true,
+            auth: {
+                user: user.smtpUser,
+                pass: user.smtpPassword
+            }
+        });
+    return transport.sendMail({
+        from: `"${user.emailSenderName || user.name}" <${user.outboundEmail}>`,
+        to: payload.to,
+        subject: payload.subject,
+        text: payload.body
+    });
+}
+function examQuestionsFor(examId) {
+    const store = getStore();
+    const linkedIds = store.examQuestionLinks
+        .filter((link) => link.examId === examId)
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((link) => link.questionId);
+    const linked = linkedIds
+        .map((questionId) => store.examQuestions.find((question) => question.id === questionId))
+        .filter(Boolean);
+    if (linked.length)
+        return linked;
+    return store.examQuestions.filter((question) => question.examId === examId);
+}
+function bankQuestions() {
+    const store = getStore();
+    return store.examQuestions
+        .filter((question) => question.examId === "bank" || !question.examId || !store.exams.some((exam) => exam.id === question.examId))
+        .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+}
+function examWithRuntimeStats(exam) {
+    const store = getStore();
+    const questions = examQuestionsFor(exam.id);
+    const attempts = store.examAttempts.filter((attempt) => attempt.examId === exam.id);
+    const passRate = attempts.length
+        ? Math.round((attempts.filter((attempt) => attempt.passed).length / attempts.length) * 100)
+        : exam.passRate;
+    return {
+        ...exam,
+        questionCount: questions.length || exam.questionCount,
+        passRate
+    };
+}
+function examReport() {
+    const store = getStore();
+    const attempts = store.examAttempts;
+    const totalAttempts = attempts.length;
+    const passedAttempts = attempts.filter((attempt) => attempt.passed).length;
+    const averageScore = totalAttempts ? Math.round(attempts.reduce((sum, attempt) => sum + attempt.score, 0) / totalAttempts) : 0;
+    const retakeAttempts = attempts.filter((attempt) => !attempt.passed).length;
+    const questionCount = bankQuestions().length;
+    const difficultyRows = ["easy", "medium", "hard"].map((difficulty) => {
+        const count = bankQuestions().filter((question) => question.difficulty === difficulty).length;
+        return {
+            difficulty,
+            label: difficulty === "easy" ? "基础题" : difficulty === "hard" ? "高阶题" : "应用题",
+            count,
+            ratio: questionCount ? Math.round((count / questionCount) * 100) : 0
+        };
+    });
+    const categoryRows = store.exams.map((exam) => {
+        const examAttempts = attempts.filter((attempt) => attempt.examId === exam.id);
+        const participants = new Set(examAttempts.map((attempt) => attempt.userId)).size;
+        const passRate = examAttempts.length ? Math.round((examAttempts.filter((attempt) => attempt.passed).length / examAttempts.length) * 100) : exam.passRate;
+        const avgScore = examAttempts.length ? Math.round(examAttempts.reduce((sum, attempt) => sum + attempt.score, 0) / examAttempts.length) : 0;
+        return { examId: exam.id, title: exam.title, category: exam.category, participants, passRate, avgScore };
+    });
+    const latestAttempts = attempts.slice(0, 6).map((attempt) => {
+        const exam = store.exams.find((item) => item.id === attempt.examId);
+        const user = store.users.find((item) => item.id === attempt.userId);
+        return {
+            ...attempt,
+            examTitle: exam?.title || "未知考试",
+            category: exam?.category || "未分类",
+            userName: user?.name || "未知用户"
+        };
+    });
+    return {
+        totalAttempts,
+        passedAttempts,
+        retakeAttempts,
+        averageScore,
+        questionCount,
+        categoryRows,
+        difficultyRows,
+        latestAttempts
+    };
+}
+function refreshExamStats(exam) {
+    const store = getStore();
+    const attempts = store.examAttempts.filter((attempt) => attempt.examId === exam.id);
+    const questionCount = examQuestionsFor(exam.id).length;
+    exam.questionCount = questionCount || exam.questionCount;
+    exam.passRate = attempts.length ? Math.round((attempts.filter((attempt) => attempt.passed).length / attempts.length) * 100) : exam.passRate;
+    exam.updatedAt = new Date().toISOString();
+}
+const examQuestionSchema = z.object({
+    stem: z.string().min(1),
+    category: z.string().min(1).default("产品知识"),
+    options: z.array(z.string().min(1)).min(2).max(6),
+    answerIndex: z.number().int().nonnegative().optional(),
+    answerIndexes: z.array(z.number().int().nonnegative()).optional(),
+    questionType: z.enum(["single", "multiple"]).optional(),
+    tags: z.array(z.string()).optional().default([]),
+    explanation: z.string().min(1).default("请在题库维护中补充解析。"),
+    difficulty: z.enum(["easy", "medium", "hard"]).default("medium")
+});
+function uniqueSortedIndexes(values) {
+    return [...new Set(values)].sort((left, right) => left - right);
+}
+function correctIndexesFor(question) {
+    return uniqueSortedIndexes(question.answerIndexes?.length ? question.answerIndexes : [question.answerIndex]);
+}
+function indexesEqual(left, right) {
+    const a = uniqueSortedIndexes(left);
+    const b = uniqueSortedIndexes(right);
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+function buildExamQuestion(body, index = 0) {
+    const answerIndexes = uniqueSortedIndexes(body.answerIndexes?.length ? body.answerIndexes : [body.answerIndex ?? 0]);
+    if (answerIndexes.some((answerIndex) => answerIndex >= body.options.length)) {
+        throw new Error("正确答案序号超出选项数量");
+    }
+    return {
+        id: `q_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+        examId: "bank",
+        category: body.category,
+        stem: body.stem,
+        options: body.options,
+        answerIndex: answerIndexes[0],
+        answerIndexes,
+        questionType: body.questionType || (answerIndexes.length > 1 ? "multiple" : "single"),
+        tags: body.tags || [],
+        explanation: body.explanation,
+        difficulty: body.difficulty,
+        updatedAt: new Date().toISOString()
+    };
+}
+app.get("/api/health", (_req, res) => {
+    res.json({ ok: true, store: getStore().mode });
+});
+const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(1)
+});
+app.post("/api/auth/login", (req, res) => {
+    const body = loginSchema.parse(req.body);
+    const { users } = getStore();
+    const user = users.find((item) => item.email === body.email && item.password === body.password && item.status === "active");
+    if (!user) {
+        res.status(401).json({ message: "账号或密码错误" });
+        return;
+    }
+    const sessionUser = publicUser(user);
+    res.json({ token: signToken(sessionUser), user: sessionUser });
+});
+app.get("/api/auth/me", requireAuth, (req, res) => {
+    res.json({ user: req.user });
+});
+app.get("/api/profile", requireAuth, (req, res) => {
+    const user = getStore().users.find((item) => item.id === req.user.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    res.json({ user: accountUser(user) });
+});
+app.patch("/api/profile/email-binding", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        outboundEmail: z.string().email(),
+        emailSenderName: z.string().min(1).max(80),
+        emailSignature: z.string().max(800).default(""),
+        smtpHost: z.string().max(180).default(""),
+        smtpPort: z.number().int().min(1).max(65535).default(465),
+        smtpSecure: z.boolean().default(true),
+        smtpUser: z.string().max(180).default(""),
+        smtpPassword: z.string().max(300).optional().default("")
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const user = store.users.find((item) => item.id === req.user.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    user.outboundEmail = body.outboundEmail;
+    user.emailSenderName = body.emailSenderName;
+    user.emailSignature = body.emailSignature;
+    user.smtpHost = body.smtpHost;
+    user.smtpPort = body.smtpPort;
+    user.smtpSecure = body.smtpSecure;
+    user.smtpUser = body.smtpUser;
+    if (body.smtpPassword)
+        user.smtpPassword = body.smtpPassword;
+    await store.persist();
+    const sessionUser = publicUser(user);
+    res.json({ user: accountUser(user), token: signToken(sessionUser) });
+}));
+app.post("/api/profile/test-email", requireAuth, asyncRoute(async (_req, res) => {
+    const store = getStore();
+    const user = store.users.find((item) => item.id === _req.user.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    if (!user.outboundEmail) {
+        res.status(400).json({ message: "请先保存发件邮箱" });
+        return;
+    }
+    try {
+        const info = await sendOutboundEmail(user, {
+            to: user.outboundEmail,
+            subject: "GoodJob CRM SMTP 测试邮件",
+            body: `这是一封来自 GoodJob CRM 的 SMTP 测试邮件。\n\n账号：${user.email}\n时间：${new Date().toISOString()}`
+        });
+        res.json({ ok: true, messageId: info.messageId, simulated: process.env.NODE_ENV === "test" });
+    }
+    catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : "测试邮件发送失败" });
+    }
+}));
+app.post("/api/profile/send-development-email", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        to: z.string().email(),
+        company: z.string().min(1).max(120),
+        subject: z.string().min(1).max(160),
+        body: z.string().min(10).max(3000)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const user = store.users.find((item) => item.id === req.user.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    let mailInfo;
+    try {
+        mailInfo = await sendOutboundEmail(user, { to: body.to, subject: body.subject, body: body.body });
+    }
+    catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : "邮件发送失败" });
+        return;
+    }
+    const sentAt = new Date().toISOString();
+    user.lastDevelopmentEmailAt = sentAt;
+    user.lastDevelopmentEmailTo = body.to;
+    user.lastDevelopmentEmailSubject = body.subject;
+    await store.persist();
+    res.json({
+        sent: {
+            id: `mail_${Date.now()}`,
+            status: "sent",
+            simulated: process.env.NODE_ENV === "test",
+            messageId: mailInfo.messageId,
+            from: user.outboundEmail,
+            senderName: user.emailSenderName || user.name,
+            to: body.to,
+            company: body.company,
+            subject: body.subject,
+            body: body.body,
+            sentAt
+        },
+        user: accountUser(user)
+    });
+}));
+app.post("/api/prospect-list/:id/send-development-email", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        to: z.string().email(),
+        subject: z.string().min(1).max(160),
+        body: z.string().min(10).max(3000)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const user = store.users.find((item) => item.id === req.user.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    const opportunity = store.websiteOpportunities.find((item) => item.id === req.params.id && canSeeOwner(req.user, item.ownerId, item.teamId));
+    if (!opportunity) {
+        res.status(404).json({ message: "搜客线索不存在或无权访问" });
+        return;
+    }
+    let mailInfo;
+    try {
+        mailInfo = await sendOutboundEmail(user, { to: body.to, subject: body.subject, body: body.body });
+    }
+    catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : "邮件发送失败" });
+        return;
+    }
+    const sentAt = new Date().toISOString();
+    user.lastDevelopmentEmailAt = sentAt;
+    user.lastDevelopmentEmailTo = body.to;
+    user.lastDevelopmentEmailSubject = body.subject;
+    opportunity.lastDevelopmentEmailAt = sentAt;
+    opportunity.lastDevelopmentEmailTo = body.to;
+    opportunity.lastDevelopmentEmailSubject = body.subject;
+    await store.persist();
+    res.json({
+        sent: {
+            id: `mail_${Date.now()}`,
+            status: "sent",
+            simulated: process.env.NODE_ENV === "test",
+            messageId: mailInfo.messageId,
+            from: user.outboundEmail,
+            senderName: user.emailSenderName || user.name,
+            to: body.to,
+            company: opportunity.company,
+            subject: body.subject,
+            body: body.body,
+            sentAt
+        },
+        opportunity,
+        user: accountUser(user)
+    });
+}));
+app.get("/api/accounts", requireAuth, (req, res) => {
+    if (!canManageAccounts(req.user)) {
+        res.status(403).json({ message: "无账号管理权限" });
+        return;
+    }
+    const { users } = getStore();
+    res.json({ accounts: users.map(accountUser) });
+});
+app.post("/api/accounts", requireAuth, asyncRoute(async (req, res) => {
+    if (!canManageAccounts(req.user)) {
+        res.status(403).json({ message: "无账号管理权限" });
+        return;
+    }
+    const schema = z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+        password: z.string().min(6),
+        role: z.enum(["sales", "manager", "admin", "super_admin"]).default("sales"),
+        teamId: z.string().min(1).optional()
+    });
+    const body = schema.parse(req.body);
+    if (!canManageRole(req.user, body.role)) {
+        res.status(403).json({ message: "无权创建该角色账号" });
+        return;
+    }
+    const store = getStore();
+    if (store.users.some((user) => user.email === body.email)) {
+        res.status(409).json({ message: "账号邮箱已存在" });
+        return;
+    }
+    const teamId = body.role === "super_admin" || body.role === "admin" ? "all" : body.teamId || req.user.teamId;
+    const user = {
+        id: `u_${Date.now()}`,
+        name: body.name,
+        email: body.email,
+        password: body.password,
+        role: body.role,
+        teamId,
+        avatar: body.name.slice(0, 2).toUpperCase(),
+        status: "active"
+    };
+    store.users.unshift(user);
+    await store.persist();
+    res.json({ account: accountUser(user) });
+}));
+app.patch("/api/accounts/:id/password", requireAuth, asyncRoute(async (req, res) => {
+    if (!canManageAccounts(req.user)) {
+        res.status(403).json({ message: "无账号管理权限" });
+        return;
+    }
+    const schema = z.object({ password: z.string().min(6) });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const user = store.users.find((item) => item.id === req.params.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    if (!canManageRole(req.user, user.role)) {
+        res.status(403).json({ message: "无权设置该账号密码" });
+        return;
+    }
+    user.password = body.password;
+    await store.persist();
+    res.json({ account: accountUser(user) });
+}));
+app.patch("/api/accounts/:id/disable", requireAuth, asyncRoute(async (req, res) => {
+    if (!canManageAccounts(req.user)) {
+        res.status(403).json({ message: "无账号管理权限" });
+        return;
+    }
+    const store = getStore();
+    const user = store.users.find((item) => item.id === req.params.id);
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    if (user.id === req.user.id) {
+        res.status(400).json({ message: "不能停用当前登录账号" });
+        return;
+    }
+    if (!canManageRole(req.user, user.role)) {
+        res.status(403).json({ message: "无权停用该角色账号" });
+        return;
+    }
+    user.status = "disabled";
+    await store.persist();
+    res.json({ account: accountUser(user) });
+}));
+app.delete("/api/accounts/:id", requireAuth, asyncRoute(async (req, res) => {
+    if (!canManageAccounts(req.user)) {
+        res.status(403).json({ message: "无账号管理权限" });
+        return;
+    }
+    const store = getStore();
+    const index = store.users.findIndex((item) => item.id === req.params.id);
+    const user = index >= 0 ? store.users[index] : null;
+    if (!user) {
+        res.status(404).json({ message: "账号不存在" });
+        return;
+    }
+    if (user.id === req.user.id) {
+        res.status(400).json({ message: "不能删除当前登录账号" });
+        return;
+    }
+    if (!canManageRole(req.user, user.role)) {
+        res.status(403).json({ message: "无权删除该角色账号" });
+        return;
+    }
+    store.users.splice(index, 1);
+    await store.persist();
+    res.json({ ok: true, id: req.params.id });
+}));
+app.get("/api/customers", requireAuth, (req, res) => {
+    const { customers } = getStore();
+    const scoped = customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    res.json({ customers: scoped });
+});
+app.post("/api/customers", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        company: z.string().min(1),
+        country: z.string().min(1).default("未知"),
+        contact: z.string().min(1).default("待维护"),
+        stage: z.string().min(1).default("询盘"),
+        amount: z.number().int().nonnegative().default(0),
+        billingName: z.string().optional().default(""),
+        billingAddress: z.string().optional().default(""),
+        documentContact: z.string().optional().default(""),
+        defaultPortDischarge: z.string().optional().default(""),
+        defaultIncoterm: z.string().optional().default("FOB Tianjin"),
+        defaultPaymentTerm: z.string().optional().default("30% T/T deposit, 70% before shipment")
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const customer = {
+        id: `c_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        health: 72,
+        nextReminder: "明天 10:00",
+        wecomBound: false,
+        ...body
+    };
+    store.customers.unshift(customer);
+    await store.persist();
+    res.json({ customer });
+}));
+app.patch("/api/customers/:id", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        company: z.string().min(1).optional(),
+        country: z.string().min(1).optional(),
+        contact: z.string().min(1).optional(),
+        stage: z.string().min(1).optional(),
+        amount: z.number().int().nonnegative().optional(),
+        nextReminder: z.string().min(1).optional(),
+        wecomBound: z.boolean().optional(),
+        billingName: z.string().optional(),
+        billingAddress: z.string().optional(),
+        documentContact: z.string().optional(),
+        defaultPortDischarge: z.string().optional(),
+        defaultIncoterm: z.string().optional(),
+        defaultPaymentTerm: z.string().optional()
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const customer = store.customers.find((item) => item.id === req.params.id);
+    if (!customer || !canSeeOwner(req.user, customer.ownerId, customer.teamId)) {
+        res.status(404).json({ message: "客户不存在" });
+        return;
+    }
+    Object.assign(customer, body);
+    await store.persist();
+    res.json({ customer });
+}));
+app.post("/api/customers/bulk-delete", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ ids: z.array(z.string()).min(1).max(200) });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const ids = [...new Set(body.ids)];
+    const deleted = store.customers.filter((customer) => ids.includes(customer.id) && canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    if (!deleted.length) {
+        res.status(404).json({ message: "未找到可删除的客户" });
+        return;
+    }
+    const deletedIds = new Set(deleted.map((customer) => customer.id));
+    const deletedNames = deleted.map((customer) => customer.company);
+    store.customers = store.customers.filter((customer) => !deletedIds.has(customer.id));
+    store.deals = store.deals.filter((deal) => !deletedIds.has(deal.customerId));
+    store.todos = store.todos.filter((todo) => !deletedNames.some((name) => todo.related.includes(name) || todo.title.includes(name)));
+    await store.persist();
+    const customers = store.customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    res.json({ deleted, customers });
+}));
+app.get("/api/todos", requireAuth, (req, res) => {
+    const store = getStore();
+    const archived = archiveExpiredTodos(store.todos, new Date());
+    if (archived.length)
+        void store.persist();
+    const { todos } = store;
+    const scoped = todos.filter((todo) => canSeePersonalData(req.user, todo.ownerId));
+    res.json({ todos: scoped });
+});
+app.post("/api/todos", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1),
+        type: z.enum(["customer", "knowledge", "exam", "ocr", "other"]).default("other"),
+        priority: z.enum(["high", "medium", "normal"]).default("normal"),
+        dueAt: z.string().default(""),
+        related: z.string().default("")
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const todo = {
+        id: `t_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        done: false,
+        status: "pending",
+        pinState: "",
+        sortOrder: nextTodoSortOrder(store.todos, req.user.id),
+        createdAt: new Date().toISOString(),
+        historyAt: "",
+        ...body
+    };
+    if (shouldArchiveTodo(todo)) {
+        todo.historyAt = new Date().toISOString();
+        todo.status = "pending";
+    }
+    store.todos.unshift(todo);
+    await store.persist();
+    res.json({ todo });
+}));
+const planTaskSchema = z.object({
+    title: z.string().min(1),
+    phase: z.string().min(1).default("计划任务"),
+    category: z.string().min(1).default("客户开发"),
+    priority: z.enum(["high", "medium", "normal"]).default("normal"),
+    status: z.enum(["planned", "active", "done"]).default("planned"),
+    dueAt: z.string().default(""),
+    target: z.string().default(""),
+    description: z.string().default("")
+});
+function sortPlanTasks(tasks) {
+    const statusWeight = { active: 0, planned: 1, done: 2 };
+    const priorityWeight = { high: 0, medium: 1, normal: 2 };
+    return [...tasks].sort((left, right) => {
+        return statusWeight[left.status] - statusWeight[right.status]
+            || priorityWeight[left.priority] - priorityWeight[right.priority]
+            || String(right.updatedAt || "").localeCompare(String(left.updatedAt || ""));
+    });
+}
+const defaultPlanTemplateDrafts = [
+    { section: "knowledge", title: "产品分类地图", summary: "压力、温度、流量、液位、分析仪表、记录仪；每类写 3 个典型型号和应用场景。", output: "输出物：1页分类卡", badge: "必会", badgeTone: "green", phase: "前置知识", category: "产品知识", priority: "high", target: "完成6类仪表的分类卡和典型应用说明", description: "整理压力、温度、流量、液位、分析仪表、记录仪的型号、应用行业、常见客户问题。", sortOrder: 10 },
+    { section: "knowledge", title: "关键参数追问表", summary: "量程、精度、介质、温压、连接、输出信号、供电、防护、材质；必须能向客户追问。", output: "输出物：参数确认模板", badge: "必会", badgeTone: "green", phase: "前置知识", category: "参数训练", priority: "high", target: "形成可复制的英文参数确认表", description: "把量程、精度、介质、温度压力、接口、输出信号、供电和材质整理成询盘追问模板。", sortOrder: 20 },
+    { section: "knowledge", title: "证书与资料包", summary: "CE、RoHS、EMC、ATEX/IECEx、防爆、SIL、校准证书、ISO、材质报告，按产品归档。", output: "输出物：资料索引", badge: "资料化", badgeTone: "amber", phase: "前置知识", category: "资料维护", priority: "medium", target: "完成认证资料索引并标注适用产品", description: "按产品类型整理证书、测试报告、校准文件和对外解释口径，避免客户索要资料时临时翻找。", sortOrder: 30 },
+    { section: "knowledge", title: "行业应用场景", summary: "水处理、油气、化工、食品制药、HVAC、电力、船舶、环保设备、OEM 机械。", output: "输出物：行业话术", badge: "场景", badgeTone: "", phase: "前置知识", category: "场景训练", priority: "medium", target: "每个行业写出1条切入话术和1个典型应用", description: "围绕水处理、油气、化工、食品制药、HVAC、电力、船舶和OEM机械整理客户痛点。", sortOrder: 40 },
+    { section: "knowledge", title: "竞品替代口径", summary: "WIKA、Endress+Hauser、Yokogawa、Emerson、KROHNE、Ashcroft、Dwyer 的替代切入点。", output: "输出物：竞品对照表", badge: "谈判", badgeTone: "red", phase: "前置知识", category: "竞品研究", priority: "medium", target: "完成至少5个竞品品牌的替代切入点", description: "整理竞品主打产品、客户关注点、我方可替代卖点和风险边界。", sortOrder: 50 },
+    { section: "persona", title: "工业自动化经销商", summary: "要稳定供货、利润空间、资料齐全和快速响应。", output: "关键词：instrument distributor / automation supplier / country\n首触达：目录、代理优势、证书包、热销型号", badge: "高匹配", badgeTone: "green", phase: "客户画像", category: "客户开发", priority: "high", target: "筛选30家高匹配经销商并完成首触达", description: "使用instrument distributor、automation supplier等关键词，按国家筛选官网、联系人、产品线和代理品牌。", sortOrder: 110 },
+    { section: "persona", title: "系统集成商", summary: "关注项目参数匹配、交期、现场适配和技术支持。", output: "关键词：process automation integrator / control system integrator\n首触达：问应用场景、项目清单、参数范围", badge: "项目型", badgeTone: "aqua", phase: "客户画像", category: "客户开发", priority: "high", target: "筛选20家系统集成商并确认项目应用场景", description: "围绕process automation integrator等关键词查找项目型客户，首封邮件重点询问介质、量程、接口和证书需求。", sortOrder: 120 },
+    { section: "persona", title: "OEM 设备厂", summary: "关注批量一致性、定制接口、长期价格和替代型号。", output: "关键词：machine manufacturer sensor / OEM instrument supplier\n首触达：发参数确认表、询问年用量和安装空间", badge: "批量型", badgeTone: "amber", phase: "客户画像", category: "客户开发", priority: "medium", target: "建立20家OEM设备厂名单并完成参数确认", description: "按设备类型筛选OEM客户，重点记录年用量、现用型号、接口、输出信号和目标价。", sortOrder: 130 },
+    { section: "persona", title: "EPC / 工程承包商", summary: "关注认证、项目清单、交付风险、技术文件和投标资料。", output: "关键词：EPC water treatment instruments / project procurement\n首触达：索要 RFQ、项目清单、证书要求", badge: "高价值", badgeTone: "red", phase: "客户画像", category: "客户开发", priority: "medium", target: "筛选15家EPC客户并记录项目机会", description: "优先查水处理、化工、环保、电力工程客户，邮件重点强调证书、交付和项目配合能力。", sortOrder: 140 },
+    { section: "execution", title: "第 1 天", summary: "整理仪表产品分类与参数卡；建立客户搜索关键词库 10 组。", output: "整理仪表产品分类与参数卡。\n建立客户搜索关键词库 10 组。", badge: "启动", badgeTone: "green", phase: "首周执行", category: "产品知识", priority: "high", target: "完成分类卡和10组关键词库", description: "先把产品分类、参数卡和客户搜索关键词准备好，避免盲目找客户。", sortOrder: 210 },
+    { section: "execution", title: "第 2 天", summary: "整理证书、报价资料和应用案例；新增 30 家目标客户到 CRM。", output: "整理证书、报价资料和应用案例。\n新增 30 家目标客户到 CRM。", badge: "资料", badgeTone: "aqua", phase: "首周执行", category: "资料维护", priority: "high", target: "完成资料包并新增30家客户", description: "把资料准备和客户池新增绑定，新增客户必须带国家、官网、产品匹配点和下一步动作。", sortOrder: 220 },
+    { section: "execution", title: "第 3 天", summary: "完成角色-痛点-话术表；首触达 20 家高匹配客户。", output: "完成角色-痛点-话术表。\n首触达 20 家高匹配客户。", badge: "触达", badgeTone: "amber", phase: "首周执行", category: "客户开发", priority: "high", target: "完成20家首触达并记录结果", description: "按客户角色使用不同邮件标题、开场和参数追问，不要所有客户发同一套内容。", sortOrder: 230 },
+    { section: "execution", title: "第 4 天", summary: "整理竞品替代切入点 5 条；跟进昨日未回复客户 10 家。", output: "整理竞品替代切入点 5 条。\n跟进昨日未回复客户 10 家。", badge: "跟进", badgeTone: "amber", phase: "首周执行", category: "竞品研究", priority: "medium", target: "完成10家二次跟进和5条竞品切入点", description: "二次跟进要补充资料或新问题，不能只是重复问客户是否收到邮件。", sortOrder: 240 },
+    { section: "execution", title: "第 5 天", summary: "制作参数确认表模板；深挖 3 家 A 类客户并写入 CRM。", output: "制作参数确认表模板。\n深挖 3 家 A 类客户并写入 CRM。", badge: "深挖", badgeTone: "red", phase: "首周执行", category: "客户开发", priority: "medium", target: "完成3家A类客户深挖", description: "深挖官网、联系人、产品线、可能项目、竞品品牌和下一步触达理由。", sortOrder: 250 },
+    { section: "execution", title: "第 6-7 天", summary: "完成第一周开发周报；复盘并优化 ICP 与话术。", output: "完成第一周开发周报。\n复盘并优化 ICP 与话术。", badge: "复盘", badgeTone: "green", phase: "首周执行", category: "周报复盘", priority: "normal", target: "输出可汇报的首周复盘", description: "复盘新增客户、有效触达、有效回复、问题、资料缺口和下周优化动作。", sortOrder: 260 }
+];
+function sortPlanTemplates(templates) {
+    return [...templates].sort((left, right) => left.sortOrder - right.sortOrder || String(left.updatedAt || "").localeCompare(String(right.updatedAt || "")));
+}
+async function ensurePlanTemplatesForUser(user) {
+    const store = getStore();
+    const existing = store.planTemplates.filter((template) => canSeePersonalData(user, template.ownerId));
+    if (existing.length && existing.some((template) => template.section === "execution"))
+        return sortPlanTemplates(existing);
+    const now = new Date().toISOString();
+    const drafts = existing.length ? defaultPlanTemplateDrafts.filter((template) => template.section === "execution") : defaultPlanTemplateDrafts;
+    const created = drafts.map((template, index) => ({
+        id: `ptpl_${user.id}_${Date.now()}_${index}`,
+        ownerId: user.id,
+        teamId: user.teamId,
+        updatedAt: now,
+        ...template
+    }));
+    store.planTemplates.push(...created);
+    await store.persist();
+    return sortPlanTemplates([...existing, ...created]);
+}
+app.get("/api/plan-tasks", requireAuth, (req, res) => {
+    const { planTasks } = getStore();
+    const scoped = planTasks.filter((task) => canSeePersonalData(req.user, task.ownerId));
+    res.json({ tasks: sortPlanTasks(scoped) });
+});
+app.post("/api/plan-tasks", requireAuth, asyncRoute(async (req, res) => {
+    const body = planTaskSchema.parse(req.body);
+    const now = new Date().toISOString();
+    const store = getStore();
+    const task = {
+        id: `pt_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        createdAt: now,
+        updatedAt: now,
+        ...body
+    };
+    store.planTasks.unshift(task);
+    await store.persist();
+    res.json({ task });
+}));
+app.patch("/api/plan-tasks/:id", requireAuth, asyncRoute(async (req, res) => {
+    const body = planTaskSchema.partial().parse(req.body);
+    const store = getStore();
+    const task = store.planTasks.find((item) => item.id === req.params.id);
+    if (!task || !canSeePersonalData(req.user, task.ownerId)) {
+        res.status(404).json({ message: "计划任务不存在" });
+        return;
+    }
+    Object.assign(task, body, { updatedAt: new Date().toISOString() });
+    await store.persist();
+    res.json({ task });
+}));
+app.delete("/api/plan-tasks/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.planTasks.findIndex((item) => item.id === req.params.id);
+    const task = index >= 0 ? store.planTasks[index] : null;
+    if (!task || !canSeePersonalData(req.user, task.ownerId)) {
+        res.status(404).json({ message: "计划任务不存在" });
+        return;
+    }
+    store.planTasks.splice(index, 1);
+    await store.persist();
+    res.json({ ok: true, id: req.params.id });
+}));
+const planTemplateSchema = z.object({
+    section: z.enum(["knowledge", "persona", "execution"]).default("knowledge"),
+    title: z.string().min(1),
+    summary: z.string().default(""),
+    output: z.string().default(""),
+    badge: z.string().default(""),
+    badgeTone: z.string().default(""),
+    phase: z.string().min(1).default("计划任务"),
+    category: z.string().min(1).default("客户开发"),
+    priority: z.enum(["high", "medium", "normal"]).default("normal"),
+    target: z.string().default(""),
+    description: z.string().default(""),
+    sortOrder: z.coerce.number().int().default(0)
+});
+app.get("/api/plan-templates", requireAuth, asyncRoute(async (req, res) => {
+    const templates = await ensurePlanTemplatesForUser(req.user);
+    res.json({ templates });
+}));
+app.post("/api/plan-templates", requireAuth, asyncRoute(async (req, res) => {
+    const body = planTemplateSchema.parse(req.body);
+    const store = getStore();
+    const template = {
+        id: `ptpl_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        updatedAt: new Date().toISOString(),
+        ...body
+    };
+    store.planTemplates.push(template);
+    await store.persist();
+    res.json({ template });
+}));
+app.patch("/api/plan-templates/:id", requireAuth, asyncRoute(async (req, res) => {
+    const body = planTemplateSchema.partial().parse(req.body);
+    const store = getStore();
+    const template = store.planTemplates.find((item) => item.id === req.params.id);
+    if (!template || !canSeePersonalData(req.user, template.ownerId)) {
+        res.status(404).json({ message: "模板不存在" });
+        return;
+    }
+    Object.assign(template, body, { updatedAt: new Date().toISOString() });
+    await store.persist();
+    res.json({ template });
+}));
+app.delete("/api/plan-templates/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.planTemplates.findIndex((item) => item.id === req.params.id);
+    const template = index >= 0 ? store.planTemplates[index] : null;
+    if (!template || !canSeePersonalData(req.user, template.ownerId)) {
+        res.status(404).json({ message: "模板不存在" });
+        return;
+    }
+    store.planTemplates.splice(index, 1);
+    await store.persist();
+    res.json({ ok: true, id: req.params.id });
+}));
+app.get("/api/deals", requireAuth, (req, res) => {
+    const { deals } = getStore();
+    const scoped = deals.filter((deal) => canSeeOwner(req.user, deal.ownerId, deal.teamId));
+    res.json({ deals: scoped });
+});
+const dealStages = ["询盘", "已联系", "已报价", "样品", "谈判", "成交", "丢单"];
+const dealBodySchema = z.object({
+    customerId: z.string().optional().default(""),
+    title: z.string().min(1),
+    stage: z.enum(dealStages).default("询盘"),
+    product: z.string().max(200).optional().default(""),
+    quantity: z.coerce.number().int().nonnegative().default(0),
+    unitPrice: z.coerce.number().nonnegative().default(0),
+    amount: z.coerce.number().nonnegative().optional(),
+    nextAction: z.string().min(1).default("首次跟进")
+});
+function calculatedDealAmount(body) {
+    if (typeof body.amount === "number")
+        return Math.round(body.amount * 100) / 100;
+    return Math.round(body.quantity * body.unitPrice * 100) / 100;
+}
+app.post("/api/deals", requireAuth, asyncRoute(async (req, res) => {
+    const body = dealBodySchema.parse(req.body);
+    const store = getStore();
+    const customerId = body.customerId.trim();
+    const customer = customerId ? store.customers.find((item) => item.id === customerId) : undefined;
+    if (customerId && (!customer || !canSeeOwner(req.user, customer.ownerId, customer.teamId))) {
+        res.status(404).json({ message: "客户不存在" });
+        return;
+    }
+    const deal = {
+        id: `d_${Date.now()}`,
+        customerId: customer?.id || "",
+        title: body.title,
+        stage: body.stage,
+        product: body.product.trim(),
+        quantity: body.quantity,
+        unitPrice: body.unitPrice,
+        amount: calculatedDealAmount(body),
+        ownerId: customer?.ownerId || req.user.id,
+        teamId: customer?.teamId || req.user.teamId,
+        nextAction: body.nextAction,
+        archivedAt: undefined
+    };
+    store.deals.unshift(deal);
+    await store.persist();
+    res.json({ deal });
+}));
+app.patch("/api/deals/:id", requireAuth, asyncRoute(async (req, res) => {
+    const body = dealBodySchema.parse(req.body);
+    const store = getStore();
+    const deal = store.deals.find((item) => item.id === req.params.id);
+    if (!deal || !canSeeOwner(req.user, deal.ownerId, deal.teamId)) {
+        res.status(404).json({ message: "商机不存在" });
+        return;
+    }
+    if (deal.archivedAt) {
+        res.status(400).json({ message: "已归档商机不能编辑" });
+        return;
+    }
+    const customerId = body.customerId.trim();
+    const customer = customerId ? store.customers.find((item) => item.id === customerId) : undefined;
+    if (customerId && (!customer || !canSeeOwner(req.user, customer.ownerId, customer.teamId))) {
+        res.status(404).json({ message: "客户不存在" });
+        return;
+    }
+    if (deal.stage === "成交" && body.stage === "丢单") {
+        res.status(400).json({ message: "成交商机请归档，不能编辑为丢单" });
+        return;
+    }
+    deal.customerId = customer?.id || "";
+    deal.title = body.title;
+    deal.stage = body.stage;
+    deal.product = body.product.trim();
+    deal.quantity = body.quantity;
+    deal.unitPrice = body.unitPrice;
+    deal.amount = calculatedDealAmount(body);
+    deal.ownerId = customer?.ownerId || deal.ownerId;
+    deal.teamId = customer?.teamId || deal.teamId;
+    deal.nextAction = body.nextAction;
+    await store.persist();
+    res.json({ deal });
+}));
+app.patch("/api/deals/:id/stage", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ stage: z.enum(dealStages) });
+    const store = getStore();
+    const body = schema.parse(req.body);
+    const deal = store.deals.find((item) => item.id === req.params.id);
+    if (!deal || !canSeeOwner(req.user, deal.ownerId, deal.teamId)) {
+        res.status(404).json({ message: "商机不存在" });
+        return;
+    }
+    if (deal.archivedAt) {
+        res.status(400).json({ message: "已归档商机不能推进阶段" });
+        return;
+    }
+    if (deal.stage === "成交" && body.stage === "丢单") {
+        res.status(400).json({ message: "成交商机请归档，不再推进为丢单" });
+        return;
+    }
+    deal.stage = body.stage;
+    await store.persist();
+    res.json({ deal });
+}));
+app.post("/api/deals/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const deal = store.deals.find((item) => item.id === req.params.id);
+    if (!deal || !canSeeOwner(req.user, deal.ownerId, deal.teamId)) {
+        res.status(404).json({ message: "商机不存在" });
+        return;
+    }
+    if (deal.stage !== "成交") {
+        res.status(400).json({ message: "只有成交商机可以归档" });
+        return;
+    }
+    deal.archivedAt = new Date().toISOString();
+    deal.nextAction = "已成交归档，可在商机归档区查询";
+    await store.persist();
+    res.json({ deal });
+}));
+app.post("/api/deals/:id/lost", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const deal = store.deals.find((item) => item.id === req.params.id);
+    if (!deal || !canSeeOwner(req.user, deal.ownerId, deal.teamId)) {
+        res.status(404).json({ message: "商机不存在" });
+        return;
+    }
+    if (deal.archivedAt) {
+        res.status(400).json({ message: "已归档商机不能重复丢单" });
+        return;
+    }
+    if (deal.stage === "成交") {
+        res.status(400).json({ message: "成交商机请归档，不能标记丢单" });
+        return;
+    }
+    deal.stage = "丢单";
+    deal.archivedAt = new Date().toISOString();
+    deal.nextAction = "已标记丢单，可在归档/丢单商机中复盘";
+    await store.persist();
+    res.json({ deal });
+}));
+app.post("/api/todos/:id/complete", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const todo = store.todos.find((item) => item.id === req.params.id);
+    if (!todo || !canSeePersonalData(req.user, todo.ownerId)) {
+        res.status(404).json({ message: "待办不存在" });
+        return;
+    }
+    todo.done = true;
+    todo.status = "pending";
+    await store.persist();
+    res.json({ todo });
+}));
+app.post("/api/todos/archive-due", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const scoped = store.todos.filter((todo) => canSeePersonalData(req.user, todo.ownerId));
+    const archived = archiveExpiredTodos(scoped, new Date());
+    if (archived.length)
+        await store.persist();
+    res.json({ archived });
+}));
+app.post("/api/todos/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const todo = store.todos.find((item) => item.id === req.params.id);
+    if (!todo || !canSeePersonalData(req.user, todo.ownerId)) {
+        res.status(404).json({ message: "待办不存在" });
+        return;
+    }
+    todo.historyAt = "";
+    todo.dueAt = currentMinuteText();
+    todo.sortOrder = nextTodoSortOrder(store.todos, todo.ownerId);
+    todo.pinState = "";
+    if (todo.status === "in_progress" && todo.done)
+        todo.status = "pending";
+    await store.persist();
+    res.json({ todo });
+}));
+app.patch("/api/todos/:id", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1).optional(),
+        type: z.enum(["customer", "knowledge", "exam", "ocr", "other"]).optional(),
+        priority: z.enum(["high", "medium", "normal"]).optional(),
+        dueAt: z.string().optional(),
+        related: z.string().optional(),
+        done: z.boolean().optional(),
+        status: z.enum(["pending", "in_progress"]).optional(),
+        pinState: z.enum(["top", "bottom", ""]).optional(),
+        sortOrder: z.number().optional(),
+        historyAt: z.string().optional()
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const todo = store.todos.find((item) => item.id === req.params.id);
+    if (!todo || !canSeePersonalData(req.user, todo.ownerId)) {
+        res.status(404).json({ message: "待办不存在" });
+        return;
+    }
+    if (typeof body.done === "boolean") {
+        todo.done = body.done;
+        if (body.done)
+            todo.status = "pending";
+    }
+    if (body.status) {
+        todo.status = todo.done ? "pending" : body.status;
+    }
+    if (body.title)
+        todo.title = body.title;
+    if (body.type)
+        todo.type = body.type;
+    if (body.priority)
+        todo.priority = body.priority;
+    if (body.dueAt !== undefined)
+        todo.dueAt = body.dueAt;
+    if (body.related !== undefined)
+        todo.related = body.related;
+    if (body.pinState !== undefined) {
+        todo.pinState = body.pinState;
+    }
+    if (typeof body.sortOrder === "number") {
+        todo.sortOrder = body.sortOrder;
+    }
+    if (body.historyAt !== undefined) {
+        todo.historyAt = body.historyAt;
+    }
+    if (body.historyAt === undefined && shouldArchiveTodo(todo)) {
+        todo.historyAt = new Date().toISOString();
+        todo.status = "pending";
+        todo.pinState = "";
+    }
+    await store.persist();
+    res.json({ todo });
+}));
+app.post("/api/todos/reorder", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        ids: z.array(z.string()).min(1),
+        mode: z.enum(["manual", "top", "bottom"]).default("manual"),
+        targetId: z.string().optional()
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const visibleTodos = store.todos.filter((todo) => canSeePersonalData(req.user, todo.ownerId));
+    const selected = body.ids.map((id) => visibleTodos.find((todo) => todo.id === id));
+    if (selected.some((todo) => !todo)) {
+        res.status(404).json({ message: "待办不存在" });
+        return;
+    }
+    selected.forEach((todo, index) => {
+        if (!todo)
+            return;
+        todo.sortOrder = index + 1;
+        if (body.mode === "manual") {
+            todo.pinState = "";
+        }
+        else if (todo.id === body.targetId) {
+            todo.pinState = body.mode;
+        }
+    });
+    await store.persist();
+    res.json({ todos: selected.filter(Boolean) });
+}));
+app.delete("/api/todos/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.todos.findIndex((item) => item.id === req.params.id);
+    const todo = index >= 0 ? store.todos[index] : null;
+    if (!todo || !canSeePersonalData(req.user, todo.ownerId)) {
+        res.status(404).json({ message: "待办不存在" });
+        return;
+    }
+    store.todos.splice(index, 1);
+    await store.persist();
+    res.json({ ok: true, id: req.params.id });
+}));
+app.get("/api/problems", requireAuth, (req, res) => {
+    const { problems } = getStore();
+    const scoped = problems.filter((problem) => canSeeOwner(req.user, problem.ownerId, problem.teamId));
+    res.json({ problems: scoped });
+});
+app.post("/api/problems", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1),
+        category: z.string().min(1).default("客户问题"),
+        severity: z.enum(["high", "medium", "low"]).default("medium"),
+        status: z.enum(["open", "solving", "resolved"]).default("open"),
+        relatedCustomer: z.string().default(""),
+        rootCause: z.string().default(""),
+        solution: z.string().default(""),
+        nextAction: z.string().default(""),
+        dueAt: z.string().default("")
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const problem = {
+        id: `p_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        createdAt: new Date().toISOString(),
+        ...body
+    };
+    store.problems.unshift(problem);
+    await store.persist();
+    res.json({ problem });
+}));
+app.patch("/api/problems/:id/status", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ status: z.enum(["open", "solving", "resolved"]) });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const problem = store.problems.find((item) => item.id === req.params.id);
+    if (!problem || !canSeeOwner(req.user, problem.ownerId, problem.teamId)) {
+        res.status(404).json({ message: "问题不存在" });
+        return;
+    }
+    problem.status = body.status;
+    await store.persist();
+    res.json({ problem });
+}));
+app.get("/api/memos", requireAuth, (req, res) => {
+    const { memos } = getStore();
+    const scoped = memos.filter((memo) => canSeePersonalData(req.user, memo.ownerId));
+    res.json({ memos: scoped });
+});
+app.post("/api/memos", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1),
+        content: z.string().default(""),
+        category: z.string().min(1).default("客户备忘"),
+        tags: z.string().default(""),
+        pinned: z.boolean().default(false)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const memo = {
+        id: `m_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        archived: false,
+        updatedAt: new Date().toISOString(),
+        ...body
+    };
+    store.memos.unshift(memo);
+    await store.persist();
+    res.json({ memo });
+}));
+app.patch("/api/memos/:id", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1).optional(),
+        content: z.string().optional(),
+        category: z.string().min(1).optional(),
+        tags: z.string().optional(),
+        pinned: z.boolean().optional(),
+        archived: z.boolean().optional()
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const memo = store.memos.find((item) => item.id === req.params.id);
+    if (!memo || !canSeePersonalData(req.user, memo.ownerId)) {
+        res.status(404).json({ message: "备忘录不存在" });
+        return;
+    }
+    if (typeof body.title === "string")
+        memo.title = body.title;
+    if (typeof body.content === "string")
+        memo.content = body.content;
+    if (typeof body.category === "string")
+        memo.category = body.category;
+    if (typeof body.tags === "string")
+        memo.tags = body.tags;
+    if (typeof body.pinned === "boolean")
+        memo.pinned = body.pinned;
+    if (typeof body.archived === "boolean")
+        memo.archived = body.archived;
+    memo.updatedAt = new Date().toISOString();
+    await store.persist();
+    res.json({ memo });
+}));
+app.delete("/api/memos/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.memos.findIndex((item) => item.id === req.params.id);
+    const memo = index >= 0 ? store.memos[index] : null;
+    if (!memo || !canSeePersonalData(req.user, memo.ownerId)) {
+        res.status(404).json({ message: "备忘录不存在" });
+        return;
+    }
+    store.memos.splice(index, 1);
+    await store.persist();
+    res.json({ ok: true, id: req.params.id });
+}));
+app.get("/api/competitors", requireAuth, (req, res) => {
+    const { competitors } = getStore();
+    const scoped = competitors.filter((item) => canSeeOwner(req.user, item.ownerId, item.teamId));
+    res.json({ competitors: scoped });
+});
+app.post("/api/competitors", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        company: z.string().min(1),
+        country: z.string().default(""),
+        segment: z.string().default(""),
+        threatLevel: z.enum(["high", "medium", "low"]).default("medium"),
+        website: z.string().default(""),
+        strengths: z.string().default(""),
+        weaknesses: z.string().default(""),
+        competingProducts: z.string().default(""),
+        ourStrategy: z.string().default("")
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const competitor = {
+        id: `cp_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        updatedAt: new Date().toISOString(),
+        ...body
+    };
+    store.competitors.unshift(competitor);
+    await store.persist();
+    res.json({ competitor });
+}));
+app.patch("/api/competitors/:id/threat", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ threatLevel: z.enum(["high", "medium", "low"]) });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const competitor = store.competitors.find((item) => item.id === req.params.id);
+    if (!competitor || !canSeeOwner(req.user, competitor.ownerId, competitor.teamId)) {
+        res.status(404).json({ message: "竞争公司不存在" });
+        return;
+    }
+    competitor.threatLevel = body.threatLevel;
+    competitor.updatedAt = new Date().toISOString();
+    await store.persist();
+    res.json({ competitor });
+}));
+app.get("/api/case-studies", requireAuth, (req, res) => {
+    const { caseStudies } = getStore();
+    const scoped = caseStudies.filter((item) => canSeeOwner(req.user, item.ownerId, item.teamId));
+    res.json({ caseStudies: scoped });
+});
+app.post("/api/case-studies", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1),
+        customer: z.string().default(""),
+        country: z.string().default(""),
+        product: z.string().default(""),
+        industry: z.string().default(""),
+        result: z.string().default(""),
+        story: z.string().default(""),
+        reusablePoints: z.string().default(""),
+        status: z.enum(["draft", "published"]).default("draft")
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const caseStudy = {
+        id: `cs_${Date.now()}`,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        updatedAt: new Date().toISOString(),
+        ...body
+    };
+    store.caseStudies.unshift(caseStudy);
+    await store.persist();
+    res.json({ caseStudy });
+}));
+app.patch("/api/case-studies/:id/publish", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const caseStudy = store.caseStudies.find((item) => item.id === req.params.id);
+    if (!caseStudy || !canSeeOwner(req.user, caseStudy.ownerId, caseStudy.teamId)) {
+        res.status(404).json({ message: "成功案例不存在" });
+        return;
+    }
+    caseStudy.status = "published";
+    caseStudy.updatedAt = new Date().toISOString();
+    await store.persist();
+    res.json({ caseStudy });
+}));
+app.get("/api/knowledge/assets", requireAuth, (_req, res) => {
+    const { knowledgeAssets } = getStore();
+    res.json({ assets: knowledgeAssets });
+});
+app.post("/api/knowledge/assets", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1),
+        category: z.string().min(1).default("产品知识"),
+        version: z.string().min(1).default("v1")
+    });
+    const store = getStore();
+    const body = schema.parse(req.body);
+    const asset = {
+        id: `k_${Date.now()}`,
+        status: req.user?.role === "sales" ? "review" : "published",
+        ownerId: req.user.id,
+        ...body
+    };
+    store.knowledgeAssets.unshift(asset);
+    await store.persist();
+    res.json({ asset });
+}));
+app.patch("/api/knowledge/assets/:id/publish", requireAuth, asyncRoute(async (req, res) => {
+    if (req.user?.role === "sales") {
+        res.status(403).json({ message: "无发布资料权限" });
+        return;
+    }
+    const store = getStore();
+    const asset = store.knowledgeAssets.find((item) => item.id === req.params.id);
+    if (!asset) {
+        res.status(404).json({ message: "资料不存在" });
+        return;
+    }
+    asset.status = "published";
+    await store.persist();
+    res.json({ asset });
+}));
+app.get("/api/exam-questions", requireAuth, (req, res) => {
+    const category = String(req.query.category || "").trim();
+    const tag = String(req.query.tag || "").trim();
+    const type = String(req.query.type || "").trim();
+    let questions = bankQuestions();
+    if (category)
+        questions = questions.filter((question) => question.category === category);
+    if (tag)
+        questions = questions.filter((question) => (question.tags || []).includes(tag));
+    if (type)
+        questions = questions.filter((question) => (question.questionType || (correctIndexesFor(question).length > 1 ? "multiple" : "single")) === type);
+    res.json({ questions, report: examReport() });
+});
+app.get("/api/exam-questions/export", requireAuth, (_req, res) => {
+    res.json({ questions: bankQuestions() });
+});
+app.post("/api/exam-questions", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const body = examQuestionSchema.parse(req.body);
+    let question;
+    try {
+        question = buildExamQuestion(body);
+    }
+    catch (error) {
+        res.status(400).json({ message: "正确答案序号超出选项数量" });
+        return;
+    }
+    store.examQuestions.unshift(question);
+    await store.persist();
+    res.json({ question, report: examReport() });
+}));
+app.post("/api/exam-questions/import", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const schema = z.object({ questions: z.array(examQuestionSchema).min(1).max(500) });
+    const body = schema.parse(req.body);
+    const imported = [];
+    for (const [index, item] of body.questions.entries()) {
+        try {
+            imported.push(buildExamQuestion(item, index));
+        }
+        catch (error) {
+            res.status(400).json({ message: `第 ${index + 1} 行正确答案序号超出选项数量` });
+            return;
+        }
+    }
+    store.examQuestions.unshift(...imported);
+    await store.persist();
+    res.json({ importedCount: imported.length, questions: imported, report: examReport() });
+}));
+app.patch("/api/exam-questions/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.examQuestions.findIndex((question) => question.id === req.params.id);
+    if (index < 0) {
+        res.status(404).json({ message: "题目不存在" });
+        return;
+    }
+    const body = examQuestionSchema.parse(req.body);
+    let question;
+    try {
+        question = { ...buildExamQuestion(body), id: store.examQuestions[index].id, examId: store.examQuestions[index].examId || "bank" };
+    }
+    catch (error) {
+        res.status(400).json({ message: "正确答案序号超出选项数量" });
+        return;
+    }
+    store.examQuestions[index] = question;
+    store.exams.forEach(refreshExamStats);
+    await store.persist();
+    res.json({ question, report: examReport() });
+}));
+app.delete("/api/exam-questions/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.examQuestions.findIndex((question) => question.id === req.params.id);
+    if (index < 0) {
+        res.status(404).json({ message: "题目不存在" });
+        return;
+    }
+    const [question] = store.examQuestions.splice(index, 1);
+    store.examQuestionLinks = store.examQuestionLinks.filter((link) => link.questionId !== question.id);
+    store.exams.forEach(refreshExamStats);
+    await store.persist();
+    res.json({ question, report: examReport() });
+}));
+app.get("/api/exams", requireAuth, (_req, res) => {
+    const { exams } = getStore();
+    res.json({ exams: exams.map(examWithRuntimeStats), report: examReport() });
+});
+app.get("/api/exams/:id/detail", requireAuth, (req, res) => {
+    const store = getStore();
+    const exam = store.exams.find((item) => item.id === req.params.id);
+    if (!exam) {
+        res.status(404).json({ message: "考试不存在" });
+        return;
+    }
+    const questions = examQuestionsFor(exam.id);
+    const attempts = store.examAttempts.filter((item) => item.examId === exam.id);
+    const latestAttempt = attempts.find((item) => item.userId === req.user.id) || null;
+    res.json({ exam: examWithRuntimeStats(exam), questions, latestAttempt, report: examReport() });
+});
+app.post("/api/exams", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const schema = z.object({
+        title: z.string().min(1),
+        category: z.string().min(1),
+        questionIds: z.array(z.string()).min(1, "请至少选择 1 道题目"),
+        durationMinutes: z.number().int().positive().default(20),
+        passScore: z.number().int().min(1).max(100).default(80),
+        targetRole: z.enum(["all", "sales", "manager"]).default("sales")
+    });
+    const body = schema.parse(req.body);
+    const uniqueQuestionIds = [...new Set(body.questionIds)];
+    const selectedQuestions = uniqueQuestionIds.map((id) => store.examQuestions.find((question) => question.id === id));
+    if (selectedQuestions.some((question) => !question)) {
+        res.status(400).json({ message: "包含不存在的题目，请刷新题库后重试" });
+        return;
+    }
+    const now = new Date().toISOString();
+    const exam = {
+        id: `e_${Date.now()}`,
+        title: body.title,
+        category: body.category,
+        status: "scheduled",
+        passRate: 0,
+        questionCount: uniqueQuestionIds.length,
+        durationMinutes: body.durationMinutes,
+        passScore: body.passScore,
+        targetRole: body.targetRole,
+        updatedAt: now
+    };
+    store.exams.unshift(exam);
+    store.examQuestionLinks.unshift(...uniqueQuestionIds.map((questionId, index) => ({ examId: exam.id, questionId, sortOrder: index + 1 })));
+    refreshExamStats(exam);
+    await store.persist();
+    res.json({ exam: examWithRuntimeStats(exam), questions: examQuestionsFor(exam.id), report: examReport() });
+}));
+app.post("/api/exams/:id/questions", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const exam = store.exams.find((item) => item.id === req.params.id);
+    if (!exam) {
+        res.status(404).json({ message: "考试不存在" });
+        return;
+    }
+    const body = examQuestionSchema.parse({ ...req.body, category: req.body?.category || exam.category });
+    let question;
+    try {
+        question = buildExamQuestion(body);
+    }
+    catch (error) {
+        res.status(400).json({ message: "正确答案序号超出选项数量" });
+        return;
+    }
+    store.examQuestions.unshift(question);
+    store.examQuestionLinks.push({ examId: exam.id, questionId: question.id, sortOrder: examQuestionsFor(exam.id).length + 1 });
+    refreshExamStats(exam);
+    await store.persist();
+    res.json({ question, exam: examWithRuntimeStats(exam), report: examReport() });
+}));
+app.post("/api/exams/:id/questions/import", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const exam = store.exams.find((item) => item.id === req.params.id);
+    if (!exam) {
+        res.status(404).json({ message: "考试不存在" });
+        return;
+    }
+    const schema = z.object({ questions: z.array(examQuestionSchema).min(1).max(300) });
+    const body = schema.parse(req.body);
+    const imported = [];
+    for (const [index, item] of body.questions.entries()) {
+        try {
+            imported.push(buildExamQuestion({ ...item, category: item.category || exam.category }, index));
+        }
+        catch (error) {
+            res.status(400).json({ message: `第 ${index + 1} 行正确答案序号超出选项数量` });
+            return;
+        }
+    }
+    store.examQuestions.unshift(...imported);
+    store.examQuestionLinks.push(...imported.map((question, index) => ({ examId: exam.id, questionId: question.id, sortOrder: examQuestionsFor(exam.id).length + index + 1 })));
+    refreshExamStats(exam);
+    await store.persist();
+    res.json({ importedCount: imported.length, questions: imported, exam: examWithRuntimeStats(exam), report: examReport() });
+}));
+app.patch("/api/exams/:id/publish", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const exam = store.exams.find((item) => item.id === req.params.id);
+    if (!exam) {
+        res.status(404).json({ message: "考试不存在" });
+        return;
+    }
+    if (!examQuestionsFor(exam.id).length) {
+        res.status(400).json({ message: "请先勾选至少 1 道题目组卷" });
+        return;
+    }
+    exam.status = "published";
+    refreshExamStats(exam);
+    await store.persist();
+    res.json({ exam: examWithRuntimeStats(exam), report: examReport() });
+}));
+app.post("/api/exams/bulk-delete", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const schema = z.object({ ids: z.array(z.string()).min(1).max(100) });
+    const body = schema.parse(req.body);
+    const ids = [...new Set(body.ids)];
+    const deleted = store.exams.filter((exam) => ids.includes(exam.id));
+    if (!deleted.length) {
+        res.status(404).json({ message: "未找到可删除的考试" });
+        return;
+    }
+    const deletedIds = new Set(deleted.map((exam) => exam.id));
+    store.exams = store.exams.filter((exam) => !deletedIds.has(exam.id));
+    store.examQuestionLinks = store.examQuestionLinks.filter((link) => !deletedIds.has(link.examId));
+    store.examAttempts = store.examAttempts.filter((attempt) => !deletedIds.has(attempt.examId));
+    store.exams.forEach(refreshExamStats);
+    await store.persist();
+    res.json({ deleted, exams: store.exams.map(examWithRuntimeStats), report: examReport() });
+}));
+app.delete("/api/exams/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.exams.findIndex((item) => item.id === req.params.id);
+    if (index < 0) {
+        res.status(404).json({ message: "考试不存在" });
+        return;
+    }
+    const [exam] = store.exams.splice(index, 1);
+    store.examQuestionLinks = store.examQuestionLinks.filter((link) => link.examId !== exam.id);
+    store.examAttempts = store.examAttempts.filter((attempt) => attempt.examId !== exam.id);
+    store.exams.forEach(refreshExamStats);
+    await store.persist();
+    res.json({ exam, exams: store.exams.map(examWithRuntimeStats), report: examReport() });
+}));
+app.post("/api/exams/:id/submit", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const exam = store.exams.find((item) => item.id === req.params.id);
+    if (!exam) {
+        res.status(404).json({ message: "考试不存在" });
+        return;
+    }
+    const schema = z.object({
+        answers: z.record(z.string(), z.union([z.number().int().nonnegative(), z.array(z.number().int().nonnegative())])).optional(),
+        score: z.number().min(0).max(100).optional()
+    });
+    const body = schema.parse(req.body);
+    const questions = examQuestionsFor(exam.id);
+    if (!questions.length) {
+        res.status(400).json({ message: "当前考试暂无题目" });
+        return;
+    }
+    const answers = body.answers || {};
+    const correctCount = questions.filter((question) => {
+        const rawAnswer = answers[question.id];
+        const selectedIndexes = Array.isArray(rawAnswer) ? rawAnswer : rawAnswer == null ? [] : [rawAnswer];
+        return indexesEqual(selectedIndexes, correctIndexesFor(question));
+    }).length;
+    const score = body.score == null ? Math.round((correctCount / questions.length) * 100) : Math.round(body.score);
+    const attempt = {
+        id: `attempt_${exam.id}_${req.user.id}_${Date.now()}`,
+        examId: exam.id,
+        userId: req.user.id,
+        score,
+        passed: score >= (exam.passScore || 80),
+        answers,
+        correctCount: body.score == null ? correctCount : Math.round((score / 100) * questions.length),
+        totalQuestions: questions.length,
+        submittedAt: new Date().toISOString()
+    };
+    store.examAttempts.unshift(attempt);
+    refreshExamStats(exam);
+    await store.persist();
+    res.json({ attempt, exam: examWithRuntimeStats(exam), questions, report: examReport() });
+}));
+app.get("/api/reminders", requireAuth, (req, res) => {
+    const { reminders } = getStore();
+    const scoped = reminders.filter((reminder) => canSeeOwner(req.user, reminder.ownerId, reminder.teamId));
+    res.json({ reminders: scoped });
+});
+app.post("/api/reminders", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        title: z.string().min(1).optional(),
+        rule: z.string().min(1).optional(),
+        dueAt: z.string().min(1).default("今天 17:00"),
+        channel: z.enum(["站内", "邮件", "企业微信"]).default("企业微信"),
+        ruleType: z.enum(["quote_no_reply", "sample_feedback", "inactive_customer", "high_value_revisit", "custom_due"]).default("quote_no_reply"),
+        targetStage: z.string().default("已报价"),
+        days: z.number().int().min(0).max(90).default(3),
+        priority: z.enum(["high", "medium", "normal"]).default("medium"),
+        enabled: z.boolean().default(true)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const generatedCount = matchReminderRule(req.user, body).length;
+    const reminder = {
+        id: `r_${Date.now()}`,
+        title: body.title || reminderRuleTitle(body.ruleType),
+        rule: body.rule || reminderRuleText(body),
+        dueAt: body.dueAt,
+        channel: body.channel,
+        ruleType: body.ruleType,
+        targetStage: body.targetStage,
+        days: body.days,
+        priority: body.priority,
+        enabled: body.enabled,
+        generatedCount,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        status: "pending"
+    };
+    store.reminders.unshift(reminder);
+    await store.persist();
+    res.json({ reminder });
+}));
+app.post("/api/reminders/:id/run", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const reminder = store.reminders.find((item) => item.id === req.params.id);
+    if (!reminder || !canSeeOwner(req.user, reminder.ownerId, reminder.teamId)) {
+        res.status(404).json({ message: "提醒规则不存在" });
+        return;
+    }
+    if (reminder.enabled === false) {
+        res.status(400).json({ message: "提醒规则已停用" });
+        return;
+    }
+    const matched = matchReminderRule(req.user, reminder);
+    const created = [];
+    for (const customer of matched) {
+        const exists = store.todos.some((todo) => todo.ownerId === req.user.id && !todo.done && todo.related === customer.company && todo.title.includes(reminder.title));
+        if (exists)
+            continue;
+        created.push({
+            id: `t_reminder_${reminder.id}_${customer.id}_${Date.now()}`,
+            title: `${reminder.title}：${customer.company}`,
+            type: "customer",
+            priority: reminder.priority || "medium",
+            status: "pending",
+            pinState: "",
+            sortOrder: nextTodoSortOrder(store.todos, req.user.id),
+            dueAt: reminder.dueAt || currentMinuteText(),
+            ownerId: req.user.id,
+            teamId: req.user.teamId,
+            related: customer.company,
+            done: false,
+            impactAmount: customer.amount,
+            createdAt: new Date().toISOString()
+        });
+    }
+    store.todos.unshift(...created);
+    reminder.generatedCount = matched.length;
+    if (created.length)
+        reminder.status = "sent";
+    await store.persist();
+    res.json({ reminder, createdCount: created.length, matchedCount: matched.length, todos: created });
+}));
+app.post("/api/reminders/:id/done", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const reminder = store.reminders.find((item) => item.id === req.params.id);
+    if (!reminder || !canSeeOwner(req.user, reminder.ownerId, reminder.teamId)) {
+        res.status(404).json({ message: "提醒不存在" });
+        return;
+    }
+    reminder.status = "done";
+    await store.persist();
+    res.json({ reminder });
+}));
+app.get("/api/import-export/jobs", requireAuth, (req, res) => {
+    const { importExportJobs } = getStore();
+    const scoped = req.user?.role === "sales"
+        ? importExportJobs.filter((job) => job.operatorId === req.user?.id)
+        : importExportJobs;
+    res.json({ jobs: scoped });
+});
+app.post("/api/import-export/jobs", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ name: z.string().min(1), type: z.enum(["import", "export"]), rows: z.number().int().nonnegative() });
+    const store = getStore();
+    const body = schema.parse(req.body);
+    const job = { id: `io_${Date.now()}`, status: body.type === "export" ? "review" : "done", operatorId: req.user.id, createdAt: "刚刚", ...body };
+    store.importExportJobs.unshift(job);
+    await store.persist();
+    res.json({ job });
+}));
+app.post("/api/import-export/customers/import", requireAuth, asyncRoute(async (req, res) => {
+    const rowSchema = z.object({
+        company: z.string().trim().min(1),
+        country: z.string().trim().optional().default("未知"),
+        contact: z.string().trim().optional().default("待维护"),
+        stage: z.string().trim().optional().default("询盘"),
+        amount: z.number().nonnegative().optional().default(0),
+        health: z.number().int().min(0).max(100).optional().default(70),
+        nextReminder: z.string().trim().optional().default("待跟进"),
+        wecomBound: z.boolean().optional().default(false),
+        billingName: z.string().trim().optional().default(""),
+        billingAddress: z.string().trim().optional().default(""),
+        documentContact: z.string().trim().optional().default(""),
+        defaultPortDischarge: z.string().trim().optional().default(""),
+        defaultIncoterm: z.string().trim().optional().default("FOB Tianjin"),
+        defaultPaymentTerm: z.string().trim().optional().default("30% T/T deposit, 70% before shipment")
+    });
+    const schema = z.object({ rows: z.array(rowSchema).min(1).max(2000), fileName: z.string().optional().default("客户导入") });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const scopedCustomers = store.customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    let created = 0;
+    let updated = 0;
+    const imported = [];
+    for (const row of body.rows) {
+        const existing = scopedCustomers.find((customer) => customer.company.trim().toLowerCase() === row.company.trim().toLowerCase());
+        if (existing) {
+            Object.assign(existing, {
+                country: row.country || existing.country,
+                contact: row.contact || existing.contact,
+                stage: row.stage || existing.stage,
+                amount: row.amount,
+                health: row.health,
+                nextReminder: row.nextReminder || existing.nextReminder,
+                wecomBound: row.wecomBound,
+                billingName: row.billingName || existing.billingName || row.company,
+                billingAddress: row.billingAddress || existing.billingAddress || "",
+                documentContact: row.documentContact || existing.documentContact || row.contact,
+                defaultPortDischarge: row.defaultPortDischarge || existing.defaultPortDischarge || "",
+                defaultIncoterm: row.defaultIncoterm || existing.defaultIncoterm || "FOB Tianjin",
+                defaultPaymentTerm: row.defaultPaymentTerm || existing.defaultPaymentTerm || "30% T/T deposit, 70% before shipment"
+            });
+            imported.push(existing);
+            updated += 1;
+        }
+        else {
+            const customer = {
+                id: `c_import_${Date.now()}_${created}_${Math.random().toString(16).slice(2, 8)}`,
+                company: row.company,
+                country: row.country || "未知",
+                contact: row.contact || "待维护",
+                ownerId: req.user.id,
+                teamId: req.user.teamId,
+                stage: row.stage || "询盘",
+                amount: row.amount,
+                health: row.health,
+                nextReminder: row.nextReminder || "待跟进",
+                wecomBound: row.wecomBound,
+                billingName: row.billingName || row.company,
+                billingAddress: row.billingAddress || "",
+                documentContact: row.documentContact || row.contact || "待维护",
+                defaultPortDischarge: row.defaultPortDischarge || "",
+                defaultIncoterm: row.defaultIncoterm || "FOB Tianjin",
+                defaultPaymentTerm: row.defaultPaymentTerm || "30% T/T deposit, 70% before shipment"
+            };
+            store.customers.unshift(customer);
+            scopedCustomers.push(customer);
+            imported.push(customer);
+            created += 1;
+        }
+    }
+    const job = {
+        id: `io_customer_import_${Date.now()}`,
+        name: `客户导入：${body.fileName}`,
+        type: "import",
+        rows: body.rows.length,
+        status: "done",
+        operatorId: req.user.id,
+        createdAt: currentMinuteText()
+    };
+    store.importExportJobs.unshift(job);
+    await store.persist();
+    const customers = store.customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    res.json({ result: { created, updated, skipped: 0, total: body.rows.length }, job, customers, imported });
+}));
+app.post("/api/import-export/customers/export", requireAuth, asyncRoute(async (_req, res) => {
+    const store = getStore();
+    const customers = store.customers.filter((customer) => canSeeOwner(_req.user, customer.ownerId, customer.teamId));
+    const job = {
+        id: `io_customer_export_${Date.now()}`,
+        name: "客户清单导出",
+        type: "export",
+        rows: customers.length,
+        status: "done",
+        operatorId: _req.user.id,
+        createdAt: currentMinuteText()
+    };
+    store.importExportJobs.unshift(job);
+    await store.persist();
+    res.json({ customers, job });
+}));
+const documentItemSchema = z.object({
+    id: z.string().optional().default(""),
+    product: z.string().min(1),
+    model: z.string().optional().default(""),
+    hsCode: z.string().optional().default(""),
+    quantity: z.number().nonnegative().default(1),
+    unit: z.string().optional().default("PCS"),
+    unitPrice: z.number().nonnegative().default(0),
+    originCountry: z.string().optional().default("China"),
+    weightKg: z.number().nonnegative().default(0),
+    packageCount: z.number().int().nonnegative().default(0)
+});
+const documentBodySchema = z.object({
+    type: z.enum(["PI", "CI"]).default("PI"),
+    title: z.string().min(1),
+    number: z.string().min(1),
+    issueDate: z.string().min(1),
+    buyer: z.string().min(1),
+    buyerAddress: z.string().optional().default(""),
+    buyerContact: z.string().optional().default(""),
+    seller: z.string().min(1),
+    sellerAddress: z.string().optional().default(""),
+    currency: z.string().min(1).default("USD"),
+    incoterm: z.string().min(1).default("FOB"),
+    paymentTerm: z.string().optional().default("30% T/T deposit, 70% before shipment"),
+    shippingMethod: z.string().optional().default("Sea freight"),
+    portLoading: z.string().optional().default("Tianjin, China"),
+    portDischarge: z.string().optional().default(""),
+    validityDate: z.string().optional().default(""),
+    bankInfo: z.string().optional().default(""),
+    notes: z.string().optional().default(""),
+    templateStyle: z.enum(["executive", "classic", "compact"]).default("executive"),
+    status: z.enum(["draft", "ready", "exported"]).optional().default("draft"),
+    items: z.array(documentItemSchema).min(1).max(80)
+});
+function normalizeDocument(body, user, existing) {
+    return {
+        id: existing?.id || `td_${Date.now()}`,
+        ownerId: existing?.ownerId || user.id,
+        teamId: existing?.teamId || user.teamId,
+        updatedAt: new Date().toISOString(),
+        ...body,
+        items: body.items.map((item, index) => ({ ...item, id: item.id || `tdi_${Date.now()}_${index}` }))
+    };
+}
+app.get("/api/trade-documents", requireAuth, (req, res) => {
+    const { tradeDocuments } = getStore();
+    const documents = tradeDocuments.filter((document) => canSeeOwner(req.user, document.ownerId, document.teamId));
+    res.json({ documents });
+});
+app.post("/api/trade-documents", requireAuth, asyncRoute(async (req, res) => {
+    const body = documentBodySchema.parse(req.body);
+    const store = getStore();
+    const document = normalizeDocument(body, req.user);
+    store.tradeDocuments.unshift(document);
+    await store.persist();
+    res.json({ document });
+}));
+app.patch("/api/trade-documents/:id", requireAuth, asyncRoute(async (req, res) => {
+    const body = documentBodySchema.parse(req.body);
+    const store = getStore();
+    const index = store.tradeDocuments.findIndex((document) => document.id === req.params.id);
+    const existing = index >= 0 ? store.tradeDocuments[index] : undefined;
+    if (!existing || !canSeeOwner(req.user, existing.ownerId, existing.teamId)) {
+        res.status(404).json({ message: "单据不存在" });
+        return;
+    }
+    const document = normalizeDocument(body, req.user, existing);
+    store.tradeDocuments[index] = document;
+    await store.persist();
+    res.json({ document });
+}));
+app.post("/api/trade-documents/:id/export", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const document = store.tradeDocuments.find((item) => item.id === req.params.id);
+    if (!document || !canSeeOwner(req.user, document.ownerId, document.teamId)) {
+        res.status(404).json({ message: "单据不存在" });
+        return;
+    }
+    document.status = "exported";
+    document.updatedAt = new Date().toISOString();
+    const job = {
+        id: `io_document_export_${Date.now()}`,
+        name: `${document.type} 单据 PDF 导出：${document.number}`,
+        type: "export",
+        rows: document.items.length,
+        status: "done",
+        operatorId: req.user.id,
+        createdAt: currentMinuteText()
+    };
+    store.importExportJobs.unshift(job);
+    await store.persist();
+    res.json({ document, job, fileName: `${document.number}-${document.type}.pdf` });
+}));
+app.get("/api/wecom/messages", requireAuth, (req, res) => {
+    const { wecomMessages } = getStore();
+    const scoped = wecomMessages.filter((message) => canSeeOwner(req.user, message.ownerId, message.teamId));
+    res.json({ messages: scoped });
+});
+app.post("/api/wecom/messages/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const message = store.wecomMessages.find((item) => item.id === req.params.id);
+    if (!message || !canSeeOwner(req.user, message.ownerId, message.teamId)) {
+        res.status(404).json({ message: "企微摘要不存在" });
+        return;
+    }
+    message.status = "archived";
+    await store.persist();
+    res.json({ message });
+}));
+app.get("/api/tools/ocr/jobs/:id", requireAuth, (req, res) => {
+    const job = getStore().ocrJobs.find((item) => item.id === req.params.id);
+    if (!job) {
+        res.status(404).json({ message: "OCR 任务不存在" });
+        return;
+    }
+    res.json({ job });
+});
+app.post("/api/tools/ocr/jobs/:id/recognize", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const job = store.ocrJobs.find((item) => item.id === req.params.id);
+    if (!job) {
+        res.status(404).json({ message: "OCR 任务不存在" });
+        return;
+    }
+    job.status = "recognized";
+    job.confidence = Number(req.body?.confidence ?? 96);
+    job.fields = {
+        ...job.fields,
+        company: req.body?.company || job.fields.company || "NorthStar Lighting GmbH",
+        contact: req.body?.contact || job.fields.contact || "James Müller",
+        email: req.body?.email || job.fields.email || "james.mueller@northstar-light.de",
+        whatsapp: req.body?.whatsapp || job.fields.whatsapp || "+49 151 2388 9012",
+        wechat: req.body?.wechat || job.fields.wechat || "james_light_de",
+        phone: req.body?.phone || job.fields.phone || "+49 30 8842 1290",
+        country: req.body?.country || job.fields.country || "德国"
+    };
+    await store.persist();
+    res.json({ job });
+}));
+app.post("/api/tools/ocr/jobs/:id/sync-lead", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const job = store.ocrJobs.find((item) => item.id === req.params.id);
+    if (!job) {
+        res.status(404).json({ message: "OCR 任务不存在" });
+        return;
+    }
+    job.status = "synced";
+    const lead = {
+        id: `lead_${job.id}`,
+        source: "名片 OCR",
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        ...job.fields
+    };
+    await store.persist();
+    res.json({ lead });
+}));
+app.get("/api/tools/website-opportunities", requireAuth, (req, res) => {
+    const { websiteOpportunities } = getStore();
+    const scoped = websiteOpportunities.filter((item) => canSeeOwner(req.user, item.ownerId, item.teamId));
+    res.json({ opportunities: scoped });
+});
+app.get("/api/tools/ai-config", requireAuth, (req, res) => {
+    const configs = getAiConfigs(req.user);
+    const config = getAiConfig(req.user);
+    res.json({ config: config ? publicAiConfig(config) : null, configs: configs.map(publicAiConfig) });
+});
+app.post("/api/tools/ai-config", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        id: z.string().min(1).max(64).optional(),
+        provider: z.string().min(1).max(40).default("openai"),
+        protocol: z.enum(["openai-compatible", "anthropic", "gemini"]).default("openai-compatible"),
+        name: z.string().min(1).default("AI业务模型配置"),
+        baseUrl: z.string().url(),
+        model: z.string().min(1),
+        apiKey: z.string().optional().default(""),
+        enabled: z.boolean().default(false),
+        temperature: z.number().min(0).max(2).default(0.1),
+        useLeadFinder: z.boolean().default(true),
+        useWebsiteParse: z.boolean().default(true),
+        useScoring: z.boolean().default(true),
+        useEmailDraft: z.boolean().default(true),
+        useExam: z.boolean().default(false)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const existing = body.id ? store.aiModelConfigs.find((item) => item.id === body.id && item.ownerId === req.user.id) : undefined;
+    const apiKey = body.apiKey && !body.apiKey.includes("****") ? body.apiKey : existing?.apiKey || "";
+    if (body.enabled && !apiKey) {
+        res.status(400).json({ message: "启用配置前必须填写 API Key" });
+        return;
+    }
+    const config = {
+        id: existing?.id || body.id || `ai_${req.user.id}_${Date.now()}`,
+        provider: body.provider,
+        protocol: body.protocol,
+        name: body.name,
+        baseUrl: body.baseUrl.replace(/\/+$/, ""),
+        model: body.model,
+        apiKey,
+        enabled: body.enabled,
+        temperature: body.temperature,
+        useLeadFinder: body.useLeadFinder,
+        useWebsiteParse: body.useWebsiteParse,
+        useScoring: body.useScoring,
+        useEmailDraft: body.useEmailDraft,
+        useExam: body.useExam,
+        lastTestAt: existing?.lastTestAt,
+        lastTestStatus: existing?.lastTestStatus || "untested",
+        lastTestMessage: existing?.lastTestMessage || "",
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        updatedAt: new Date().toISOString()
+    };
+    if (existing)
+        Object.assign(existing, config);
+    else
+        store.aiModelConfigs.unshift(config);
+    await store.persist();
+    res.json({ config: publicAiConfig(config), configs: getAiConfigs(req.user).map(publicAiConfig) });
+}));
+app.delete("/api/tools/ai-config/:id", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.aiModelConfigs.findIndex((item) => item.id === req.params.id && item.ownerId === req.user.id);
+    if (index < 0) {
+        res.status(404).json({ message: "配置不存在或无权删除" });
+        return;
+    }
+    store.aiModelConfigs.splice(index, 1);
+    await store.persist();
+    const config = getAiConfig(req.user);
+    res.json({ config: config ? publicAiConfig(config) : null, configs: getAiConfigs(req.user).map(publicAiConfig) });
+}));
+app.post("/api/tools/ai-config/test", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ id: z.string().min(1).max(64).optional() });
+    const body = schema.parse(req.body || {});
+    const config = body.id
+        ? getStore().aiModelConfigs.find((item) => item.id === body.id && item.ownerId === req.user.id) || null
+        : getAiConfig(req.user);
+    if (!config || !config.baseUrl || !config.model) {
+        res.status(400).json({ message: "请先保存模型地址和模型名称" });
+        return;
+    }
+    if (!config.apiKey) {
+        res.status(400).json({ message: "请先填写 API Key；系统不会在页面明文回显密钥" });
+        return;
+    }
+    const result = await testAiConfig(config);
+    config.lastTestAt = new Date().toISOString();
+    config.lastTestStatus = result.ok ? "passed" : "failed";
+    config.lastTestMessage = result.message;
+    config.updatedAt = new Date().toISOString();
+    await getStore().persist();
+    res.json({ ok: result.ok, message: result.message, config: publicAiConfig(config), configs: getAiConfigs(req.user).map(publicAiConfig) });
+}));
+const leadFinderSearchSchema = z.object({
+    productKeywords: z.string().default(""),
+    countries: z.string().default(""),
+    industry: z.string().default(""),
+    customerType: z.string().default(""),
+    goal: z.string().default(""),
+    limit: z.number().min(1).max(30).default(10)
+});
+app.post("/api/lead-finder/free-search", requireAuth, asyncRoute(async (req, res) => {
+    const body = leadFinderSearchSchema.parse(req.body);
+    const store = getStore();
+    const limit = Math.min(body.limit, 12);
+    const [gleif, wikidata] = await Promise.all([
+        searchGleifLeads(body, req.user, Math.ceil(limit / 2)),
+        searchWikidataLeads(body, req.user, Math.ceil(limit / 2))
+    ]);
+    const merged = [];
+    for (const item of [...gleif, ...wikidata]) {
+        if (merged.some((row) => row.company.toLowerCase() === item.company.toLowerCase() || row.website === item.website))
+            continue;
+        merged.push(item);
+    }
+    for (const item of merged) {
+        const existing = store.websiteOpportunities.find((row) => row.ownerId === req.user.id && (row.website === item.website || row.company.toLowerCase() === item.company.toLowerCase()));
+        if (existing)
+            Object.assign(existing, item, { id: existing.id, status: existing.status, customerId: existing.customerId, dealId: existing.dealId });
+        else
+            store.websiteOpportunities.unshift(item);
+    }
+    await store.persist();
+    res.json({ opportunities: merged, sources: { gleif: gleif.length, wikidata: wikidata.length } });
+}));
+// ---------------------------------------------------------------------------
+// 自动获客 · 数据源中心（Provider 注册表 + 用户 Key 配置 + 统一搜索）
+// ---------------------------------------------------------------------------
+function getLeadSourceConfig(user, provider) {
+    return getStore().leadSourceConfigs.find((item) => item.provider === provider && item.ownerId === user.id);
+}
+function publicLeadSourceConfig(config) {
+    return {
+        id: config.id,
+        provider: config.provider,
+        scope: config.scope,
+        apiKey: config.apiKey ? `****${config.apiKey.slice(-4)}` : "",
+        hasApiKey: Boolean(config.apiKey),
+        baseUrl: config.baseUrl || "",
+        enabled: config.enabled,
+        lastTestAt: config.lastTestAt || "",
+        lastTestStatus: config.lastTestStatus || "untested",
+        lastTestMessage: config.lastTestMessage || "",
+        usage: config.usageJson || "",
+        updatedAt: config.updatedAt
+    };
+}
+function providerStatusFor(user, provider) {
+    const config = getLeadSourceConfig(user, provider.id);
+    const hasKey = !provider.requiresKey || Boolean(config?.apiKey);
+    const enabled = provider.requiresKey ? Boolean(config?.enabled && config?.apiKey) : config ? config.enabled : true;
+    return {
+        ...providerMeta(provider),
+        hasApiKey: Boolean(config?.apiKey),
+        ready: hasKey,
+        enabled,
+        lastTestStatus: config?.lastTestStatus || (provider.requiresKey ? "untested" : "passed"),
+        lastTestMessage: config?.lastTestMessage || "",
+        lastTestAt: config?.lastTestAt || "",
+        usage: config?.usageJson || ""
+    };
+}
+// AI 搜索作为一种数据源：不需要独立 API Key，直接复用「AI 模型配置」里已启用且勾选自动获客的模型
+function aiSearchStatus(user) {
+    const config = getAiConfig(user, "leadFinder");
+    const ready = Boolean(config?.enabled && config?.apiKey && config?.useLeadFinder);
+    return {
+        id: "ai_search",
+        name: "AI 搜索",
+        tier: "ai",
+        category: "ai",
+        requiresKey: false,
+        capabilities: ["ai", "company"],
+        docsUrl: "",
+        keyHint: "使用「AI 模型配置」中已启用并勾选自动获客的模型，无需在此另填 Key。",
+        defaultBaseUrl: "",
+        costNote: "调用你配置的 AI 模型直接生成候选公司，结果需人工核实。",
+        hasApiKey: ready,
+        ready,
+        enabled: ready,
+        lastTestStatus: ready ? "passed" : "untested",
+        lastTestMessage: ready ? `当前模型：${config?.model || "已配置"}` : "请先在「AI 模型配置」启用模型并勾选“自动获客”",
+        lastTestAt: config?.lastTestAt || "",
+        usage: ""
+    };
+}
+function allProviderStatuses(user) {
+    return [aiSearchStatus(user), ...LEAD_PROVIDERS.map((provider) => providerStatusFor(user, provider))];
+}
+app.get("/api/lead-finder/providers", requireAuth, (req, res) => {
+    res.json({ providers: allProviderStatuses(req.user) });
+});
+app.post("/api/lead-finder/source-config", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        provider: z.string().min(1).max(40),
+        apiKey: z.string().max(400).optional().default(""),
+        baseUrl: z.string().max(255).optional().default(""),
+        enabled: z.boolean().optional().default(false)
+    });
+    const body = schema.parse(req.body);
+    const provider = getProvider(body.provider);
+    if (!provider) {
+        res.status(404).json({ message: "未知数据源" });
+        return;
+    }
+    const store = getStore();
+    const existing = getLeadSourceConfig(req.user, body.provider);
+    const apiKey = body.apiKey && !body.apiKey.includes("****") ? body.apiKey : existing?.apiKey || "";
+    if (provider.requiresKey && body.enabled && !apiKey) {
+        res.status(400).json({ message: "启用前请先填写该数据源的 API Key" });
+        return;
+    }
+    const config = {
+        id: existing?.id || `ls_${provider.id}_${req.user.id}_${Date.now()}`,
+        provider: provider.id,
+        scope: "personal",
+        apiKey,
+        baseUrl: body.baseUrl || existing?.baseUrl || "",
+        enabled: body.enabled,
+        lastTestAt: existing?.lastTestAt,
+        lastTestStatus: existing?.lastTestStatus || "untested",
+        lastTestMessage: existing?.lastTestMessage || "",
+        usageJson: existing?.usageJson,
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        updatedAt: new Date().toISOString()
+    };
+    if (existing)
+        Object.assign(existing, config);
+    else
+        store.leadSourceConfigs.unshift(config);
+    await store.persist();
+    res.json({ config: publicLeadSourceConfig(config), providers: allProviderStatuses(req.user) });
+}));
+app.post("/api/lead-finder/source-config/test", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ provider: z.string().min(1).max(40) });
+    const body = schema.parse(req.body);
+    const provider = getProvider(body.provider);
+    if (!provider) {
+        res.status(404).json({ message: "未知数据源" });
+        return;
+    }
+    const store = getStore();
+    const config = getLeadSourceConfig(req.user, provider.id);
+    if (provider.requiresKey && !config?.apiKey) {
+        res.status(400).json({ message: "请先保存该数据源的 API Key，再测试连接" });
+        return;
+    }
+    let result;
+    try {
+        result = await provider.test({ apiKey: config?.apiKey || "", baseUrl: config?.baseUrl });
+    }
+    catch (error) {
+        result = { ok: false, message: `连接异常：${error instanceof Error ? error.message : "未知错误"}` };
+    }
+    if (config) {
+        config.lastTestAt = new Date().toISOString();
+        config.lastTestStatus = result.ok ? "passed" : "failed";
+        config.lastTestMessage = result.message;
+        if (result.usage)
+            config.usageJson = result.usage;
+        config.updatedAt = new Date().toISOString();
+        await store.persist();
+    }
+    res.json({ ok: result.ok, message: result.message, usage: result.usage || "", providers: allProviderStatuses(req.user) });
+}));
+app.delete("/api/lead-finder/source-config/:provider", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const index = store.leadSourceConfigs.findIndex((item) => item.provider === req.params.provider && item.ownerId === req.user.id);
+    if (index < 0) {
+        res.status(404).json({ message: "配置不存在或无权删除" });
+        return;
+    }
+    store.leadSourceConfigs.splice(index, 1);
+    await store.persist();
+    res.json({ providers: allProviderStatuses(req.user) });
+}));
+const leadSearchSchema = z.object({
+    goal: z.string().default(""),
+    productKeywords: z.string().default(""),
+    countries: z.string().default(""),
+    industry: z.string().default(""),
+    customerType: z.string().default(""),
+    excludeKeywords: z.string().default(""),
+    sources: z.array(z.string()).default([]),
+    useAi: z.boolean().default(false),
+    limit: z.number().min(1).max(30).default(12)
+});
+app.post("/api/lead-finder/search", requireAuth, asyncRoute(async (req, res) => {
+    const body = leadSearchSchema.parse(req.body);
+    const store = getStore();
+    const user = req.user;
+    const query = {
+        goal: body.goal,
+        productKeywords: body.productKeywords,
+        countries: body.countries,
+        industry: body.industry,
+        customerType: body.customerType,
+        excludeKeywords: body.excludeKeywords,
+        limit: Math.min(body.limit, 15)
+    };
+    // 选中源 ∩ 已启用 ∩ (有 key)。免费源无 key 也可用；未选中时默认用免费源兜底。
+    const chosen = body.sources.length
+        ? LEAD_PROVIDERS.filter((provider) => body.sources.includes(provider.id))
+        : LEAD_PROVIDERS.filter((provider) => !provider.requiresKey);
+    const runnable = chosen.filter((provider) => {
+        if (!provider.requiresKey)
+            return true;
+        const config = getLeadSourceConfig(user, provider.id);
+        return Boolean(config?.apiKey && config.enabled);
+    });
+    const skipped = chosen.filter((provider) => !runnable.includes(provider)).map((provider) => provider.name);
+    // 用户明确选了源（哪怕只选 AI 搜索）就不再兜底跑免费源；完全没选时才用免费源兜底
+    const activeProviders = runnable.length ? runnable : (body.sources.length ? [] : LEAD_PROVIDERS.filter((provider) => !provider.requiresKey));
+    const wantsAiSearch = body.sources.includes("ai_search");
+    const searchProviders = activeProviders.filter((provider) => provider.category !== "email");
+    const emailProviders = activeProviders.filter((provider) => provider.category === "email" && provider.enrich);
+    const sourceStats = [];
+    const collected = [];
+    await Promise.all(searchProviders.map(async (provider) => {
+        const config = getLeadSourceConfig(user, provider.id);
+        try {
+            const result = await provider.search(query, { apiKey: config?.apiKey || "", baseUrl: config?.baseUrl });
+            for (const lead of result.leads) {
+                if (!lead.company)
+                    continue;
+                collected.push({ ...lead, source: provider.id, sourceLabel: provider.name });
+            }
+            sourceStats.push({ id: provider.id, name: provider.name, count: result.leads.length, usage: result.usage });
+        }
+        catch (error) {
+            sourceStats.push({ id: provider.id, name: provider.name, count: 0, error: error instanceof Error ? error.message : "调用失败" });
+        }
+    }));
+    // AI 搜索：用「AI 模型配置」里已启用并勾选自动获客的模型直接生成候选公司
+    if (wantsAiSearch) {
+        const aiSearchConfig = getAiConfig(user, "leadFinder");
+        if (aiSearchConfig?.enabled && aiSearchConfig.apiKey && aiSearchConfig.useLeadFinder) {
+            try {
+                const aiLeads = await aiGenerateLeads(query, aiSearchConfig);
+                for (const lead of aiLeads) {
+                    if (!lead.company)
+                        continue;
+                    collected.push({ ...lead, source: "ai_search", sourceLabel: "AI 搜索" });
+                }
+                sourceStats.push({ id: "ai_search", name: "AI 搜索", count: aiLeads.length });
+            }
+            catch (error) {
+                sourceStats.push({ id: "ai_search", name: "AI 搜索", count: 0, error: error instanceof Error ? error.message : "AI 调用失败" });
+            }
+        }
+        else {
+            skipped.push("AI 搜索（未启用模型）");
+        }
+    }
+    // 去重（域名 + 公司名）
+    const deduped = [];
+    for (const lead of collected) {
+        const domain = websiteDomainKey(lead.website || "");
+        const key = domain || lead.company.toLowerCase();
+        if (deduped.some((row) => (domain && websiteDomainKey(row.website || "") === domain) || row.company.toLowerCase() === lead.company.toLowerCase()))
+            continue;
+        deduped.push(lead);
+    }
+    // Web 源结果做官网解析补全（best-effort，限量控制耗时）
+    const aiConfig = body.useAi ? getAiConfig(user, "websiteParse") : null;
+    const parseTargets = deduped.filter((lead) => ["serper", "brave", "serpapi", "ai_search"].includes(lead.source) && lead.website).slice(0, 6);
+    await Promise.all(parseTargets.map(async (lead) => {
+        try {
+            const parsed = await parseWebsiteOpportunity(lead.website, 0, user, aiConfig);
+            if (parsed.company && !/unknown/i.test(parsed.company))
+                lead.company = parsed.company;
+            if (parsed.business && parsed.business !== "待维护")
+                lead.business = parsed.business;
+            if (parsed.country && parsed.country !== "未知")
+                lead.country = parsed.country;
+            if (parsed.contact && parsed.contact !== "待维护")
+                lead.contact = parsed.contact;
+            if (parsed.contactInfo && parsed.contactInfo !== "待维护")
+                lead.contactInfo = parsed.contactInfo;
+            if (parsed.description)
+                lead.description = parsed.description;
+            if (parsed.parseMode === "ai")
+                lead.confidence = Math.max(lead.confidence || 60, 74);
+        }
+        catch {
+            // 解析失败保留搜索摘要
+        }
+    }));
+    // 邮箱源补全（Hunter 等）：对缺联系方式且有域名的候选补邮箱
+    for (const provider of emailProviders) {
+        const config = getLeadSourceConfig(user, provider.id);
+        const targets = deduped.filter((lead) => !lead.contactInfo && websiteDomainKey(lead.website || "")).slice(0, 8);
+        let filled = 0;
+        for (const lead of targets) {
+            const enriched = await provider.enrich(websiteDomainKey(lead.website || ""), { apiKey: config?.apiKey || "", baseUrl: config?.baseUrl });
+            if (enriched?.contactInfo) {
+                lead.contactInfo = enriched.contactInfo;
+                if (enriched.contact)
+                    lead.contact = enriched.contact;
+                lead.confidence = Math.max(lead.confidence || 60, 74);
+                filled += 1;
+            }
+        }
+        sourceStats.push({ id: provider.id, name: provider.name, count: filled });
+    }
+    // 落库为 WebsiteOpportunity
+    const now = Date.now();
+    const opportunities = deduped.slice(0, query.limit * 2).map((lead, index) => ({
+        id: `lf_${lead.source}_${now}_${index}`,
+        company: lead.company,
+        business: lead.business || "待维护",
+        country: lead.country || "未知",
+        website: normalizeWebsite(lead.website || ""),
+        contact: lead.contact || "待维护",
+        contactInfo: lead.contactInfo || "",
+        description: lead.description || "自动获客候选，待核实。",
+        ownerId: user.id,
+        teamId: user.teamId,
+        status: "preview",
+        createdAt: new Date().toISOString(),
+        parseMode: aiConfig ? "ai" : "rule",
+        source: lead.source,
+        sourceLabel: lead.sourceLabel,
+        confidence: lead.confidence
+    }));
+    for (const item of opportunities) {
+        const existing = store.websiteOpportunities.find((row) => row.ownerId === user.id && (row.website === item.website || row.company.toLowerCase() === item.company.toLowerCase()));
+        if (existing)
+            Object.assign(existing, item, { id: existing.id, status: existing.status, customerId: existing.customerId, dealId: existing.dealId });
+        else
+            store.websiteOpportunities.unshift(item);
+    }
+    await store.persist();
+    res.json({ opportunities, sourceStats, skipped, providersUsed: activeProviders.map((provider) => provider.id) });
+}));
+function websiteDomainKey(raw) {
+    if (!raw)
+        return "";
+    try {
+        return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).hostname.replace(/^www\./i, "").toLowerCase();
+    }
+    catch {
+        return raw.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0].toLowerCase();
+    }
+}
+app.post("/api/tools/website-scrape/preview", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({ urls: z.array(z.string().min(3)).min(1).max(12), useAi: z.boolean().default(false) });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const aiConfig = body.useAi ? getAiConfig(req.user, "websiteParse") : null;
+    const parsed = await Promise.all(body.urls.map((url, index) => parseWebsiteOpportunity(url, index, req.user, aiConfig)));
+    for (const item of parsed) {
+        const existing = store.websiteOpportunities.find((row) => row.ownerId === req.user.id && row.website === item.website);
+        if (existing)
+            Object.assign(existing, item, { id: existing.id, status: existing.status, customerId: existing.customerId, dealId: existing.dealId });
+        else
+            store.websiteOpportunities.unshift(item);
+    }
+    await store.persist();
+    res.json({ opportunities: parsed });
+}));
+app.post("/api/tools/website-scrape/sync-opportunities", requireAuth, asyncRoute(async (req, res) => {
+    const schema = z.object({
+        opportunities: z.array(z.object({
+            id: z.string().optional(),
+            company: z.string().min(1),
+            business: z.string().default("待维护"),
+            country: z.string().default("未知"),
+            website: z.string().min(3),
+            contact: z.string().default("待维护"),
+            contactInfo: z.string().default(""),
+            description: z.string().default("")
+        })).min(1)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const created = [];
+    for (const source of body.opportunities) {
+        const contact = source.contact || source.contactInfo || "待维护";
+        let customer = store.customers.find((item) => canSeeOwner(req.user, item.ownerId, item.teamId) && item.company.toLowerCase() === source.company.toLowerCase());
+        if (!customer) {
+            customer = {
+                id: `c_web_${Date.now()}_${created.length}`,
+                company: source.company,
+                country: source.country || "未知",
+                contact,
+                ownerId: req.user.id,
+                teamId: req.user.teamId,
+                stage: "询盘",
+                amount: 0,
+                health: 68,
+                nextReminder: "官网商机待核实",
+                wecomBound: false,
+                billingName: source.company,
+                billingAddress: source.country || "",
+                documentContact: contact,
+                defaultPortDischarge: "",
+                defaultIncoterm: "FOB Tianjin",
+                defaultPaymentTerm: "30% T/T deposit, 70% before shipment"
+            };
+            store.customers.unshift(customer);
+        }
+        const deal = {
+            id: `d_web_${Date.now()}_${created.length}`,
+            customerId: customer.id,
+            title: `${source.company} 官网产品机会`,
+            stage: "询盘",
+            product: source.business || "待维护",
+            quantity: 0,
+            unitPrice: 0,
+            amount: 0,
+            ownerId: customer.ownerId,
+            teamId: customer.teamId,
+            nextAction: source.description || `核实官网产品：${source.business || "待维护"}，补充联系人并发起首次触达`
+        };
+        store.deals.unshift(deal);
+        const opportunity = {
+            id: source.id || `web_${Date.now()}_${created.length}`,
+            company: source.company,
+            business: source.business || "待维护",
+            country: source.country || "未知",
+            website: normalizeWebsite(source.website),
+            contact,
+            contactInfo: source.contactInfo || "",
+            description: source.description || "已同步为客户与商机，下一步核实采购负责人和产品需求。",
+            ownerId: req.user.id,
+            teamId: req.user.teamId,
+            status: "synced",
+            createdAt: new Date().toISOString(),
+            customerId: customer.id,
+            dealId: deal.id,
+            parseMode: "rule"
+        };
+        const existing = store.websiteOpportunities.find((item) => item.id === opportunity.id || (item.ownerId === req.user.id && item.website === opportunity.website));
+        if (existing)
+            Object.assign(existing, opportunity, { id: existing.id });
+        else
+            store.websiteOpportunities.unshift(opportunity);
+        created.push({ customer, deal, opportunity: existing || opportunity });
+    }
+    await store.persist();
+    res.json({ created });
+}));
+function normalizeString(value) {
+    return typeof value === "string" ? value.trim() : "";
+}
+function normalizeStringArray(value) {
+    if (Array.isArray(value))
+        return value.map((item) => normalizeString(item)).filter(Boolean).slice(0, 24);
+    if (typeof value === "string")
+        return value.split(/\n|,|，/).map((item) => item.trim()).filter(Boolean).slice(0, 24);
+    return [];
+}
+function normalizeAiSiteSchemaData(value) {
+    const source = (value && typeof value === "object" ? value : {});
+    const company = source.company_profile || {};
+    const contact = source.contact_info || {};
+    const taxonomy = source.business_taxonomy || {};
+    const social = source.social_links || {};
+    const style = source.style_requirements || {};
+    return {
+        company_profile: {
+            legal_name: normalizeString(company.legal_name),
+            wordmark: normalizeString(company.wordmark),
+            tagline: normalizeString(company.tagline),
+            description: normalizeString(company.description),
+            logo_url: normalizeString(company.logo_url),
+            established_year: normalizeString(company.established_year)
+        },
+        contact_info: {
+            phone: normalizeString(contact.phone),
+            email: normalizeString(contact.email),
+            address: normalizeString(contact.address)
+        },
+        business_taxonomy: {
+            product_categories: normalizeStringArray(taxonomy.product_categories),
+            solutions: normalizeStringArray(taxonomy.solutions)
+        },
+        social_links: {
+            linkedin: normalizeString(social.linkedin),
+            youtube: normalizeString(social.youtube),
+            facebook: normalizeString(social.facebook)
+        },
+        style_requirements: {
+            preset: normalizeString(style.preset) || "industrial-professional",
+            colors: normalizeStringArray(style.colors),
+            keywords: normalizeStringArray(style.keywords),
+            reference_sites: normalizeStringArray(style.reference_sites),
+            custom_notes: normalizeString(style.custom_notes)
+        }
+    };
+}
+function normalizeAgentPayload(value, schemaData, pages) {
+    if (value && typeof value === "object" && !Array.isArray(value))
+        return value;
+    return {
+        task_type: "ai_website_build",
+        schema_version: "data-schema.v1",
+        locale: "zh-CN",
+        source: "goodjob_ai_site_builder",
+        website_data: {
+            company_profile: schemaData.company_profile,
+            contact_info: schemaData.contact_info,
+            business_taxonomy: schemaData.business_taxonomy,
+            social_links: schemaData.social_links
+        },
+        style_requirements: schemaData.style_requirements,
+        generation_requirements: {
+            target_pages: pages,
+            output_mode: "project_task_draft",
+            handoff_target: "agent"
+        }
+    };
+}
+const aiSiteSectionKeys = ["header", "hero", "products", "applications", "project_cases", "about_us", "blog", "contact_us", "footer"];
+const aiSiteLockedSections = new Set(["header", "footer"]);
+const aiSiteSectionLabels = {
+    header: "Header",
+    hero: "Hero",
+    products: "Products",
+    applications: "Applications",
+    project_cases: "Project Cases",
+    about_us: "About Us",
+    blog: "Blog",
+    contact_us: "Contact Us",
+    footer: "Footer"
+};
+function isAiSiteSectionKey(value) {
+    return aiSiteSectionKeys.includes(value);
+}
+function htmlEscape(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+function aiBuildRoot() {
+    return path.resolve(process.env.AI_SITE_BUILD_DIR || path.join(process.cwd(), "..", "projects", "ai_build"));
+}
+function aiProjectDir(projectId) {
+    return path.join(aiBuildRoot(), projectId);
+}
+function aiSiteSettingsFile() {
+    return path.join(aiBuildRoot(), "_settings.json");
+}
+function aiSiteDesignSystemFile(projectId) {
+    return path.join(aiProjectDir(projectId), "design-system.json");
+}
+function aiProjectMetaFile(projectId) {
+    return path.join(aiProjectDir(projectId), "project.json");
+}
+function aiExportDir(projectId) {
+    return path.join(aiProjectDir(projectId), "dist");
+}
+function aiSectionFile(projectId, sectionKey) {
+    return path.join(aiProjectDir(projectId), "sections", `${sectionKey}.html`);
+}
+async function fileExists(file) {
+    try {
+        await access(file);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+function sectionArray(value) {
+    return Array.isArray(value) ? value.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 24) : [];
+}
+async function readJsonFile(file, fallback) {
+    try {
+        return JSON.parse(await readFile(file, "utf8"));
+    }
+    catch {
+        return fallback;
+    }
+}
+function aiSiteBlueprint(project) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const company = schema.company_profile;
+    const taxonomy = schema.business_taxonomy;
+    const style = schema.style_requirements;
+    const siteName = company.wordmark || company.legal_name || project.siteName || "Industrial Website";
+    const categories = sectionArray(taxonomy.product_categories);
+    const solutions = sectionArray(taxonomy.solutions);
+    const styleWords = sectionArray(style.keywords).join("、") || style.preset;
+    return {
+        hero: `首屏突出 ${siteName} 的跨境工业品牌可信度，展示核心产品、交付能力和询盘入口，视觉风格：${styleWords}。`,
+        products: `产品区块聚焦 ${categories.join("、") || "核心工业产品"}，用卡片展示类别、典型参数和快速询盘入口。`,
+        applications: `应用区块围绕 ${solutions.join("、") || "典型工业应用场景"} 展开，说明客户痛点、解决方案和适配产品。`,
+        project_cases: "项目案例区块展示跨境交付、行业场景、客户收益和可复用经验，增强采购信任。",
+        about_us: `关于我们区块介绍 ${company.legal_name || siteName} 的成立背景、制造能力、质量体系和外贸服务能力。`,
+        blog: "博客区块用于承接产品知识、选型指南、行业洞察和SEO长尾流量。",
+        contact_us: "联系区块提供电话、邮箱、地址、社媒矩阵和询盘表单 CTA，降低询盘阻力。"
+    };
+}
+function cleanAiSiteBlueprint(project) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const company = schema.company_profile;
+    const taxonomy = schema.business_taxonomy;
+    const style = schema.style_requirements;
+    const siteName = company.wordmark || company.legal_name || project.siteName || "Industrial Website";
+    const categories = sectionArray(taxonomy.product_categories);
+    const solutions = sectionArray(taxonomy.solutions);
+    const styleWords = sectionArray(style.keywords).join(", ") || style.preset || "professional";
+    return {
+        header: "Render the fixed B2B topbar, navigation, product dropdown, and inquiry CTA using the company brand and product categories.",
+        hero: `Open with a credible industrial B2B value proposition for ${siteName}. Show product strength, export readiness, delivery capability, and a clear inquiry CTA. Visual style: ${styleWords}.`,
+        products: `Present ${categories.join(", ") || "core industrial product categories"} with category cards, practical specifications, buyer benefits, and inquiry entry points.`,
+        applications: `Explain ${solutions.join(", ") || "typical industrial application scenarios"} by pairing buyer pain points, recommended solutions, and suitable products.`,
+        project_cases: "Show export project cases with industry context, delivered scope, measurable buyer value, and trust-building proof points.",
+        about_us: `Introduce ${company.legal_name || siteName} with manufacturing capability, quality control, export service process, and long-term reliability.`,
+        blog: "Provide SEO-ready article cards for product knowledge, selection guides, maintenance tips, and industrial market insights.",
+        contact_us: "Provide phone, email, location, social links, and an inquiry CTA that makes it easy for international buyers to contact the supplier.",
+        footer: "Render the fixed B2B footer with brand summary, solutions, product categories, contact information, copyright, and a back-to-top link."
+    };
+}
+function cleanHexColor(value, fallback) {
+    const color = value.trim();
+    return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : fallback;
+}
+function aiSiteDesignSystem(project) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const style = schema.style_requirements;
+    const colors = sectionArray(style.colors);
+    const preset = style.preset || project.tone || "industrial-professional";
+    const brand = cleanHexColor(colors[0] || "", preset.includes("clean") ? "#2563eb" : "#3157d5");
+    const accent = cleanHexColor(colors[1] || "", preset.includes("dark") ? "#f59e0b" : "#16a34a");
+    const surface = cleanHexColor(colors[2] || "", "#f8fafc");
+    return {
+        version: "ai-site-design-system.v1",
+        preset,
+        palette: {
+            brand,
+            accent,
+            ink: "#101828",
+            muted: "#667085",
+            line: "#e5e7eb",
+            surface,
+            dark: "#0f172a",
+            light: "#ffffff"
+        },
+        typography: {
+            family: "Inter, Arial, sans-serif",
+            h2: "clamp(2rem,4.2vw,4.6rem)",
+            body: "clamp(1rem,1.2vw,1.08rem)",
+            lineHeight: "1.65"
+        },
+        layout: {
+            wrapper: "width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:auto",
+            sectionPadding: "clamp(56px,7vw,112px) 0",
+            gap: "clamp(18px,3vw,48px)",
+            grid: "repeat(auto-fit,minmax(min(280px,100%),1fr))",
+            mobileBreakpoint: "760px",
+            wideBreakpoint: "1200px"
+        },
+        components: {
+            cardRadius: "6px",
+            cardBorder: "1px solid rgba(16,24,40,.12)",
+            shadow: "0 24px 70px rgba(15,23,42,.14)",
+            buttonRadius: "4px"
+        },
+        rules: [
+            "Use the same palette and spacing tokens in every section.",
+            "Every generated business section must include one scoped style tag as its first child.",
+            "Selectors must be prefixed with the current section id.",
+            "Use semantic section/article/list markup that can become a WordPress block.",
+            "Avoid unscoped .container, .grid, .card, body, html, :root, header, footer selectors."
+        ]
+    };
+}
+function looksCorruptAiSiteText(value) {
+    return /�|銆|鐨|鍖|浣|涓|绔|绯|logoutButton|login-screen|GoodJob CRM/i.test(value);
+}
+function brandWithHighlight(brand) {
+    const clean = brand.trim() || "GoodJob";
+    if (clean.length <= 3)
+        return `<span>${htmlEscape(clean)}</span>`;
+    return `${htmlEscape(clean.slice(0, -3))}<span>${htmlEscape(clean.slice(-3))}</span>`;
+}
+function defaultAiSectionHtml(sectionKey, project, generated = false) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const company = schema.company_profile;
+    const contact = schema.contact_info;
+    const taxonomy = schema.business_taxonomy;
+    const blueprint = cleanAiSiteBlueprint(project);
+    const brand = company.wordmark || company.legal_name || project.siteName || "GoodJob";
+    const categories = sectionArray(taxonomy.product_categories);
+    const solutions = sectionArray(taxonomy.solutions);
+    const generatedBadge = generated ? "Generated" : "Blueprint";
+    if (sectionKey === "header") {
+        const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<a href="#products">${htmlEscape(item)}</a>`).join("");
+        return `<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--ink:#101828;--muted:#667085;--line:#e5e7eb;--brand:#3157d5;--accent:#16a34a;--bg:#ffffff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}.container{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.topbar{background:#0f172a;color:#e2e8f0;font-size:13px}.topbar .container{min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.socials{display:flex;gap:12px;color:#93c5fd;flex-wrap:wrap}.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}.header .container{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:clamp(20px,1.8vw,26px);font-weight:850;white-space:nowrap}.brand span{color:var(--brand)}.nav{display:flex;align-items:center;gap:clamp(14px,1.6vw,28px);font-size:14px;flex-wrap:wrap}.nav-item{position:relative}.dropdown{display:none;position:absolute;top:28px;left:0;width:min(300px,80vw);padding:12px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 45px rgba(15,23,42,.12)}.nav-item:hover .dropdown{display:grid;gap:8px}.header-cta{display:flex;align-items:center;gap:10px;white-space:nowrap}.phone{font-weight:800;color:var(--brand)}.send-inquiry{display:none;padding:10px 14px;border-radius:4px;background:var(--brand);color:#fff;font-weight:800}section{padding:clamp(56px,7vw,112px) 0;border-bottom:1px solid #eef2f7;overflow:hidden}.eyebrow{color:var(--brand);font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hero{background:linear-gradient(135deg,#f8fafc,#eef6ff)}.hero h1{font-size:clamp(36px,4.4vw,68px);line-height:1.05;margin:12px 0 18px;max-width:880px}.hero p{font-size:clamp(16px,1.4vw,19px);color:var(--muted);max-width:760px;line-height:1.75}.btn-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}.primary-btn,.ghost-btn{padding:13px 18px;border-radius:4px;font-weight:800}.primary-btn{background:var(--brand);color:white}.ghost-btn{border:1px solid var(--line);background:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:clamp(16px,2vw,30px)}.card{border:1px solid var(--line);padding:clamp(18px,2vw,28px);border-radius:6px;background:white;min-width:0}.card h3{margin:0 0 8px}.card p{color:var(--muted);line-height:1.7}.footer{background:#101828;color:#d0d5dd}.footer-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:clamp(22px,3vw,44px);padding:clamp(46px,6vw,72px) 0}.footer h3,.footer h4{color:#fff}.footer a,.footer p{color:#d0d5dd}.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98a2b3}.to-top{float:right;color:#fff}.placeholder{background:#f8fafc}.placeholder .card{border-style:dashed}@media(max-width:900px){.nav{display:none}.send-inquiry{display:inline-flex}.phone{display:none}}@media(max-width:760px){.container{width:min(100% - 36px,680px)}.topbar .container,.header .container{align-items:flex-start;justify-content:flex-start;padding:10px 0}.hero h1{font-size:36px}}
+</style></head><body><div class="topbar"><div class="container"><span>Port: Qingdao / Shanghai · Global B2B Industrial Supply</span><span class="socials">LinkedIn · YouTube · Facebook</span></div></div><header class="header"><div class="container"><a class="brand" href="#home">${brandWithHighlight(brand)}</a><nav class="nav"><a href="#home">Home</a><div class="nav-item"><a href="#products">Products</a><div class="dropdown">${productItems}</div></div><a href="#applications">Applications</a><a href="#project-cases">Project Cases</a><a href="#about-us">About Us</a><a href="#blog">Blog</a><a href="#contact-us">Contact Us</a></nav><div class="header-cta"><span class="phone">${htmlEscape(contact.phone || "+86-0000-0000")}</span><a class="send-inquiry" href="#contact-us">SEND INQUIRY</a></div></div></header>`;
+    }
+    if (sectionKey === "footer") {
+        const solutionItems = (solutions.length ? solutions : ["OEM supply", "Process automation", "Distributor support"]).map((item) => `<li>${htmlEscape(item)}</li>`).join("");
+        const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<li>${htmlEscape(item)}</li>`).join("");
+        return `<footer class="footer"><div class="container footer-top"><div><h3 class="brand">${brandWithHighlight(brand)}</h3><p>${htmlEscape(company.tagline || "Reliable industrial supply for global B2B buyers.")}</p><p>${htmlEscape(company.description || "We help overseas buyers source stable industrial products with responsive service and clear documentation.")}</p></div><div><h4>Solutions</h4><ul>${solutionItems}</ul></div><div><h4>Products</h4><ul>${productItems}</ul></div><div><h4>Contact</h4><p>${htmlEscape(contact.email || "sales@example.com")}</p><p>${htmlEscape(contact.phone || "+86-0000-0000")}</p><p>${htmlEscape(contact.address || "China")}</p></div></div><div class="container footer-bottom">© ${new Date().getFullYear()} ${htmlEscape(brand)}. All rights reserved. <a href="#home" id="toTop" class="to-top">Back to top</a></div></footer></body></html>`;
+    }
+    const text = blueprint[sectionKey] || aiSiteSectionLabels[sectionKey];
+    if (sectionKey === "hero") {
+        return `<section class="hero ${generated ? "" : "placeholder"}" id="home"><div class="container"><span class="eyebrow">${generatedBadge}</span><h1>${htmlEscape(company.tagline || `${brand} Industrial Solutions`)}</h1><p>${htmlEscape(text)}</p><div class="btn-row"><a class="primary-btn" href="#contact-us">Send Inquiry</a><a class="ghost-btn" href="#products">View Products</a></div></div></section>`;
+    }
+    const cards = [1, 2, 3].map((index) => `<article class="card"><h3>${htmlEscape(aiSiteSectionLabels[sectionKey])} ${index}</h3><p>${htmlEscape(text)}</p></article>`).join("");
+    return `<section class="${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="container"><span class="eyebrow">${generatedBadge}</span><h2>${htmlEscape(aiSiteSectionLabels[sectionKey])}</h2><div class="grid">${cards}</div></div></section>`;
+}
+async function ensureAiSiteSandbox(project) {
+    const root = aiProjectDir(project.id);
+    const sectionsDir = path.join(root, "sections");
+    await mkdir(sectionsDir, { recursive: true });
+    await writeFile(aiProjectMetaFile(project.id), JSON.stringify(project, null, 2), "utf8");
+    await writeFile(path.join(root, "form.json"), JSON.stringify(project.schemaData || {}, null, 2), "utf8");
+    const blueprintPath = path.join(root, "blueprint.json");
+    const blueprintText = await readFile(blueprintPath, "utf8").catch(() => "");
+    if (!blueprintText || looksCorruptAiSiteText(blueprintText))
+        await writeFile(blueprintPath, JSON.stringify(cleanAiSiteBlueprint(project), null, 2), "utf8");
+    await writeFile(aiSiteDesignSystemFile(project.id), JSON.stringify(aiSiteDesignSystem(project), null, 2), "utf8");
+    const orderPath = path.join(root, "order.json");
+    if (!(await fileExists(orderPath)))
+        await writeFile(orderPath, JSON.stringify(aiSiteSectionKeys, null, 2), "utf8");
+    const headerPath = aiSectionFile(project.id, "header");
+    const footerPath = aiSectionFile(project.id, "footer");
+    const headerHtml = await readFile(headerPath, "utf8").catch(() => "");
+    const footerHtml = await readFile(footerPath, "utf8").catch(() => "");
+    if (!headerHtml || looksCorruptAiSiteText(headerHtml))
+        await writeFile(headerPath, defaultAiSectionHtml("header", project, true), "utf8");
+    if (!footerHtml || looksCorruptAiSiteText(footerHtml))
+        await writeFile(footerPath, defaultAiSectionHtml("footer", project, true), "utf8");
+}
+async function persistAiSiteSettingsLocal(settings) {
+    await mkdir(aiBuildRoot(), { recursive: true });
+    await writeFile(aiSiteSettingsFile(), JSON.stringify(settings, null, 2), "utf8");
+}
+function projectFromSandbox(projectId, schemaData, user) {
+    const schema = normalizeAiSiteSchemaData(schemaData);
+    const company = schema.company_profile;
+    const taxonomy = schema.business_taxonomy;
+    const pages = ["首页", "产品中心", "解决方案", "成功案例", "联系我们"];
+    return {
+        id: projectId,
+        taskName: `${company.legal_name || company.wordmark || "未命名网站"} 建站任务`,
+        siteName: company.legal_name || company.wordmark || "未命名网站",
+        industry: taxonomy.product_categories[0] || taxonomy.solutions[0] || "未指定行业",
+        goal: "lead-generation",
+        tone: schema.style_requirements.preset || "industrial-professional",
+        pages,
+        schemaData: schema,
+        agentPayload: normalizeAgentPayload(undefined, schema, pages),
+        status: "draft_reserved",
+        ownerId: user.id,
+        teamId: user.teamId,
+        createdAt: new Date().toISOString()
+    };
+}
+async function hydrateAiSiteLocalState(user) {
+    const store = getStore();
+    await mkdir(aiBuildRoot(), { recursive: true });
+    const localSettings = await readJsonFile(aiSiteSettingsFile(), []);
+    for (const setting of localSettings) {
+        if (!store.aiSiteBuilderSettings.some((item) => item.ownerId === setting.ownerId))
+            store.aiSiteBuilderSettings.push(setting);
+    }
+    for (const setting of store.aiSiteBuilderSettings) {
+        if (!localSettings.some((item) => item.ownerId === setting.ownerId))
+            localSettings.push(setting);
+    }
+    if (localSettings.length)
+        await persistAiSiteSettingsLocal(localSettings);
+    const entries = await readdir(aiBuildRoot(), { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith("_"))
+            continue;
+        const projectId = entry.name;
+        if (store.aiSiteBuilderProjects.some((item) => item.id === projectId))
+            continue;
+        const meta = await readJsonFile(aiProjectMetaFile(projectId), null);
+        if (meta?.id) {
+            store.aiSiteBuilderProjects.push(meta);
+            continue;
+        }
+        const schemaData = await readJsonFile(path.join(aiProjectDir(projectId), "form.json"), null);
+        if (schemaData) {
+            const restored = projectFromSandbox(projectId, schemaData, user);
+            store.aiSiteBuilderProjects.push(restored);
+            await ensureAiSiteSandbox(restored);
+        }
+    }
+    for (const project of store.aiSiteBuilderProjects)
+        await ensureAiSiteSandbox(project);
+}
+async function readAiSiteOrder(project) {
+    await ensureAiSiteSandbox(project);
+    const raw = await readFile(path.join(aiProjectDir(project.id), "order.json"), "utf8").catch(() => "[]");
+    let parsed = [];
+    try {
+        parsed = JSON.parse(raw);
+    }
+    catch {
+        parsed = [];
+    }
+    const middle = Array.isArray(parsed) ? parsed.map(String).filter((item) => isAiSiteSectionKey(item) && !aiSiteLockedSections.has(item)) : [];
+    const uniqueMiddle = [...new Set(middle)];
+    const fallbackMiddle = aiSiteSectionKeys.filter((item) => !aiSiteLockedSections.has(item));
+    return ["header", ...(uniqueMiddle.length ? uniqueMiddle : fallbackMiddle), "footer"];
+}
+async function writeAiSiteOrder(project, order) {
+    const middle = order.filter((item) => isAiSiteSectionKey(item) && !aiSiteLockedSections.has(item));
+    const uniqueMiddle = [...new Set(middle)];
+    const fallbackMiddle = aiSiteSectionKeys.filter((item) => !aiSiteLockedSections.has(item));
+    const nextOrder = ["header", ...(uniqueMiddle.length ? uniqueMiddle : fallbackMiddle), "footer"];
+    await ensureAiSiteSandbox(project);
+    await writeFile(path.join(aiProjectDir(project.id), "order.json"), JSON.stringify(nextOrder, null, 2), "utf8");
+    return nextOrder;
+}
+function sanitizeAiSiteExportFragment(html) {
+    if (/logoutButton|login-screen|GoodJob CRM|data-view="dashboard"|id="appModal"/i.test(html)) {
+        throw new Error("区块疑似包含 CRM 主系统内容，已拒绝导出");
+    }
+    return html
+        .replace(/<!doctype[^>]*>/gi, "")
+        .replace(/<html[^>]*>/gi, "")
+        .replace(/<\/html>/gi, "")
+        .replace(/<head[\s\S]*?<\/head>/gi, "")
+        .replace(/<body[^>]*>/gi, "")
+        .replace(/<\/body>/gi, "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+        .replace(/\shref\s*=\s*"(?!#|mailto:|tel:)[^"]*"/gi, " href=\"#\"")
+        .replace(/\shref\s*=\s*'(?!#|mailto:|tel:)[^']*'/gi, " href=\"#\"")
+        .replace(/\starget\s*=\s*"[^"]*"/gi, "")
+        .replace(/\starget\s*=\s*'[^']*'/gi, "")
+        .trim();
+}
+function buildAiSiteExportDocument(project, fragments) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const company = schema.company_profile;
+    const title = company.wordmark || company.legal_name || project.siteName || "Industrial Website";
+    const description = company.description || company.tagline || "B2B industrial website generated by GoodJob AI Website Factory.";
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${htmlEscape(title)}</title><meta name="description" content="${htmlEscape(description)}"><style>
+:root{--ink:#101828;--muted:#667085;--line:#e5e7eb;--brand:#3157d5;--accent:#16a34a;--bg:#ffffff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}.container{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.topbar{background:#0f172a;color:#e2e8f0;font-size:13px}.topbar .container{min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.socials{display:flex;gap:12px;color:#93c5fd;flex-wrap:wrap}.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}.header .container{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:clamp(20px,1.8vw,26px);font-weight:850;white-space:nowrap}.brand span{color:var(--brand)}.nav{display:flex;align-items:center;gap:clamp(14px,1.6vw,28px);font-size:14px;flex-wrap:wrap}.nav-item{position:relative}.dropdown{display:none;position:absolute;top:28px;left:0;width:min(300px,80vw);padding:12px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 45px rgba(15,23,42,.12)}.nav-item:hover .dropdown{display:grid;gap:8px}.header-cta{display:flex;align-items:center;gap:10px;white-space:nowrap}.phone{font-weight:800;color:var(--brand)}.send-inquiry{display:none;padding:10px 14px;border-radius:4px;background:var(--brand);color:#fff;font-weight:800}section{padding:clamp(56px,7vw,112px) 0;border-bottom:1px solid #eef2f7;overflow:hidden}.eyebrow{color:var(--brand);font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hero{background:linear-gradient(135deg,#f8fafc,#eef6ff)}.hero h1{font-size:clamp(36px,4.4vw,68px);line-height:1.05;margin:12px 0 18px;max-width:880px}.hero p{font-size:clamp(16px,1.4vw,19px);color:var(--muted);max-width:760px;line-height:1.75}.btn-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}.primary-btn,.ghost-btn{padding:13px 18px;border-radius:4px;font-weight:800}.primary-btn{background:var(--brand);color:white}.ghost-btn{border:1px solid var(--line);background:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:clamp(16px,2vw,30px)}.card{border:1px solid var(--line);padding:clamp(18px,2vw,28px);border-radius:6px;background:white;min-width:0}.card h3{margin:0 0 8px}.card p{color:var(--muted);line-height:1.7}.footer{background:#101828;color:#d0d5dd}.footer-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:clamp(22px,3vw,44px);padding:clamp(46px,6vw,72px) 0}.footer h3,.footer h4{color:#fff}.footer a,.footer p{color:#d0d5dd}.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98a2b3}.to-top{float:right;color:#fff}.placeholder{background:#f8fafc}.placeholder .card{border-style:dashed}@media(max-width:900px){.nav{display:none}.send-inquiry{display:inline-flex}.phone{display:none}}@media(max-width:760px){.container{width:min(100% - 36px,680px)}.topbar .container,.header .container{align-items:flex-start;justify-content:flex-start;padding:10px 0}.hero h1{font-size:36px}}
+</style></head><body>${fragments.map(sanitizeAiSiteExportFragment).join("\n")}</body></html>`;
+}
+async function exportAiSiteProject(project, orderInput) {
+    await ensureAiSiteSandbox(project);
+    const order = orderInput?.length ? await writeAiSiteOrder(project, orderInput) : await readAiSiteOrder(project);
+    const fragments = await Promise.all(order.map(async (sectionKey) => {
+        const file = aiSectionFile(project.id, sectionKey);
+        if (await fileExists(file))
+            return readFile(file, "utf8");
+        return defaultAiSectionHtml(sectionKey, project, false);
+    }));
+    const distDir = aiExportDir(project.id);
+    await mkdir(distDir, { recursive: true });
+    const html = buildAiSiteExportDocument(project, fragments);
+    const indexPath = path.join(distDir, "index.html");
+    const exportedAt = new Date().toISOString();
+    await writeFile(indexPath, html, "utf8");
+    const manifest = {
+        projectId: project.id,
+        siteName: project.siteName,
+        exportedAt,
+        order,
+        indexPath
+    };
+    await writeFile(path.join(distDir, "export.json"), JSON.stringify(manifest, null, 2), "utf8");
+    return manifest;
+}
+function canSeeAiSiteProject(user, project) {
+    return user.role === "admin" || user.role === "super_admin" || user.id === project.ownerId || (user.role === "manager" && user.teamId === project.teamId);
+}
+const aiSiteModelPresets = [
+    { provider: "openai", label: "OpenAI 兼容接口", model: "gpt-4o-mini", baseUrl: "https://api.openai.com/v1" },
+    { provider: "deepseek", label: "DeepSeek 深度求索", model: "deepseek-chat", baseUrl: "https://api.deepseek.com/v1" },
+    { provider: "qwen", label: "通义千问", model: "qwen-plus", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { provider: "doubao", label: "豆包", model: "doubao-pro-32k", baseUrl: "https://ark.cn-beijing.volces.com/api/v3" },
+    { provider: "claude", label: "Claude 模型", model: "claude-3-5-sonnet-latest", baseUrl: "https://api.anthropic.com/v1" },
+    { provider: "gemini", label: "Gemini 模型", model: "gemini-1.5-pro", baseUrl: "https://generativelanguage.googleapis.com/v1beta" },
+    { provider: "ollama", label: "Ollama 本地模型", model: "llama3.1", baseUrl: "http://127.0.0.1:11434/v1" },
+    { provider: "custom", label: "自定义模型", model: "", baseUrl: "" }
+];
+function aiSiteProviderProtocol(provider) {
+    if (provider === "claude")
+        return "anthropic";
+    if (provider === "gemini")
+        return "gemini";
+    return "openai-compatible";
+}
+async function testAiSiteBuilderModel(settings) {
+    const missing = [
+        settings.provider ? "" : "供应商",
+        settings.model ? "" : "模型名称",
+        settings.baseUrl ? "" : "接口地址",
+        settings.apiKey || settings.provider === "ollama" ? "" : "接口密钥"
+    ].filter(Boolean);
+    if (missing.length) {
+        return { ok: false, message: `缺少${missing.join("、")}，暂不能进入生成链路` };
+    }
+    if (process.env.NODE_ENV === "test") {
+        return { ok: true, message: "本地配置检查通过；测试环境已跳过外部模型调用" };
+    }
+    const config = {
+        id: `ai_site_${settings.ownerId}`,
+        provider: settings.provider,
+        protocol: aiSiteProviderProtocol(settings.provider),
+        name: "ai建站模型配置",
+        baseUrl: settings.baseUrl,
+        model: settings.model,
+        apiKey: settings.apiKey,
+        enabled: settings.enabled,
+        temperature: 0.1,
+        useLeadFinder: false,
+        useWebsiteParse: false,
+        useScoring: false,
+        useEmailDraft: false,
+        useExam: false,
+        ownerId: settings.ownerId,
+        teamId: settings.teamId,
+        updatedAt: settings.updatedAt
+    };
+    return testAiConfig(config);
+}
+function aiSiteSettingsToModelConfig(settings) {
+    return {
+        id: `ai_site_${settings.ownerId}`,
+        provider: settings.provider,
+        protocol: aiSiteProviderProtocol(settings.provider),
+        name: "ai建站模型配置",
+        baseUrl: settings.baseUrl,
+        model: settings.model,
+        apiKey: settings.apiKey,
+        enabled: settings.enabled,
+        temperature: 0.25,
+        useLeadFinder: false,
+        useWebsiteParse: false,
+        useScoring: false,
+        useEmailDraft: false,
+        useExam: false,
+        ownerId: settings.ownerId,
+        teamId: settings.teamId,
+        updatedAt: settings.updatedAt
+    };
+}
+function aiSiteModelReady(settings) {
+    return Boolean(settings?.model && settings.baseUrl && (settings.apiKey || settings.provider === "ollama"));
+}
+function stripUnsafeAiSiteHtml(value, sectionKey) {
+    let html = String(value || "").trim();
+    html = html
+        .replace(/```html/gi, "")
+        .replace(/```/g, "")
+        .replace(/<!doctype[^>]*>/gi, "")
+        .replace(/<html[^>]*>/gi, "")
+        .replace(/<\/html>/gi, "")
+        .replace(/<head[\s\S]*?<\/head>/gi, "")
+        .replace(/<body[^>]*>/gi, "")
+        .replace(/<\/body>/gi, "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+        .replace(/\shref\s*=\s*"(?!#|mailto:|tel:)[^"]*"/gi, " href=\"#\"")
+        .replace(/\shref\s*=\s*'(?!#|mailto:|tel:)[^']*'/gi, " href=\"#\"")
+        .replace(/\starget\s*=\s*"[^"]*"/gi, "")
+        .replace(/\starget\s*=\s*'[^']*'/gi, "")
+        .trim();
+    if (/logoutButton|login-screen|GoodJob CRM|data-view="dashboard"|id="appModal"/i.test(html)) {
+        throw new Error("模型返回疑似包含 CRM 主系统内容，已拒绝写入");
+    }
+    const fragment = html.match(/<(section|header|footer)\b[\s\S]*<\/\1>/i)?.[0];
+    if (fragment)
+        html = fragment.trim();
+    if (!/^<(section|header|footer)\b/i.test(html)) {
+        throw new Error("模型必须只返回一个 header/footer/section HTML 片段");
+    }
+    if (sectionKey !== "header" && sectionKey !== "footer" && !new RegExp(`<section\\b[\\s\\S]*id=["']${sectionKey.replace(/_/g, "-")}["']`, "i").test(html)) {
+        html = html.replace(/^<section\b/i, `<section id="${sectionKey.replace(/_/g, "-")}"`);
+    }
+    return html;
+}
+function aiSiteHtmlFromModelOutput(content, sectionKey) {
+    try {
+        const parsed = extractJsonObject(content);
+        if (parsed.html)
+            return stripUnsafeAiSiteHtml(parsed.html, sectionKey);
+    }
+    catch {
+        // Some OpenAI-compatible providers ignore JSON mode; use their raw HTML safely.
+    }
+    return stripUnsafeAiSiteHtml(content, sectionKey);
+}
+function validateGeneratedAiSiteSectionHtml(html, sectionKey) {
+    if (aiSiteLockedSections.has(sectionKey))
+        return;
+    const sectionId = sectionKey.replace(/_/g, "-");
+    const styleBlocks = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1].trim()).filter(Boolean);
+    if (!styleBlocks.length)
+        throw new Error(`Generated ${sectionId}.html is missing a scoped <style> block`);
+    const css = styleBlocks.join("\n").replace(/\/\*[\s\S]*?\*\//g, " ").trim();
+    const declarationCount = (css.match(/:[^;{}]+;/g) || []).length;
+    if (css.length < 520 || declarationCount < 24) {
+        throw new Error(`Generated ${sectionId}.html CSS is too thin (${declarationCount} declarations)`);
+    }
+    const scopePattern = new RegExp(`#${sectionId}(?:\\b|\\s|[.#:{>])`, "i");
+    if (!scopePattern.test(css))
+        throw new Error(`Generated ${sectionId}.html CSS is not scoped to #${sectionId}`);
+    if (!/@media/i.test(css))
+        throw new Error(`Generated ${sectionId}.html CSS is missing responsive @media rules`);
+    if (!/(clamp\(|minmax\(|auto-fit|grid-template-columns|flex-wrap)/i.test(css)) {
+        throw new Error(`Generated ${sectionId}.html CSS is missing responsive layout primitives`);
+    }
+    if (/(^|[}\s,])(body|html|:root)\s*\{/i.test(css)) {
+        throw new Error(`Generated ${sectionId}.html CSS contains unsafe global selectors`);
+    }
+}
+function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "") {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const blueprint = cleanAiSiteBlueprint(project);
+    const designSystem = aiSiteDesignSystem(project);
+    const sectionId = sectionKey.replace(/_/g, "-");
+    return [
+        "Generate one premium B2B industrial website section. Return only JSON: {\"html\":\"...\"}.",
+        `Section: ${sectionKey} / ${aiSiteSectionLabels[sectionKey]}`,
+        `Required section id: ${sectionId}`,
+        `Plan: ${blueprint[sectionKey] || ""}`,
+        repairReason ? `Previous output failed validation: ${repairReason}` : "",
+        "Root: one fragment only. No doctype/html/head/body/script/on* handlers/CRM/login/logout/app links.",
+        `For business sections use exactly <section id="${sectionId}">. Put one compact <style> as the first child inside that section.`,
+        "CSS quality gate: include 24-64 CSS declarations, one @media rule for <=760px, and at least one of clamp(), minmax(), auto-fit, grid-template-columns, or flex-wrap.",
+        `CSS scope gate: every selector must start with #${sectionId}. Do not style body/html/:root/global .container/header/footer.`,
+        "Responsive contract: mobile-first. Use an inner wrapper with width:min(1440px,calc(100vw - clamp(32px,6vw,120px))) and margin:auto. Avoid fixed pixel widths over 420px, nowrap rows, or 4+ equal columns on wide screens. At 1200px+ add whitespace, line-length caps, and balanced asymmetry.",
+        "WordPress block contract: this section will become one reusable WP block/template part. Keep markup semantic, shallow, self-contained, and easy to convert to block attributes. Prefix local classes with the section key.",
+        "Visual: bold industrial editorial, asymmetric but balanced layout, high contrast, technical pattern/detail, strong type hierarchy, proof metrics/specs/CTA. Avoid plain three-card grids unless transformed.",
+        "Copy: English, concrete, buyer-facing, no filler. 120-220 words max. Use real product/category clues from JSON.",
+        "Design system JSON: " + JSON.stringify(designSystem),
+        "Company form JSON: " + JSON.stringify(schema)
+    ].filter(Boolean).join("\n");
+}
+function aiSiteGenerationFailure(error) {
+    const raw = error instanceof Error ? error.message : "AI section generation failed";
+    const timeout = /abort|timed out|timeout/i.test(raw);
+    const validation = /HTML|JSON|fragment|empty|CRM/i.test(raw);
+    return {
+        status: timeout ? 504 : validation ? 422 : 502,
+        message: timeout
+            ? "AI生成超时：模型在100秒内没有完成输出，请稍后重试或缩短该区块要求。"
+            : validation
+                ? `AI输出格式异常：${raw}`
+                : `AI生成失败：${raw}`
+    };
+}
+async function generateAiSiteSectionHtml(project, sectionKey, user) {
+    if (aiSiteLockedSections.has(sectionKey))
+        return defaultAiSectionHtml(sectionKey, project, true);
+    if (process.env.NODE_ENV === "test")
+        return defaultAiSectionHtml(sectionKey, project, true);
+    const settings = getStore().aiSiteBuilderSettings.find((item) => item.ownerId === user.id);
+    if (!aiSiteModelReady(settings))
+        throw new Error("AI site builder model settings are not ready. Please save and test the API settings first.");
+    await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
+    const config = aiSiteSettingsToModelConfig(settings);
+    const generatedContent = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey), 9000);
+    try {
+        const html = aiSiteHtmlFromModelOutput(generatedContent, sectionKey);
+        validateGeneratedAiSiteSectionHtml(html, sectionKey);
+        return html;
+    }
+    catch (error) {
+        const reason = error instanceof Error ? error.message : "Generated HTML failed validation";
+        const repaired = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, reason), 9000);
+        const html = aiSiteHtmlFromModelOutput(repaired, sectionKey);
+        validateGeneratedAiSiteSectionHtml(html, sectionKey);
+        return html;
+    }
+    if (!aiSiteModelReady(settings))
+        throw new Error("请先在 ai建站 中完成接口设置与大模型检查");
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
+    const blueprint = cleanAiSiteBlueprint(project);
+    const prompt = [
+        "你是跨境 B2B 工业独立站区块生成 Agent。",
+        "只输出一个可被 JSON.parse 解析的 JSON 对象，格式：{\"html\":\"...\"}。",
+        "html 字段必须是单个 HTML 片段，禁止 <!doctype>、<html>、<head>、<body>、<script>、内联事件、CRM 系统内容。",
+        `当前区块 key：${sectionKey}`,
+        `当前区块名称：${aiSiteSectionLabels[sectionKey]}`,
+        `区块蓝图：${blueprint[sectionKey] || ""}`,
+        "固定 CSS 类可使用：container, eyebrow, hero, grid, card, primary-btn, ghost-btn, placeholder。",
+        "要求：英文站点文案，面向跨境 B2B 工业采购商；内容具体、可信、可转化；不要写中文解释。",
+        `企业表单 JSON：${JSON.stringify(schema)}`
+    ].join("\n");
+    void prompt;
+    const generationPrompt = [
+        "Generate one premium B2B industrial website section. Return only JSON: {\"html\":\"...\"}.",
+        `Section: ${sectionKey} / ${aiSiteSectionLabels[sectionKey]}`,
+        `Plan: ${blueprint[sectionKey] || ""}`,
+        "Root: one fragment only. No doctype/html/head/body/script/on* handlers/CRM/login/logout/app links.",
+        "For business sections use <section id=\"kebab-section-key\">. Put one compact <style> as the first child.",
+        "CSS: scoped selectors only, e.g. #products .metric. Never style html/body/:root/global tags/header/footer. Keep CSS punchy: 36-64 declarations, no reset, no giant framework.",
+        "Responsive contract: mobile-first. Every section needs an inner wrapper like #products .products-wrap with width:min(1440px,calc(100vw - clamp(32px,6vw,120px))) and margin:auto. Use clamp() for section padding, gaps, and headings. Use grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr)) or explicit 2-column grids that collapse at 760px. Do not use fixed pixel widths over 420px, nowrap rows, or 4+ equal columns on wide screens. At 1200px+ add whitespace, line-length caps, and balanced asymmetry instead of squeezing everything together.",
+        "WordPress block contract: this section will become one reusable WP block/template part. Keep markup semantic, shallow, self-contained, and easy to convert to block attributes. Avoid relying on sibling sections or global .container behavior. Prefix local classes with the section key and avoid duplicate generic names.",
+        "Visual: bold industrial editorial, asymmetric but balanced layout, high contrast, technical pattern/detail, strong type hierarchy, proof metrics/specs/CTA. Avoid plain three-card grids unless transformed.",
+        "Copy: English, concrete, buyer-facing, no filler. 120-220 words max. Use real product/category clues from JSON.",
+        "Export note: this fragment and its scoped <style> will be merged with other sections, so avoid duplicate global names.",
+        `Company form JSON: ${JSON.stringify(schema)}`
+    ].join("\n");
+    const content = await callAiModel(aiSiteSettingsToModelConfig(settings), generationPrompt, 9000);
+    return aiSiteHtmlFromModelOutput(content, sectionKey);
+}
+function maskedKey(value) {
+    return value ? `****${value.slice(-4)}` : "";
+}
+function publicAiSiteBuilderSettings(user) {
+    const existing = getStore().aiSiteBuilderSettings.find((item) => item.ownerId === user.id);
+    const preset = aiSiteModelPresets[0];
+    const settings = existing || {
+        ownerId: user.id,
+        teamId: user.teamId,
+        provider: preset.provider,
+        model: preset.model,
+        baseUrl: preset.baseUrl,
+        apiKey: "",
+        enabled: false,
+        lastTestStatus: "untested",
+        lastTestMessage: "未检查",
+        updatedAt: new Date().toISOString()
+    };
+    return {
+        provider: settings.provider,
+        model: settings.model,
+        baseUrl: settings.baseUrl,
+        enabled: settings.enabled,
+        hasApiKey: Boolean(settings.apiKey),
+        maskedApiKey: maskedKey(settings.apiKey),
+        lastTestStatus: settings.lastTestStatus,
+        lastTestMessage: settings.lastTestMessage,
+        updatedAt: settings.updatedAt
+    };
+}
+app.get("/api/ai-site-builder/capabilities", requireAuth, (req, res) => {
+    res.json({
+        status: "reserved",
+        message: "ai建站接口已预留，当前仅创建草稿，不执行真实生成或发布。",
+        scope: req.user?.role === "sales" ? "personal" : req.user?.role === "manager" ? "team" : "global",
+        capabilities: ["需求结构化", "页面规划", "内容生成预留", "预览发布预留"],
+        defaultPages: ["首页", "产品中心", "解决方案", "成功案例", "联系我们"],
+        phases: [
+            { key: "brief", label: "需求收集" },
+            { key: "plan", label: "站点规划" },
+            { key: "generate", label: "AI生成预留" },
+            { key: "publish", label: "预览发布预留" }
+        ]
+    });
+});
+app.get("/api/ai-site-builder/models", requireAuth, (_req, res) => {
+    res.json({ providers: aiSiteModelPresets });
+});
+app.get("/api/ai-site-builder/settings", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    res.json({ settings: publicAiSiteBuilderSettings(req.user) });
+}));
+app.post("/api/ai-site-builder/settings", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const schema = z.object({
+        provider: z.string().min(1).max(60).default("openai"),
+        model: z.string().max(120).default(""),
+        baseUrl: z.string().max(240).default(""),
+        apiKey: z.string().max(500).optional().default(""),
+        enabled: z.boolean().default(false)
+    });
+    const body = schema.parse(req.body);
+    const store = getStore();
+    const preset = aiSiteModelPresets.find((item) => item.provider === body.provider);
+    const index = store.aiSiteBuilderSettings.findIndex((item) => item.ownerId === req.user.id);
+    const previous = index >= 0 ? store.aiSiteBuilderSettings[index] : null;
+    const next = {
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        provider: body.provider,
+        model: body.model || preset?.model || "",
+        baseUrl: body.baseUrl || preset?.baseUrl || "",
+        apiKey: body.apiKey || previous?.apiKey || "",
+        enabled: body.enabled,
+        lastTestStatus: previous?.lastTestStatus || "untested",
+        lastTestMessage: previous?.lastTestMessage || "未检查",
+        updatedAt: new Date().toISOString()
+    };
+    if (index >= 0)
+        store.aiSiteBuilderSettings[index] = next;
+    else
+        store.aiSiteBuilderSettings.push(next);
+    await persistAiSiteSettingsLocal(store.aiSiteBuilderSettings);
+    await store.persist();
+    res.json({ settings: publicAiSiteBuilderSettings(req.user) });
+}));
+app.post("/api/ai-site-builder/settings/test", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const schema = z.object({
+        provider: z.string().min(1).max(60).optional(),
+        model: z.string().max(120).optional(),
+        baseUrl: z.string().max(240).optional(),
+        apiKey: z.string().max(500).optional(),
+        enabled: z.boolean().optional()
+    });
+    const body = schema.parse(req.body || {});
+    const store = getStore();
+    let index = store.aiSiteBuilderSettings.findIndex((item) => item.ownerId === req.user.id);
+    if (index < 0) {
+        const preset = aiSiteModelPresets.find((item) => item.provider === body.provider) || aiSiteModelPresets[0];
+        store.aiSiteBuilderSettings.push({
+            ownerId: req.user.id,
+            teamId: req.user.teamId,
+            provider: body.provider || preset.provider,
+            model: body.model || preset.model,
+            baseUrl: body.baseUrl || preset.baseUrl,
+            apiKey: body.apiKey || "",
+            enabled: body.enabled ?? false,
+            lastTestStatus: "untested",
+            lastTestMessage: "未检查",
+            updatedAt: new Date().toISOString()
+        });
+        index = store.aiSiteBuilderSettings.length - 1;
+    }
+    const settings = store.aiSiteBuilderSettings[index];
+    const preset = aiSiteModelPresets.find((item) => item.provider === (body.provider || settings.provider));
+    settings.provider = body.provider || settings.provider;
+    settings.model = body.model || settings.model || preset?.model || "";
+    settings.baseUrl = body.baseUrl || settings.baseUrl || preset?.baseUrl || "";
+    settings.apiKey = body.apiKey && !body.apiKey.includes("****") ? body.apiKey : settings.apiKey;
+    settings.enabled = body.enabled ?? settings.enabled;
+    const result = await testAiSiteBuilderModel(settings);
+    settings.lastTestStatus = result.ok ? "passed" : "failed";
+    settings.lastTestMessage = result.message;
+    settings.updatedAt = new Date().toISOString();
+    await persistAiSiteSettingsLocal(store.aiSiteBuilderSettings);
+    await store.persist();
+    res.json({ ok: result.ok, message: settings.lastTestMessage, settings: publicAiSiteBuilderSettings(req.user) });
+}));
+app.get("/api/ai-site-builder/projects", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    res.json({
+        projects: getStore().aiSiteBuilderProjects.filter((project) => canSeeAiSiteProject(req.user, project)),
+        message: "项目列表接口已预留；接入持久化后将按账号数据范围返回建站项目。"
+    });
+}));
+app.get("/api/ai-site-builder/projects/:id", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    res.json({ project });
+}));
+app.patch("/api/ai-site-builder/projects/:id", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    const schema = z.object({
+        taskName: z.string().max(120).optional(),
+        siteName: z.string().max(120).optional(),
+        industry: z.string().max(120).optional(),
+        goal: z.enum(["lead-generation", "brand", "catalog", "support"]).optional(),
+        tone: z.string().max(80).optional(),
+        pages: z.array(z.string().min(1).max(40)).max(12).optional(),
+        schemaData: z.unknown().optional(),
+        agentPayload: z.unknown().optional()
+    });
+    const body = schema.parse(req.body || {});
+    const schemaData = body.schemaData === undefined ? normalizeAiSiteSchemaData(project.schemaData) : normalizeAiSiteSchemaData(body.schemaData);
+    const pages = body.pages?.length ? body.pages : project.pages?.length ? project.pages : ["首页", "产品中心", "解决方案", "成功案例", "联系我们"];
+    const company = schemaData.company_profile;
+    const taxonomy = schemaData.business_taxonomy;
+    project.schemaData = schemaData;
+    project.pages = pages;
+    project.taskName = body.taskName || project.taskName || `${company.legal_name || company.wordmark || "未命名网站"} 建站任务`;
+    project.siteName = body.siteName || company.legal_name || company.wordmark || project.siteName || "未命名网站";
+    project.industry = body.industry || taxonomy.product_categories[0] || taxonomy.solutions[0] || project.industry || "未指定行业";
+    project.goal = body.goal || project.goal || "lead-generation";
+    project.tone = body.tone || schemaData.style_requirements.preset || project.tone || "industrial-professional";
+    project.agentPayload = normalizeAgentPayload(body.agentPayload, schemaData, pages);
+    await ensureAiSiteSandbox(project);
+    await writeFile(path.join(aiProjectDir(project.id), "blueprint.json"), JSON.stringify(cleanAiSiteBlueprint(project), null, 2), "utf8");
+    await getStore().persist();
+    res.json({ project });
+}));
+app.delete("/api/ai-site-builder/projects/:id", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const store = getStore();
+    const index = store.aiSiteBuilderProjects.findIndex((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (index < 0) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    const [project] = store.aiSiteBuilderProjects.splice(index, 1);
+    await rm(aiProjectDir(project.id), { recursive: true, force: true });
+    await store.persist();
+    res.json({ ok: true, id: project.id });
+}));
+app.get("/api/ai-site-builder/projects/:id/editor", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    await ensureAiSiteSandbox(project);
+    const order = await readAiSiteOrder(project);
+    const blueprintRaw = await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
+    const blueprint = JSON.parse(blueprintRaw || "{}");
+    const sections = await Promise.all(order.map(async (key) => {
+        const exists = await fileExists(aiSectionFile(project.id, key));
+        const html = exists ? await readFile(aiSectionFile(project.id, key), "utf8").catch(() => "") : "";
+        let generated = exists;
+        if (exists && !aiSiteLockedSections.has(key)) {
+            try {
+                validateGeneratedAiSiteSectionHtml(html, key);
+            }
+            catch {
+                generated = false;
+            }
+        }
+        return {
+            key,
+            label: aiSiteSectionLabels[key],
+            locked: aiSiteLockedSections.has(key),
+            generated,
+            blueprint: blueprint[key] || (key === "header" || key === "footer" ? "固定全站组件，自动生成并锁定。" : "")
+        };
+    }));
+    res.json({ project, order, sections, blueprint });
+}));
+app.patch("/api/ai-site-builder/projects/:id/editor/order", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    const schema = z.object({ order: z.array(z.string()).default([]) });
+    const body = schema.parse(req.body || {});
+    const order = await writeAiSiteOrder(project, body.order);
+    res.json({ order });
+}));
+app.get("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    const sectionKey = req.params.sectionKey;
+    if (!project || !isAiSiteSectionKey(sectionKey)) {
+        res.status(404).json({ message: "区块不存在或无权访问" });
+        return;
+    }
+    await ensureAiSiteSandbox(project);
+    const file = aiSectionFile(project.id, sectionKey);
+    if (!(await fileExists(file)) && !aiSiteLockedSections.has(sectionKey)) {
+        res.json({ sectionKey, html: defaultAiSectionHtml(sectionKey, project, false), generated: false });
+        return;
+    }
+    const html = await readFile(file, "utf8");
+    let generated = true;
+    if (!aiSiteLockedSections.has(sectionKey)) {
+        try {
+            validateGeneratedAiSiteSectionHtml(html, sectionKey);
+        }
+        catch {
+            generated = false;
+        }
+    }
+    res.json({ sectionKey, html, generated });
+}));
+app.put("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    const sectionKey = req.params.sectionKey;
+    if (!project || !isAiSiteSectionKey(sectionKey)) {
+        res.status(404).json({ message: "区块不存在或无权访问" });
+        return;
+    }
+    const schema = z.object({ html: z.string().max(200000).default("") });
+    const body = schema.parse(req.body || {});
+    await ensureAiSiteSandbox(project);
+    await writeFile(aiSectionFile(project.id, sectionKey), body.html || defaultAiSectionHtml(sectionKey, project, true), "utf8");
+    let generated = true;
+    if (!aiSiteLockedSections.has(sectionKey)) {
+        try {
+            validateGeneratedAiSiteSectionHtml(body.html || "", sectionKey);
+        }
+        catch {
+            generated = false;
+        }
+    }
+    res.json({ sectionKey, html: body.html, generated });
+}));
+app.post("/api/ai-site-builder/projects/:id/sections/:sectionKey/generate", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    const sectionKey = req.params.sectionKey;
+    if (!project || !isAiSiteSectionKey(sectionKey)) {
+        res.status(404).json({ message: "区块不存在或无权访问" });
+        return;
+    }
+    await ensureAiSiteSandbox(project);
+    try {
+        const html = await generateAiSiteSectionHtml(project, sectionKey, req.user);
+        await writeFile(aiSectionFile(project.id, sectionKey), html, "utf8");
+        res.json({ sectionKey, html, generated: true, message: `${aiSiteSectionLabels[sectionKey]} 已由 Agent 生成并写入本地 HTML 片段` });
+    }
+    catch (error) {
+        const failure = aiSiteGenerationFailure(error);
+        res.status(failure.status).json({
+            ok: false,
+            sectionKey,
+            generated: false,
+            message: failure.message,
+            progress: [`${aiSiteSectionLabels[sectionKey]} generation failed`, failure.message]
+        });
+    }
+}));
+app.post("/api/ai-site-builder/projects/:id/sections/generate-batch", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    const schema = z.object({ order: z.array(z.string()).default([]) });
+    const body = schema.parse(req.body || {});
+    await ensureAiSiteSandbox(project);
+    const savedOrder = body.order.length ? await writeAiSiteOrder(project, body.order) : await readAiSiteOrder(project);
+    const targets = savedOrder.filter((key) => !aiSiteLockedSections.has(key));
+    const results = [];
+    for (const sectionKey of targets) {
+        try {
+            const html = await generateAiSiteSectionHtml(project, sectionKey, req.user);
+            await writeFile(aiSectionFile(project.id, sectionKey), html, "utf8");
+            results.push({ sectionKey, label: aiSiteSectionLabels[sectionKey], ok: true, message: "已生成" });
+        }
+        catch (error) {
+            results.push({
+                sectionKey,
+                label: aiSiteSectionLabels[sectionKey],
+                ok: false,
+                message: error instanceof Error ? error.message : "生成失败，已保留旧片段"
+            });
+        }
+    }
+    res.json({
+        ok: results.every((item) => item.ok),
+        generatedCount: results.filter((item) => item.ok).length,
+        failedCount: results.filter((item) => !item.ok).length,
+        results,
+        message: `批量生成完成：成功 ${results.filter((item) => item.ok).length} 个，失败 ${results.filter((item) => !item.ok).length} 个`
+    });
+}));
+app.post("/api/ai-site-builder/projects/:id/export", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    const schema = z.object({ order: z.array(z.string()).default([]) });
+    const body = schema.parse(req.body || {});
+    const exportResult = await exportAiSiteProject(project, body.order);
+    res.json({
+        ok: true,
+        export: exportResult,
+        message: `整站已导出：${exportResult.indexPath}`
+    });
+}));
+app.post("/api/ai-site-builder/projects", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const schema = z.object({
+        taskName: z.string().max(120).optional().default("官网建站任务"),
+        siteName: z.string().max(120).optional().default(""),
+        industry: z.string().max(120).optional().default(""),
+        goal: z.enum(["lead-generation", "brand", "catalog", "support"]).default("lead-generation"),
+        tone: z.string().max(80).default("professional"),
+        pages: z.array(z.string().min(1).max(40)).max(12).default([]),
+        brief: z.string().max(1200).default(""),
+        schemaData: z.unknown().optional(),
+        agentPayload: z.unknown().optional()
+    });
+    const body = schema.parse(req.body);
+    const schemaData = normalizeAiSiteSchemaData(body.schemaData);
+    const pages = body.pages.length ? body.pages : ["首页", "产品中心", "解决方案", "成功案例", "联系我们"];
+    const agentPayload = normalizeAgentPayload(body.agentPayload, schemaData, pages);
+    const company = schemaData.company_profile;
+    const taxonomy = schemaData.business_taxonomy;
+    const project = {
+        id: `site_${Date.now()}`,
+        taskName: body.taskName || "官网建站任务",
+        siteName: body.siteName || company.legal_name || company.wordmark || "未命名网站",
+        industry: body.industry || taxonomy.product_categories[0] || "未指定行业",
+        goal: body.goal,
+        tone: body.tone,
+        pages,
+        schemaData,
+        agentPayload,
+        status: "draft_reserved",
+        ownerId: req.user.id,
+        teamId: req.user.teamId,
+        createdAt: new Date().toISOString()
+    };
+    const store = getStore();
+    store.aiSiteBuilderProjects.unshift(project);
+    await ensureAiSiteSandbox(project);
+    await store.persist();
+    res.status(201).json({
+        project,
+        nextActions: [
+            "确认站点信息架构和页面范围",
+            "接入AI内容生成服务",
+            "接入主题/模板生成器",
+            "接入预览、发布和回滚流程"
+        ]
+    });
+}));
+app.get("/api/dashboard/summary", requireAuth, (req, res) => {
+    const store = getStore();
+    const archived = archiveExpiredTodos(store.todos, new Date());
+    if (archived.length)
+        void store.persist();
+    const { customers, todos, deals, reminders, knowledgeAssets, exams, wecomMessages } = store;
+    const scopedCustomers = customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    const scopedTodos = todos.filter((todo) => canSeePersonalData(req.user, todo.ownerId));
+    const scopedDeals = deals.filter((deal) => canSeeOwner(req.user, deal.ownerId, deal.teamId) && !deal.archivedAt);
+    const scopedReminders = reminders.filter((reminder) => canSeeOwner(req.user, reminder.ownerId, reminder.teamId));
+    const scopedKnowledge = req.user?.role === "sales" ? knowledgeAssets.filter((asset) => asset.ownerId === req.user?.id) : knowledgeAssets;
+    const scopedMessages = wecomMessages.filter((message) => canSeeOwner(req.user, message.ownerId, message.teamId));
+    const activeTodos = scopedTodos.filter((todo) => !isHistoricalTodo(todo));
+    const pendingTodos = activeTodos.filter((todo) => !todo.done);
+    const overdueTodos = pendingTodos.filter((todo) => todo.priority === "high");
+    const historyTodos = scopedTodos.filter(isHistoricalTodo);
+    const riskCustomers = scopedCustomers.filter((customer) => customer.nextReminder.includes("逾期") || customer.health < 60);
+    const riskAmount = riskCustomers.reduce((sum, customer) => sum + customer.amount, 0);
+    const forecastAmount = scopedDeals.reduce((sum, deal) => sum + deal.amount, 0) || scopedCustomers.reduce((sum, customer) => sum + customer.amount, 0);
+    const wecomBound = scopedCustomers.filter((customer) => customer.wecomBound).length;
+    const pendingKnowledge = scopedKnowledge.filter((asset) => asset.status !== "published");
+    const publishedExams = exams.filter((exam) => exam.status === "published");
+    const averagePassRate = publishedExams.length ? Math.round(publishedExams.reduce((sum, exam) => sum + exam.passRate, 0) / publishedExams.length) : 0;
+    const pendingMessages = scopedMessages.filter((message) => message.status === "pending");
+    const readyDeals = scopedDeals.filter((deal) => ["已报价", "样品", "谈判"].includes(deal.stage));
+    const topTodos = [...pendingTodos].sort((a, b) => (b.impactAmount || 0) - (a.impactAmount || 0) || priorityWeight(b.priority) - priorityWeight(a.priority)).slice(0, 3);
+    const priorityTasks = buildPriorityTasks(scopedDeals, scopedCustomers, pendingTodos);
+    const topDeals = priorityTasks.map((task) => task.deal);
+    const pipelineHealth = buildPipelineHealth(scopedDeals, scopedCustomers);
+    const typeRows = ["customer", "knowledge", "exam", "ocr", "other"].map((type) => {
+        const items = pendingTodos.filter((todo) => todo.type === type);
+        return {
+            type,
+            label: todoTypeLabel(type),
+            count: items.length,
+            risk: items.some((todo) => todo.priority === "high") ? "高" : items.some((todo) => todo.priority === "medium") ? "中" : "普通"
+        };
+    }).filter((row) => row.count > 0);
+    const weekLoad = ["一", "二", "三", "四", "五", "六", "日"].map((day, index) => ({
+        day,
+        count: pendingTodos.filter((_, todoIndex) => todoIndex % 7 === index).length + (index < Math.min(pendingTodos.length, 7) ? 1 : 0)
+    }));
+    const topRiskNames = riskCustomers.slice(0, 3).map((customer) => customer.company).join("、") || topDeals.slice(0, 2).map((deal) => deal.title).join("、") || "暂无高风险客户";
+    res.json({
+        scope: req.user?.role === "sales" ? "仅本人业务与本人待办" : req.user?.role === "manager" ? "团队业务数据，本人待办" : "全局业务数据，本人待办",
+        updatedAt: new Date().toISOString(),
+        briefing: {
+            title: pendingTodos.length
+                ? `今天最该处理的是 ${pendingTodos.length} 个待办，其中 ${overdueTodos.length} 个属于高优先级。`
+                : "今天暂无未完成待办，可以复盘客户资料和销售知识库。",
+            description: riskCustomers.length
+                ? `系统根据客户金额、健康度、阶段和提醒状态计算，建议优先处理 ${topRiskNames}。`
+                : `当前客户风险较低，建议推进 ${topDeals[0]?.title || "高金额商机"} 并保持企微记录归档。`,
+            basis: `依据：${pendingTodos.length} 个未完成待办、${riskCustomers.length} 个风险客户、${readyDeals.length} 个可推进商机、${pendingMessages.length} 条企微待归档。`,
+            action: overdueTodos.length
+                ? `建议动作：先处理 ${overdueTodos.length} 个高优先级待办，再跟进金额最高的商机。`
+                : `建议动作：按今日节奏完成待办，并把可成交商机推进到下一阶段。`,
+            impact: riskAmount
+                ? `影响范围：${moneyText(riskAmount)} 风险金额，处理后可降低逾期和报价流失。`
+                : `影响范围：${moneyText(readyDeals.reduce((sum, deal) => sum + deal.amount, 0))} 可推进金额，适合用于晨会安排。`,
+            riskAmount,
+            riskLabel: req.user?.role === "sales" ? "本人名下风险" : req.user?.role === "manager" ? "团队风险金额" : "全局风险金额",
+            closableDeals: readyDeals.length,
+            closableAmount: readyDeals.reduce((sum, deal) => sum + deal.amount, 0),
+            unreadWecom: pendingMessages.length
+        },
+        metrics: {
+            customers: scopedCustomers.length,
+            todos: pendingTodos.length,
+            overdueTodos: overdueTodos.length,
+            forecastAmount,
+            wecomBoundRate: scopedCustomers.length ? Math.round((wecomBound / scopedCustomers.length) * 100) : 0,
+            pendingKnowledge: pendingKnowledge.length,
+            examPassRate: averagePassRate,
+            unfinishedExams: exams.filter((exam) => exam.status !== "published").length,
+            customerCompleteness: scopedCustomers.length ? Math.round(scopedCustomers.reduce((sum, customer) => sum + (customer.contact ? 25 : 0) + (customer.country ? 25 : 0) + (customer.stage ? 25 : 0) + (customer.nextReminder ? 25 : 0), 0) / scopedCustomers.length) : 0
+        },
+        schedule: topTodos.map((todo) => ({
+            time: todo.dueAt || "待定",
+            title: todo.title,
+            subtitle: todo.related || todoTypeLabel(todo.type),
+            tone: todo.priority === "high" ? "red" : todo.priority === "medium" ? "amber" : "green"
+        })),
+        quality: {
+            followHealth: scopedCustomers.length ? Math.round(scopedCustomers.reduce((sum, customer) => sum + customer.health, 0) / scopedCustomers.length) : 0,
+            overdueRate: pendingTodos.length ? Math.round((overdueTodos.length / pendingTodos.length) * 100) : 0,
+            avgResponseHours: Number((Math.max(1, pendingMessages.length + scopedReminders.filter((reminder) => reminder.status === "pending").length) * 1.6).toFixed(1))
+        },
+        pipelineHealth,
+        todoInsights: {
+            total: pendingTodos.length,
+            overdue: overdueTodos.length,
+            completionRate: activeTodos.length ? Math.round((activeTodos.filter((todo) => todo.done).length / activeTodos.length) * 100) : 0,
+            impactAmount: pendingTodos.reduce((sum, todo) => sum + (todo.impactAmount || 0), 0),
+            typeRows,
+            weekLoad,
+            historyCount: historyTodos.length,
+            historyAmount: historyTodos.reduce((sum, todo) => sum + (todo.impactAmount || 0), 0)
+        },
+        priorityTasks: priorityTasks.map(({ deal, customer, score, reason, action, tone }) => ({
+            id: deal.id,
+            customerId: customer?.id || deal.customerId,
+            title: deal.title,
+            subtitle: `${customer?.country || "未知国家"} · ${deal.stage} · ${moneyText(deal.amount)} · ${deal.nextAction}`,
+            score,
+            reason,
+            action,
+            tone,
+            badge: customer?.nextReminder.includes("逾期") ? "逾期" : deal.stage
+        }))
+    });
+});
+app.post("/api/dashboard/priority-tasks/batch-process", requireAuth, asyncRoute(async (req, res) => {
+    const store = getStore();
+    const scopedCustomers = store.customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    const scopedDeals = store.deals.filter((deal) => canSeeOwner(req.user, deal.ownerId, deal.teamId) && !deal.archivedAt);
+    const scopedTodos = store.todos.filter((todo) => canSeePersonalData(req.user, todo.ownerId));
+    const pendingTodos = scopedTodos.filter((todo) => !todo.done && !isHistoricalTodo(todo));
+    const priorityTasks = buildPriorityTasks(scopedDeals, scopedCustomers, pendingTodos).slice(0, 3);
+    const created = [];
+    for (const task of priorityTasks) {
+        const exists = store.todos.some((todo) => todo.ownerId === req.user.id && !todo.done && todo.related === task.deal.title && todo.title.includes("跟进优先级"));
+        if (exists)
+            continue;
+        const todo = {
+            id: `t_priority_${task.deal.id}_${Date.now()}_${created.length}`,
+            title: `跟进优先级：${task.action}`,
+            type: "customer",
+            priority: task.score >= 80 ? "high" : task.score >= 60 ? "medium" : "normal",
+            dueAt: currentMinuteText(),
+            ownerId: req.user.id,
+            teamId: req.user.teamId,
+            related: task.deal.title,
+            done: false,
+            impactAmount: task.deal.amount,
+            createdAt: new Date().toISOString()
+        };
+        store.todos.unshift(todo);
+        created.push(todo);
+    }
+    await store.persist();
+    res.json({ created, processed: priorityTasks.length, skipped: priorityTasks.length - created.length });
+}));
+function isHistoricalTodo(todo) {
+    return Boolean(todo.historyAt);
+}
+function shouldArchiveTodo(todo, now = new Date()) {
+    if (todo.historyAt)
+        return false;
+    const parsed = parseDueDate(todo.dueAt, todo.createdAt);
+    if (!parsed)
+        return false;
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return parsed < today;
+}
+function archiveExpiredTodos(todos, now = new Date()) {
+    const archiveTime = now.toISOString();
+    const archived = todos.filter((todo) => shouldArchiveTodo(todo, now));
+    archived.forEach((todo) => {
+        todo.historyAt = archiveTime;
+        todo.status = "pending";
+        todo.pinState = "";
+    });
+    return archived;
+}
+function parseDueDate(value, fallbackCreatedAt) {
+    const text = value.trim();
+    const exact = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (exact)
+        return new Date(Number(exact[1]), Number(exact[2]) - 1, Number(exact[3]));
+    const now = fallbackCreatedAt ? new Date(fallbackCreatedAt) : new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (text.includes("昨天"))
+        return new Date(today.getTime() - 86400000);
+    if (text.includes("前天"))
+        return new Date(today.getTime() - 86400000 * 2);
+    if (!text)
+        return today;
+    if (text.includes("今天") || /^(\d{1,2}):(\d{2})$/.test(text))
+        return today;
+    if (text.includes("明天"))
+        return new Date(today.getTime() + 86400000);
+    return fallbackCreatedAt ? today : null;
+}
+function scheduleMidnightTodoArchive() {
+    const run = async () => {
+        const store = getStore();
+        const archived = archiveExpiredTodos(store.todos, new Date());
+        if (archived.length) {
+            await store.persist();
+            console.log(`GoodJob CRM archived ${archived.length} todos into history`);
+        }
+        schedule();
+    };
+    const schedule = () => {
+        const now = new Date();
+        const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 3);
+        const delay = Math.max(1000, next.getTime() - now.getTime());
+        windowlessSetTimeout(() => void run(), delay);
+    };
+    schedule();
+}
+function windowlessSetTimeout(callback, delay) {
+    setTimeout(callback, delay);
+}
+function priorityWeight(priority) {
+    if (priority === "high")
+        return 3;
+    if (priority === "medium")
+        return 2;
+    return 1;
+}
+function nextTodoSortOrder(todos, ownerId) {
+    const scoped = todos.filter((todo) => todo.ownerId === ownerId);
+    return Math.min(0, ...scoped.map((todo) => typeof todo.sortOrder === "number" ? todo.sortOrder : 0)) - 1;
+}
+function buildPriorityTasks(deals, customers, todos) {
+    const maxAmount = Math.max(...deals.map((deal) => deal.amount), 1);
+    return deals
+        .filter((deal) => !deal.archivedAt && deal.stage !== "成交" && deal.stage !== "丢单")
+        .map((deal) => {
+        const customer = customers.find((item) => item.id === deal.customerId);
+        const amountScore = Math.round((deal.amount / maxAmount) * 35);
+        const stageScore = stagePriorityScore(deal.stage);
+        const riskScore = customer?.nextReminder.includes("逾期") ? 25 : (customer?.health ?? 100) < 60 ? 18 : 0;
+        const todoScore = todos.some((todo) => todo.related.includes(customer?.company || deal.title) || todo.related.includes(deal.title)) ? 10 : 0;
+        const score = Math.min(100, amountScore + stageScore + riskScore + todoScore);
+        const reasons = [
+            `金额权重 ${amountScore}`,
+            `阶段权重 ${stageScore}`,
+            riskScore ? `风险权重 ${riskScore}` : "风险权重 0",
+            todoScore ? "已有待办推动" : "暂无关联待办"
+        ];
+        const action = nextPriorityAction(deal, customer);
+        const tone = score >= 80 ? "red" : score >= 60 ? "amber" : "brand";
+        return { deal, customer, score, reason: reasons.join(" · "), action, tone };
+    })
+        .sort((left, right) => right.score - left.score || right.deal.amount - left.deal.amount)
+        .slice(0, 3);
+}
+function buildPipelineHealth(deals, customers) {
+    const stages = ["询盘", "已联系", "已报价", "样品", "谈判", "成交"];
+    const activeDeals = deals.filter((deal) => !deal.archivedAt && deal.stage !== "丢单");
+    const maxCount = Math.max(...stages.map((stage) => activeDeals.filter((deal) => deal.stage === stage).length), 1);
+    return stages.map((stage) => {
+        const stageDeals = activeDeals.filter((deal) => deal.stage === stage);
+        const amount = stageDeals.reduce((sum, deal) => sum + deal.amount, 0);
+        const riskCount = stageDeals.filter((deal) => {
+            const customer = customers.find((item) => item.id === deal.customerId);
+            return Boolean(customer?.nextReminder.includes("逾期")) || (customer?.health ?? 100) < 60;
+        }).length;
+        return {
+            stage,
+            count: stageDeals.length,
+            amount,
+            riskCount,
+            width: stageDeals.length ? Math.max(8, Math.round((stageDeals.length / maxCount) * 100)) : 0,
+            tone: riskCount ? "amber" : stage === "成交" ? "green" : "aqua"
+        };
+    });
+}
+function stagePriorityScore(stage) {
+    const map = {
+        谈判: 30,
+        样品: 24,
+        已报价: 20,
+        已联系: 12,
+        询盘: 8
+    };
+    return map[stage] || 6;
+}
+function nextPriorityAction(deal, customer) {
+    if (customer?.nextReminder.includes("逾期"))
+        return `二次跟进 ${customer.company} 并确认 ${deal.nextAction}`;
+    if ((customer?.health ?? 100) < 60)
+        return `补齐 ${customer?.company || deal.title} 的风险资料并同步主管`;
+    if (deal.stage === "谈判")
+        return `确认 ${deal.title} 的价格、账期和成交条件`;
+    if (deal.stage === "样品")
+        return `确认 ${deal.title} 的样品反馈和复购时间`;
+    if (deal.stage === "已报价")
+        return `发送 ${deal.title} 的报价二次确认`;
+    return `推进 ${deal.title} 的下一步：${deal.nextAction}`;
+}
+function reminderRuleTitle(ruleType = "quote_no_reply") {
+    const map = {
+        quote_no_reply: "报价后未回复提醒",
+        sample_feedback: "样品反馈提醒",
+        inactive_customer: "长期未联系提醒",
+        high_value_revisit: "高价值客户复访",
+        custom_due: "自定义跟进提醒"
+    };
+    return map[ruleType] || "自定义跟进提醒";
+}
+function reminderRuleText(rule) {
+    const days = rule.days ?? 3;
+    const stage = rule.targetStage || "已报价";
+    const channel = rule.channel || "企业微信";
+    if (rule.ruleType === "sample_feedback")
+        return `客户阶段为样品，${days} 天内需要反馈，通过${channel}提醒`;
+    if (rule.ruleType === "inactive_customer")
+        return `${days} 天未推进且客户仍在${stage}阶段，通过${channel}提醒`;
+    if (rule.ruleType === "high_value_revisit")
+        return `金额较高或健康度偏低客户 ${days} 天复访，通过${channel}提醒`;
+    if (rule.ruleType === "custom_due")
+        return `${stage}阶段客户按指定时间提醒，通过${channel}提醒`;
+    return `${stage}阶段客户报价后 ${days} 天未回复，通过${channel}提醒`;
+}
+function matchReminderRule(user, rule) {
+    const store = getStore();
+    const scopedCustomers = store.customers.filter((customer) => canSeeOwner(user, customer.ownerId, customer.teamId));
+    const stage = rule.targetStage || "已报价";
+    const ruleType = rule.ruleType || "quote_no_reply";
+    if (ruleType === "sample_feedback")
+        return scopedCustomers.filter((customer) => customer.stage === "样品");
+    if (ruleType === "inactive_customer")
+        return scopedCustomers.filter((customer) => customer.stage === stage || customer.nextReminder.includes("逾期"));
+    if (ruleType === "high_value_revisit")
+        return scopedCustomers.filter((customer) => customer.amount >= 30000 || customer.health < 65);
+    if (ruleType === "custom_due")
+        return scopedCustomers.filter((customer) => customer.stage === stage);
+    return scopedCustomers.filter((customer) => customer.stage === stage || customer.nextReminder.includes("逾期"));
+}
+function todoTypeLabel(type) {
+    const map = {
+        customer: "客户跟进",
+        knowledge: "资料维护",
+        exam: "在线考试",
+        ocr: "OCR 线索",
+        other: "其它"
+    };
+    return map[type] || "其它";
+}
+function moneyText(value) {
+    return `$${Math.round(value / 1000)}k`;
+}
+function currentMinuteText() {
+    const date = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function getAiConfigs(user) {
+    return getStore().aiModelConfigs
+        .filter((item) => item.ownerId === user.id)
+        .sort((left, right) => Number(right.enabled) - Number(left.enabled) || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+function configSupportsUseCase(config, useCase) {
+    if (!useCase)
+        return true;
+    const map = {
+        leadFinder: "useLeadFinder",
+        websiteParse: "useWebsiteParse",
+        scoring: "useScoring",
+        emailDraft: "useEmailDraft",
+        exam: "useExam"
+    };
+    return Boolean(config[map[useCase]]);
+}
+function getAiConfig(user, useCase) {
+    const configs = getAiConfigs(user);
+    return configs.find((item) => item.enabled && item.apiKey && configSupportsUseCase(item, useCase))
+        || configs.find((item) => configSupportsUseCase(item, useCase))
+        || configs[0]
+        || null;
+}
+function publicAiConfig(config) {
+    return {
+        id: config.id,
+        provider: config.provider,
+        protocol: config.protocol || "openai-compatible",
+        name: config.name,
+        baseUrl: config.baseUrl,
+        model: config.model,
+        apiKey: config.apiKey ? `****${config.apiKey.slice(-4)}` : "",
+        hasApiKey: Boolean(config.apiKey),
+        enabled: config.enabled,
+        temperature: config.temperature ?? 0.1,
+        useLeadFinder: config.useLeadFinder ?? true,
+        useWebsiteParse: config.useWebsiteParse ?? true,
+        useScoring: config.useScoring ?? true,
+        useEmailDraft: config.useEmailDraft ?? true,
+        useExam: config.useExam ?? false,
+        lastTestAt: config.lastTestAt || "",
+        lastTestStatus: config.lastTestStatus || "untested",
+        lastTestMessage: config.lastTestMessage || "",
+        ownerId: config.ownerId,
+        teamId: config.teamId,
+        updatedAt: config.updatedAt
+    };
+}
+async function testAiConfig(config) {
+    try {
+        const content = await callAiModel(config, "只返回 JSON：{\"ok\":true}", 1200);
+        const ok = /ok|true/i.test(content);
+        return {
+            ok,
+            message: ok ? `${providerLabel(config.provider)} 连接测试通过` : "模型已响应，但返回内容不符合测试格式"
+        };
+    }
+    catch (error) {
+        return {
+            ok: false,
+            message: error instanceof Error ? `AI 连接失败：${error.message}` : "AI 连接失败，请检查 Base URL / Key / Model"
+        };
+    }
+}
+function providerLabel(provider) {
+    const labels = {
+        openai: "OpenAI",
+        anthropic: "Claude",
+        gemini: "Gemini",
+        deepseek: "DeepSeek",
+        qwen: "通义千问",
+        moonshot: "Kimi",
+        zhipu: "智谱GLM",
+        baidu: "百度千帆",
+        volcengine: "豆包",
+        mistral: "Mistral",
+        groq: "Groq",
+        openrouter: "OpenRouter",
+        ollama: "Ollama",
+        custom: "自定义模型"
+    };
+    return labels[provider] || provider || "AI模型";
+}
+function normalizeWebsite(raw) {
+    const trimmed = raw.trim();
+    if (!trimmed)
+        return "";
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+function leadFinderQueryText(body) {
+    return [body.goal, body.productKeywords, body.industry, body.customerType, body.countries]
+        .join(" ")
+        .replace(/[,，/]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+async function searchGleifLeads(body, user, limit) {
+    const firstCountry = body.countries.split(/,|，/)[0]?.trim();
+    const firstIndustry = body.industry.split(/,|，/)[0]?.trim();
+    const firstProduct = body.productKeywords.split(/,|，/)[0]?.trim();
+    const queryCandidates = [
+        leadFinderQueryText(body),
+        [firstIndustry, firstCountry].filter(Boolean).join(" "),
+        [firstProduct, firstCountry].filter(Boolean).join(" "),
+        [body.customerType, firstCountry].filter(Boolean).join(" "),
+        firstIndustry || firstProduct || firstCountry || "automation"
+    ].filter(Boolean);
+    try {
+        let records = [];
+        for (const query of queryCandidates) {
+            const url = `https://api.gleif.org/api/v1/lei-records?filter[fulltext]=${encodeURIComponent(query)}&page[size]=${limit}`;
+            const response = await fetch(url, { headers: { accept: "application/vnd.api+json" } });
+            if (!response.ok)
+                continue;
+            const data = await response.json();
+            records = data.data || [];
+            if (records.length)
+                break;
+        }
+        return records.slice(0, limit).map((item, index) => {
+            const entity = item.attributes?.entity;
+            const company = entity?.legalName?.name || `GLEIF Entity ${index + 1}`;
+            const country = entity?.legalAddress?.country || entity?.headquartersAddress?.country || body.countries.split(/,|，/)[0]?.trim() || "未知";
+            const city = entity?.legalAddress?.city || entity?.headquartersAddress?.city || "";
+            const lei = item.attributes?.lei || item.id || "";
+            return {
+                id: `lf_gleif_${Date.now()}_${index}`,
+                company,
+                business: body.productKeywords || body.industry || "法人实体 / 待核实业务",
+                country,
+                website: lei ? `https://search.gleif.org/#/record/${lei}` : "https://search.gleif.org/",
+                contact: "待维护",
+                contactInfo: "",
+                description: `GLEIF公开法人实体。${city ? `城市：${city}。` : ""}需继续核实官网、采购角色和产品匹配。`,
+                ownerId: user.id,
+                teamId: user.teamId,
+                status: "preview",
+                createdAt: new Date().toISOString(),
+                parseMode: "rule"
+            };
+        });
+    }
+    catch {
+        return [];
+    }
+}
+async function searchWikidataLeads(body, user, limit) {
+    const firstCountry = body.countries.split(/,|，/)[0]?.trim();
+    const firstIndustry = body.industry.split(/,|，/)[0]?.trim();
+    const firstProduct = body.productKeywords.split(/,|，/)[0]?.trim();
+    const queryCandidates = [
+        leadFinderQueryText(body),
+        [firstProduct, firstIndustry, firstCountry].filter(Boolean).join(" "),
+        [firstIndustry, "company"].filter(Boolean).join(" "),
+        firstProduct || firstIndustry || "instrumentation company"
+    ].filter(Boolean);
+    try {
+        let records = [];
+        for (const query of queryCandidates) {
+            const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&type=item&limit=${limit}&search=${encodeURIComponent(query)}`;
+            const response = await fetch(url, { headers: { accept: "application/json" } });
+            if (!response.ok)
+                continue;
+            const data = await response.json();
+            records = data.search || [];
+            if (records.length)
+                break;
+        }
+        return records
+            .filter((item) => item.label)
+            .slice(0, limit)
+            .map((item, index) => ({
+            id: `lf_wikidata_${Date.now()}_${index}`,
+            company: item.label || `Wikidata Entity ${index + 1}`,
+            business: body.productKeywords || body.industry || item.description || "公开实体 / 待核实业务",
+            country: body.countries.split(/,|，/)[0]?.trim() || "未知",
+            website: item.concepturi || (item.id ? `https://www.wikidata.org/wiki/${item.id}` : "https://www.wikidata.org/"),
+            contact: "待维护",
+            contactInfo: "",
+            description: `Wikidata公开实体：${item.description || "描述待补充"}。需继续核实官网、联系人和真实采购意向。`,
+            ownerId: user.id,
+            teamId: user.teamId,
+            status: "preview",
+            createdAt: new Date().toISOString(),
+            parseMode: "rule"
+        }));
+    }
+    catch {
+        return [];
+    }
+}
+async function parseWebsiteOpportunity(rawUrl, index, user, aiConfig) {
+    const website = normalizeWebsite(rawUrl);
+    let html = "";
+    let finalUrl = website;
+    let fetchNote = "";
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6500);
+        const response = await fetch(website, {
+            signal: controller.signal,
+            headers: { "user-agent": "GoodJobCRM/1.0 opportunity research" }
+        });
+        clearTimeout(timeout);
+        finalUrl = response.url || website;
+        html = response.ok ? await response.text() : "";
+        if (!response.ok)
+            fetchNote = `官网返回 ${response.status}，已使用域名与可公开信息生成待核实商机。`;
+    }
+    catch {
+        fetchNote = "官网暂时无法直接读取，已使用域名生成待核实商机。";
+    }
+    const text = cleanHtml(html).slice(0, 8000);
+    const title = firstMatch(html, /<title[^>]*>([\s\S]*?)<\/title>/i) || "";
+    const description = firstMatch(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) || firstMatch(html, /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i) || "";
+    const headings = [...html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)].slice(0, 4).map((item) => cleanHtml(item[1])).filter(Boolean);
+    const emails = [...new Set((html + " " + text).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [])].slice(0, 3);
+    const phones = [...new Set((text.match(/(?:\+|00)?\d[\d\s().-]{7,}\d/g) || []).map((item) => item.trim()))].slice(0, 2);
+    const wechat = firstMatch(text, /(?:WeChat|微信)[:：\s]*([A-Za-z0-9_-]{5,})/i);
+    const whatsapp = firstMatch(text, /(?:WhatsApp|Whatsapp|WA)[:：\s]*([+\d\s().-]{7,})/i);
+    const contactInfo = [emails[0], whatsapp ? `WhatsApp ${whatsapp}` : "", wechat ? `微信 ${wechat}` : "", phones[0]].filter(Boolean).join(" / ");
+    const url = new URL(finalUrl);
+    const company = companyFromTitle(title, url.hostname);
+    const business = inferBusiness([title, description, ...headings, text].join(" "));
+    const country = inferCountry(finalUrl, text);
+    const contact = inferContact(text);
+    const detail = [description || headings.join("；") || `${company} 官网产品信息待复核`, fetchNote].filter(Boolean).join(" ");
+    const ruleResult = {
+        id: `web_${Date.now()}_${index}`,
+        company,
+        business,
+        country,
+        website: finalUrl,
+        contact,
+        contactInfo: contactInfo || "待维护",
+        description: detail.slice(0, 260),
+        ownerId: user.id,
+        teamId: user.teamId,
+        status: "preview",
+        createdAt: new Date().toISOString(),
+        parseMode: "rule"
+    };
+    if (!aiConfig?.enabled || !aiConfig.apiKey || !aiConfig.useWebsiteParse)
+        return ruleResult;
+    try {
+        const ai = await parseWebsiteWithAi(aiConfig, {
+            website: finalUrl,
+            title,
+            description,
+            headings,
+            text,
+            ruleResult
+        });
+        return {
+            ...ruleResult,
+            company: ai.company || ruleResult.company,
+            business: ai.business || ruleResult.business,
+            country: ai.country || ruleResult.country,
+            contact: ai.contact || ruleResult.contact,
+            contactInfo: ai.contactInfo || ruleResult.contactInfo,
+            description: `${ai.description || ruleResult.description}（AI解析）`.slice(0, 320),
+            parseMode: "ai"
+        };
+    }
+    catch {
+        return {
+            ...ruleResult,
+            description: `${ruleResult.description} AI解析失败，已自动回退规则解析。`.slice(0, 320),
+            parseMode: "fallback"
+        };
+    }
+}
+async function aiGenerateLeads(query, config) {
+    const n = Math.min(query.limit, 12);
+    const prompt = [
+        "你是资深外贸获客研究助手。根据下面的客户画像，列出真实、可能存在的目标公司（分销商/系统集成商/OEM/EPC/MRO/终端工厂/贸易商等）。",
+        "严格只返回 JSON，不要解释、不要 Markdown。",
+        "JSON 结构：{\"companies\":[{\"company\":\"\",\"website\":\"\",\"country\":\"\",\"business\":\"\",\"description\":\"\"}]}",
+        "要求：",
+        "1. 只给你有把握真实存在的公司；website 用你所知的官网域名，不确定就留空字符串，绝不编造域名。",
+        "2. 绝不编造邮箱、电话或联系人。",
+        "3. business 聚焦公司产品/业务方向；description 用一句话说明为何匹配画像。",
+        `目标公司数量：${n}`,
+        `产品/关键词：${query.productKeywords || "未指定"}`,
+        `国家/地区：${query.countries || "未指定"}`,
+        `行业/场景：${query.industry || "未指定"}`,
+        `客户类型：${query.customerType || "未指定"}`,
+        `获客目标：${query.goal || "未指定"}`,
+        `排除：${query.excludeKeywords || "无"}`
+    ].join("\n");
+    const content = await callAiModel(config, prompt, 4000);
+    const parsed = extractJsonObject(content);
+    const companies = Array.isArray(parsed.companies) ? parsed.companies : [];
+    return companies
+        .slice(0, n)
+        .map((raw) => {
+        const item = (raw || {});
+        const firstCountry = query.countries.split(/,|，/)[0]?.trim() || "未知";
+        const detail = String(item.description || "").trim();
+        return {
+            company: String(item.company || "").trim(),
+            website: String(item.website || "").trim(),
+            country: String(item.country || firstCountry).trim(),
+            business: String(item.business || query.productKeywords || "待核实业务").trim(),
+            contact: "待维护",
+            contactInfo: "",
+            description: `${detail}${detail ? "（AI 生成，待核实）" : "AI 生成候选，待核实。"}`,
+            confidence: 58
+        };
+    })
+        .filter((lead) => lead.company);
+}
+async function parseWebsiteWithAi(config, context) {
+    const prompt = [
+        "你是外贸CRM商机研究助手。请从官网文本中提取真实商机字段。",
+        "只返回严格 JSON，不要 Markdown，不要解释。",
+        "JSON字段：company,business,country,website,contact,contactInfo,description。",
+        "业务字段要聚焦产品/服务；联系人和联系方式没有就写“待维护”；不要编造不存在的邮箱电话。",
+        `官网：${context.website}`,
+        `标题：${context.title}`,
+        `Meta：${context.description}`,
+        `标题组：${context.headings.join("；")}`,
+        `规则初稿：${JSON.stringify(context.ruleResult)}`,
+        `正文：${context.text.slice(0, 10000)}`
+    ].join("\n");
+    const content = await callAiModel(config, prompt, 12000);
+    const parsed = extractJsonObject(content);
+    return {
+        company: String(parsed.company || "").trim(),
+        business: String(parsed.business || "").trim(),
+        country: String(parsed.country || "").trim(),
+        website: String(parsed.website || context.website).trim(),
+        contact: String(parsed.contact || "").trim(),
+        contactInfo: String(parsed.contactInfo || parsed.contact_info || "").trim(),
+        description: String(parsed.description || "").trim()
+    };
+}
+async function callAiModel(config, prompt, maxInputChars = 12000) {
+    const protocol = config.protocol || "openai-compatible";
+    const endpointBase = config.baseUrl.replace(/\/+$/, "");
+    const controller = new AbortController();
+    const timeoutMs = 100000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        if (protocol === "anthropic") {
+            const response = await fetch(`${endpointBase}/messages`, {
+                method: "POST",
+                signal: controller.signal,
+                headers: {
+                    "x-api-key": config.apiKey,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    max_tokens: 1800,
+                    temperature: config.temperature ?? 0.1,
+                    system: "你擅长把官网公开信息整理成外贸CRM商机。输出必须可被 JSON.parse 解析。",
+                    messages: [{ role: "user", content: prompt.slice(0, maxInputChars) }]
+                })
+            });
+            if (!response.ok)
+                throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const content = data.content?.map((item) => item.text || "").join("\n").trim() || "";
+            if (!content)
+                throw new Error("模型返回为空");
+            return content;
+        }
+        if (protocol === "gemini") {
+            const response = await fetch(`${endpointBase}/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`, {
+                method: "POST",
+                signal: controller.signal,
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                    generationConfig: { temperature: config.temperature ?? 0.1, maxOutputTokens: 1800 },
+                    contents: [{
+                            role: "user",
+                            parts: [{ text: `你擅长把官网公开信息整理成外贸CRM商机。输出必须可被 JSON.parse 解析。\n${prompt.slice(0, maxInputChars)}` }]
+                        }]
+                })
+            });
+            if (!response.ok)
+                throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const content = data.candidates?.[0]?.content?.parts?.map((item) => item.text || "").join("\n").trim() || "";
+            if (!content)
+                throw new Error("模型返回为空");
+            return content;
+        }
+        const endpoint = `${endpointBase}/chat/completions`;
+        const response = await fetch(endpoint, {
+            method: "POST",
+            signal: controller.signal,
+            headers: {
+                authorization: `Bearer ${config.apiKey}`,
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                model: config.model,
+                max_tokens: 1800,
+                temperature: config.temperature ?? 0.1,
+                messages: [
+                    { role: "system", content: "你擅长把官网公开信息整理成外贸CRM商机。输出必须可被 JSON.parse 解析。" },
+                    { role: "user", content: prompt.slice(0, maxInputChars) }
+                ]
+            })
+        });
+        if (!response.ok)
+            throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || "";
+        if (!content.trim())
+            throw new Error("模型返回为空");
+        return content;
+    }
+    catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            throw new Error(`AI model request timed out after ${Math.round(timeoutMs / 1000)}s`);
+        }
+        throw error;
+    }
+    finally {
+        clearTimeout(timeout);
+    }
+}
+function extractJsonObject(content) {
+    const source = content.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const start = source.indexOf("{");
+    const end = source.lastIndexOf("}");
+    if (start < 0 || end <= start)
+        throw new Error("AI JSON missing");
+    return JSON.parse(source.slice(start, end + 1));
+}
+function cleanHtml(value) {
+    return value
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function firstMatch(value, pattern) {
+    return cleanHtml(value.match(pattern)?.[1] || "");
+}
+function companyFromTitle(title, hostname) {
+    const host = hostname.replace(/^www\./, "").split(".")[0];
+    const fromTitle = title.split(/[-|–—]/)[0]?.trim();
+    const raw = fromTitle && fromTitle.length >= 3 ? fromTitle : host;
+    return raw.replace(/\b(home|official|website|products?)\b/gi, "").replace(/\s+/g, " ").trim() || host;
+}
+function inferBusiness(text) {
+    const lower = text.toLowerCase();
+    const dictionary = [
+        ["pressure", "压力仪表 / Pressure transmitter"],
+        ["flow", "流量仪表 / Flow meter"],
+        ["temperature", "温度仪表 / Temperature sensor"],
+        ["level", "液位仪表 / Level meter"],
+        ["sensor", "工业传感器 / Industrial sensor"],
+        ["instrument", "工业仪表 / Instrumentation"],
+        ["meter", "仪表计量 / Metering products"],
+        ["valve", "阀门与过程控制 / Valve control"]
+    ];
+    const matched = dictionary.filter(([keyword]) => lower.includes(keyword)).map(([, label]) => label);
+    return [...new Set(matched)].slice(0, 3).join("；") || "官网产品待核实";
+}
+function inferCountry(url, text) {
+    const lower = `${url} ${text}`.toLowerCase();
+    const rules = [
+        [".de", "德国"], [".co.uk", "英国"], [".uk", "英国"], [".fr", "法国"], [".it", "意大利"], [".es", "西班牙"],
+        [".us", "美国"], [".com.au", "澳大利亚"], [".ca", "加拿大"], [".jp", "日本"], [".kr", "韩国"], [".in", "印度"],
+        ["germany", "德国"], ["united kingdom", "英国"], ["usa", "美国"], ["japan", "日本"], ["india", "印度"], ["china", "中国"]
+    ];
+    return rules.find(([key]) => lower.includes(key))?.[1] || "未知";
+}
+function inferContact(text) {
+    const match = text.match(/(?:Contact|Sales|Manager|Director)[:：\s]+([A-Z][A-Za-z\s.-]{2,40})/);
+    return cleanHtml(match?.[1] || "") || "待维护";
+}
+app.get("/api/reports/executive", requireAuth, (req, res) => {
+    const { customers } = getStore();
+    const scopedCustomers = customers.filter((customer) => canSeeOwner(req.user, customer.ownerId, customer.teamId));
+    res.json({
+        title: "2026 年 6 月外贸销售经营汇报",
+        forecastAmount: scopedCustomers.reduce((sum, customer) => sum + customer.amount, 0),
+        conversionRate: 18.6,
+        riskAmount: scopedCustomers.filter((customer) => customer.nextReminder === "已逾期").reduce((sum, customer) => sum + customer.amount, 0),
+        conclusions: [
+            "成交预测可达成",
+            "报价跟进是短板",
+            "欧洲市场质量最高",
+            "培训影响转化"
+        ]
+    });
+});
+app.use((error, _req, res, _next) => {
+    if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "参数格式错误", issues: error.issues });
+        return;
+    }
+    const message = error instanceof Error ? error.message : "服务器错误";
+    res.status(500).json({ message });
+});
+async function startServer() {
+    const port = Number(process.env.PORT || 4188);
+    if (process.env.CRM_STORE === "mysql" || process.env.DATABASE_URL || process.env.MYSQL_URL) {
+        try {
+            const store = await createMysqlStore();
+            setStore(store);
+            console.log("GoodJob CRM using MySQL persistence");
+        }
+        catch (error) {
+            console.warn(`GoodJob CRM MySQL unavailable, using memory store: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    app.listen(port, () => {
+        console.log(`GoodJob CRM API listening on http://127.0.0.1:${port}`);
+    });
+    scheduleMidnightTodoArchive();
+}
+if (process.env.NODE_ENV !== "test") {
+    void startServer();
+}

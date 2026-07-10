@@ -1,0 +1,43 @@
+{
+  "company_profile": {
+    "legal_name": "询盘云",
+    "wordmark": "询盘云",
+    "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
+    "description": "xxxxxxxxxxxxxxxxxxx",
+    "logo_url": "",
+    "established_year": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "seo优化",
+      "询盘优化"
+    ],
+    "solutions": [
+      "解决1",
+      "解决2"
+    ]
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "industrial-professional",
+    "colors": [
+      "蓝白"
+    ],
+    "keywords": [
+      "海外专业可信"
+    ],
+    "reference_sites": [
+      "https://www.leadscloud.com/"
+    ],
+    "custom_notes": ""
+  }
+}
