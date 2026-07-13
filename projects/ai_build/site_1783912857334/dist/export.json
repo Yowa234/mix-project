@@ -1,0 +1,17 @@
+{
+  "projectId": "site_1783912857334",
+  "siteName": "询盘云",
+  "exportedAt": "2026-07-13T03:22:40.170Z",
+  "order": [
+    "header",
+    "hero",
+    "products",
+    "applications",
+    "project_cases",
+    "about_us",
+    "blog",
+    "contact_us",
+    "footer"
+  ],
+  "indexPath": "D:\\Code\\project-mix\\GoodJob\\projects\\ai_build\\site_1783912857334\\dist\\index.html"
+}

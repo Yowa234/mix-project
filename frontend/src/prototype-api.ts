@@ -854,7 +854,7 @@ async function refreshAiSiteBuilderCapabilities(button?: HTMLButtonElement) {
       `).join("");
     }
     await Promise.all([refreshAiSiteProjects(), loadAiSiteBuilderSettings()]);
-    toast("ai建站接口检查通过");
+    toast("AI建站接口检查通过");
   } finally {
     if (button) button.textContent = previous;
   }
@@ -867,6 +867,40 @@ function splitSchemaList(value: string) {
     .filter(Boolean);
 }
 
+const maxAiSiteProductCategories = 10;
+
+function collectSchemaProductCategories() {
+  return qsa<HTMLInputElement>("#schemaProductCategoriesList input")
+    .map((input) => input.value.trim())
+    .filter(Boolean)
+    .slice(0, maxAiSiteProductCategories);
+}
+
+function renderSchemaProductCategoryInputs(values: string[] = []) {
+  const list = qs<HTMLElement>("#schemaProductCategoriesList");
+  if (!list) return;
+  const cleanValues = values.map((item) => item.trim()).filter(Boolean).slice(0, maxAiSiteProductCategories);
+  const rows = cleanValues.length < maxAiSiteProductCategories ? [...cleanValues, ""] : cleanValues;
+  list.innerHTML = rows.map((value, index) => `
+    <label class="dynamic-list-row">
+      <span>${index + 1}</span>
+      <input class="schema-product-category-input" value="${escapeHtml(value)}" placeholder="${index === 0 ? "核心产品类目" : "补充产品类目"}">
+    </label>
+  `).join("");
+}
+
+function syncSchemaProductCategoryInputs() {
+  const inputs = qsa<HTMLInputElement>("#schemaProductCategoriesList input");
+  const lastInput = inputs[inputs.length - 1];
+  if (lastInput?.value.trim() && inputs.length < maxAiSiteProductCategories) {
+    renderSchemaProductCategoryInputs(collectSchemaProductCategories());
+    const nextInputs = qsa<HTMLInputElement>("#schemaProductCategoriesList input");
+    nextInputs[nextInputs.length - 1]?.focus();
+  } else if (!collectSchemaProductCategories().length && inputs.length !== 1) {
+    renderSchemaProductCategoryInputs([]);
+  }
+}
+
 function collectAiSiteSchemaData() {
   return {
     company_profile: {
@@ -874,8 +908,7 @@ function collectAiSiteSchemaData() {
       wordmark: qs<HTMLInputElement>("#schemaCompanyWordmark")?.value.trim() || "",
       tagline: qs<HTMLInputElement>("#schemaCompanyTagline")?.value.trim() || "",
       description: qs<HTMLTextAreaElement>("#schemaCompanyDescription")?.value.trim() || "",
-      logo_url: qs<HTMLInputElement>("#schemaCompanyLogoUrl")?.value.trim() || "",
-      established_year: qs<HTMLInputElement>("#schemaCompanyEstablishedYear")?.value.trim() || ""
+      logo_url: qs<HTMLInputElement>("#schemaCompanyLogoUrl")?.value.trim() || ""
     },
     contact_info: {
       phone: qs<HTMLInputElement>("#schemaContactPhone")?.value.trim() || "",
@@ -883,8 +916,8 @@ function collectAiSiteSchemaData() {
       address: qs<HTMLInputElement>("#schemaContactAddress")?.value.trim() || ""
     },
     business_taxonomy: {
-      product_categories: splitSchemaList(qs<HTMLTextAreaElement>("#schemaProductCategories")?.value || ""),
-      solutions: splitSchemaList(qs<HTMLTextAreaElement>("#schemaSolutions")?.value || "")
+      product_categories: collectSchemaProductCategories(),
+      solutions: []
     },
     social_links: {
       linkedin: qs<HTMLInputElement>("#schemaSocialLinkedin")?.value.trim() || "",
@@ -950,15 +983,13 @@ function fillAiSiteBuilderForm(project: AiSiteProject) {
   const style = asRecord(schema.style_requirements);
   setInputValue("#schemaCompanyLegalName", company.legal_name);
   setInputValue("#schemaCompanyWordmark", company.wordmark);
-  setInputValue("#schemaCompanyEstablishedYear", company.established_year);
   setInputValue("#schemaCompanyTagline", company.tagline);
   setInputValue("#schemaCompanyDescription", company.description);
   setInputValue("#schemaCompanyLogoUrl", company.logo_url);
   setInputValue("#schemaContactPhone", contact.phone);
   setInputValue("#schemaContactEmail", contact.email);
   setInputValue("#schemaContactAddress", contact.address);
-  setInputValue("#schemaProductCategories", stringArrayValue(taxonomy.product_categories).join("\n"));
-  setInputValue("#schemaSolutions", stringArrayValue(taxonomy.solutions).join("\n"));
+  renderSchemaProductCategoryInputs(stringArrayValue(taxonomy.product_categories));
   setInputValue("#schemaSocialLinkedin", social.linkedin);
   setInputValue("#schemaSocialYoutube", social.youtube);
   setInputValue("#schemaSocialFacebook", social.facebook);
@@ -973,15 +1004,12 @@ function clearAiSiteBuilderForm() {
   [
     "#schemaCompanyLegalName",
     "#schemaCompanyWordmark",
-    "#schemaCompanyEstablishedYear",
     "#schemaCompanyTagline",
     "#schemaCompanyDescription",
     "#schemaCompanyLogoUrl",
     "#schemaContactPhone",
     "#schemaContactEmail",
     "#schemaContactAddress",
-    "#schemaProductCategories",
-    "#schemaSolutions",
     "#schemaSocialLinkedin",
     "#schemaSocialYoutube",
     "#schemaSocialFacebook",
@@ -990,6 +1018,7 @@ function clearAiSiteBuilderForm() {
     "#schemaStyleReferenceSites",
     "#schemaStyleCustomNotes"
   ].forEach((selector) => setInputValue(selector, ""));
+  renderSchemaProductCategoryInputs([]);
   setInputValue("#schemaStylePreset", "industrial-professional");
 }
 
@@ -1067,7 +1096,7 @@ function renderAiSiteDetail() {
   const project = state.aiSiteProjects.find((item) => item.id === state.selectedAiSiteProjectId) || state.aiSiteProjects[0];
   const canvas = qs<HTMLElement>("#aiSiteEditorCanvas");
   if (!project) {
-    if (canvas) canvas.innerHTML = `<div class="empty-cell">请先在 ai建站 页面创建或选择项目任务。</div>`;
+    if (canvas) canvas.innerHTML = `<div class="empty-cell">请先在 AI建站 页面创建或选择项目任务。</div>`;
     return;
   }
   if (canvas) canvas.innerHTML = `<section class="panel section"><div class="empty-cell">正在加载双栏编辑器...</div></section>`;
@@ -1091,7 +1120,7 @@ function renderAiSiteEditor(manifest: AiSiteEditorManifest) {
             <p>${escapeHtml(section.blueprint || "固定组件")}</p>
             <div class="head-actions" style="justify-content:flex-start">
               <button class="btn" data-ai-section-source="${escapeHtml(section.key)}">查看源码</button>
-              ${section.locked ? "" : `<button class="btn primary" data-ai-section-generate="${escapeHtml(section.key)}">${section.generated ? "重新生成" : "生成"}</button>`}
+              <button class="btn primary" data-ai-section-generate="${escapeHtml(section.key)}">${section.locked ? "刷新主题色" : section.generated ? "重新生成" : "生成"}</button>
             </div>
           </article>
         `).join("")}
@@ -1100,6 +1129,14 @@ function renderAiSiteEditor(manifest: AiSiteEditorManifest) {
     <section class="panel section site-editor-preview">
       <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg></span><div><h2>高保真预览</h2><span>iframe srcdoc 隔离样式，按左侧物理顺序合流</span></div></div><div class="head-actions"><button class="btn" id="aiSitePreviewRefreshButton">刷新预览</button><button class="btn" id="aiSiteExportButton">导出整站</button><button class="btn primary" id="aiSiteBatchGenerateButton">批量生成</button></div></div>
       <iframe class="site-preview-frame" id="aiSitePreviewFrame" title="AI 建站预览" sandbox=""></iframe>
+      <div class="site-agent-requirements" id="aiSiteAgentRequirements">
+        <label for="aiSiteAgentInstructionInput">Agent 方向要求 <span id="aiSiteAgentInstructionSection">${escapeHtml(selectedKey)}.html</span></label>
+        <textarea id="aiSiteAgentInstructionInput" maxlength="1200" placeholder="例如：更高端、更少卡片、突出认证和工厂能力、减少大色块、加强询盘转化。"></textarea>
+        <div class="head-actions" style="justify-content:flex-end">
+          <button class="btn" id="aiSiteAgentInstructionClearButton">清空</button>
+          <button class="btn primary" id="aiSiteAgentInstructionGenerateButton">按要求重新生成</button>
+        </div>
+      </div>
     </section>
   `;
   qs<HTMLElement>(".site-editor-preview .section-title h2", canvas)!.textContent = "区块 HTML 预览";
@@ -1160,6 +1197,8 @@ function setAiSiteActiveSection(sectionKey: string) {
   });
   const meta = qs<HTMLElement>("#aiSitePreviewMeta");
   if (meta) meta.textContent = `读取 ${sectionKey}.html，iframe srcdoc 隔离渲染`;
+  const instructionSection = qs<HTMLElement>("#aiSiteAgentInstructionSection");
+  if (instructionSection) instructionSection.textContent = `${sectionKey}.html`;
 }
 
 async function refreshAiSitePreview(projectId: string, sectionKeyInput?: string) {
@@ -1190,6 +1229,7 @@ function sanitizeAiSitePreviewFragment(html: string) {
     .replace(/<head[\s\S]*?<\/head>/gi, "")
     .replace(/<body[^>]*>/gi, "")
     .replace(/<\/body>/gi, "")
+    .replace(/<svg[^>]*data-ai-site-sprite=["']xinhai-reference["'][\s\S]*?<\/svg>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
     .replace(/\shref\s*=\s*"(?!#|mailto:|tel:)[^"]*"/gi, " href=\"#\"")
@@ -1199,15 +1239,42 @@ function sanitizeAiSitePreviewFragment(html: string) {
     .trim();
 }
 
+function aiSitePreviewIconSprite() {
+  return `<svg data-ai-site-sprite="xinhai-reference" xmlns="http://www.w3.org/2000/svg" style="display:none"><symbol id="icon-location" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 7l10 7 10-7" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-linkedin" viewBox="0 0 24 24"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" fill="currentColor"/><circle cx="4" cy="4" r="2" fill="currentColor"/></symbol><symbol id="icon-youtube" viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 00-1.95 1.96A29 29 0 001 12a29 29 0 00.46 5.58 2.78 2.78 0 001.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z" fill="currentColor"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="#fff"/></symbol><symbol id="icon-facebook" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" fill="currentColor"/></symbol><symbol id="icon-caret-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5"/></symbol><symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol><symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-arrow-next" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-cube" viewBox="0 0 24 24"><path d="M12 2l9 4.5v11L12 22l-9-4.5v-11L12 2z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 22V12M21 6.5L12 12 3 6.5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-expertise" viewBox="0 0 24 24"><path d="M12 8V4M8 4h8M4 22V12a8 8 0 0116 0v10M4 22h16" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3"/></symbol><symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol><symbol id="icon-to-top" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol></svg>`;
+}
+
+function aiSitePreviewFrameworkCss() {
+  return `:root{--blue:#143A7B;--blue-deep:#0E2A5C;--red:#C8161C;--red-deep:#A2101A;--ink:#16202E;--body:#3C4858;--mid:#6B7686;--line:#E2E7EE;--bg:#fff;--bg-soft:#F4F6FA;--bg-steel:#EAEEF4;--footer:#0C1B33;--max:1280px;--r:4px;--shadow:0 10px 30px rgba(16,32,60,.10);--ease:cubic-bezier(.4,0,.2,1)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Barlow,Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--body);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}svg{display:block}.container,.ai-wrap{width:min(var(--max),calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.ai-topbar{background:var(--blue-deep);color:#AFC0DD;font-size:13.5px}.ai-topbar .container{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:18px}.ai-topbar-left,.ai-topbar-right,.ai-socials,.ai-contact-line{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.ai-topbar svg{width:14px;height:14px;color:var(--red);flex:none}.ai-socials a{width:24px;height:24px;border:1px solid rgba(255,255,255,.18);border-radius:3px;display:grid;place-items:center;color:#C7D5EC}.ai-socials svg{width:12px;height:12px}.ai-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(16,32,60,.04)}.ai-nav{min-height:84px;display:flex;align-items:center;justify-content:space-between;gap:28px}.ai-brand{font-weight:800;color:var(--blue);font-size:clamp(24px,2vw,34px);line-height:1}.ai-brand small{display:block;font-size:10px;color:var(--mid);letter-spacing:.12em;text-transform:uppercase}.ai-brand span{color:var(--red)}.ai-nav-menu{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0}.ai-nav-link{display:flex;align-items:center;gap:6px;height:84px;padding:0 17px;font-weight:700;font-size:15px;color:var(--ink);position:relative}.ai-nav-link svg{width:12px;height:12px;flex:none}.ai-nav-link::after{content:"";position:absolute;left:17px;right:17px;bottom:24px;height:2px;background:var(--red);transform:scaleX(0);transform-origin:left;transition:transform .28s var(--ease)}.ai-nav-link:hover::after,.ai-nav-link.is-active::after{transform:scaleX(1)}.ai-nav-item{position:relative}.ai-dropdown{position:absolute;top:100%;left:0;min-width:280px;background:#fff;border:1px solid var(--line);border-top:3px solid var(--red);box-shadow:var(--shadow);padding:10px;opacity:0;visibility:hidden;transform:translateY(10px);transition:all .26s var(--ease)}.ai-nav-item:hover .ai-dropdown{opacity:1;visibility:visible;transform:none}.ai-dropdown a{display:flex;gap:10px;padding:11px 14px;font-size:14.5px;font-weight:600}.ai-dropdown a::before{content:"";width:6px;height:6px;background:var(--red);border-radius:50%;flex:none}.ai-header-cta{display:flex;align-items:center;gap:12px}.ai-cta-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#F1F5FB;color:var(--blue);flex:none}.ai-cta-icon svg{width:20px;height:20px}.ai-header-cta > span:not(.ai-cta-icon){display:block;font-size:12px;color:var(--mid)}.ai-header-cta b{display:block;color:var(--ink);font-size:16px}.ai-menu-button{display:none;width:46px;height:46px;border:1px solid var(--line);border-radius:4px;background:#fff;place-items:center}.ai-menu-button i,.ai-menu-button i::before,.ai-menu-button i::after{display:block;width:22px;height:2px;background:var(--ink);content:""}.ai-menu-button i::before{transform:translateY(-7px)}.ai-menu-button i::after{transform:translateY(5px)}.ai-hero{position:relative;min-height:clamp(560px,82vh,760px);overflow:hidden;background:radial-gradient(circle at 72% 32%,rgba(127,176,255,.18),transparent 28%),linear-gradient(100deg,rgba(10,22,41,.96),rgba(10,22,41,.48)),linear-gradient(135deg,#20344f,#6f7f83,#1d3b65);color:#fff}.ai-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(0deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:72px 72px}.ai-hero-inner{position:relative;z-index:2;min-height:inherit;display:flex;align-items:center}.ai-hero-card{max-width:720px}.ai-hero-tag,.ai-eyebrow,.eyebrow{display:inline-flex;align-items:center;gap:10px;color:var(--red);font-weight:900;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px}.ai-hero-tag{background:rgba(200,22,28,.16);border:1px solid rgba(200,22,28,.5);color:#FFB2B6;padding:9px 16px;border-radius:var(--r);margin-bottom:22px}.ai-eyebrow::before,.eyebrow::before{content:"";width:28px;height:2px;background:var(--red)}.ai-hero h1{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(40px,5.4vw,72px);line-height:.98;color:#fff;margin:0 0 20px}.ai-hero p{font-size:clamp(16px,1.7vw,20px);line-height:1.7;color:#C8D6EE;max-width:620px;margin:0 0 34px}.ai-actions,.btn-row{display:flex;gap:16px;flex-wrap:wrap}.ai-btn,.primary-btn,.ghost-btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 28px;border-radius:var(--r);font-weight:800;text-transform:uppercase}.ai-btn svg,.primary-btn svg,.ghost-btn svg{width:18px;height:18px}.ai-btn-primary,.primary-btn{background:var(--red);color:#fff;border:1px solid var(--red)}.ai-btn-ghost,.ghost-btn{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.46)}.ai-hero-nav{position:absolute;z-index:3;left:0;right:0;bottom:38px}.ai-hero-nav .container{display:flex;justify-content:space-between;align-items:center}.ai-hero-dots,.ai-hero-arrows{display:flex;gap:10px}.ai-dot{width:38px;height:4px;background:rgba(255,255,255,.3);border-radius:2px}.ai-dot.is-active{background:var(--red);width:54px}.ai-arrow{width:50px;height:50px;border:1px solid rgba(255,255,255,.3);display:grid;place-items:center;color:#fff}.ai-hero-strip{background:var(--blue);color:#fff}.ai-strip-grid{display:grid;grid-template-columns:repeat(4,1fr)}.ai-stat{display:flex;align-items:center;gap:18px;min-height:100px;padding:22px 34px;border-left:1px solid rgba(255,255,255,.16)}.ai-stat svg{width:32px;height:32px;color:#B9D2FF}.ai-stat strong{display:block;font-size:clamp(24px,2.2vw,32px);font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif}.ai-stat span{color:#D7E4FF}.ai-section,section.ai-section{padding:96px 0;overflow:hidden}.ai-section-soft{background:var(--bg-soft)}.ai-section-steel{background:var(--bg-steel)}.ai-section-dark{background:var(--footer);color:#C7D2E4}.ai-section-head{max-width:760px;margin:0 0 52px}.ai-section-head.center{text-align:center;margin-left:auto;margin-right:auto}.ai-section h2,.ai-section-title{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(30px,3.6vw,46px);line-height:1.06;color:var(--ink);margin:0}.ai-section-dark h2{color:#fff}.ai-section-sub{margin-top:18px;font-size:17px;color:var(--mid);line-height:1.75}.ai-grid,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:clamp(18px,3vw,32px)}.ai-card,.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 1px 0 rgba(16,32,60,.04);padding:clamp(22px,2.4vw,32px);min-width:0}.ai-card h3,.card h3{margin:0 0 10px;color:var(--ink);font-size:clamp(20px,1.6vw,24px)}.ai-card p,.card p{line-height:1.72}.ai-footer,.footer{background:var(--footer);color:#C7D2E4}.ai-footer-top,.footer-top{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.15fr;gap:clamp(26px,4vw,56px);padding:72px 0}.ai-footer h3,.ai-footer h4,.footer h3,.footer h4{color:#fff}.ai-footer ul,.footer ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}.ai-footer li,.footer li{display:flex;align-items:center;gap:9px;min-width:0}.ai-footer li svg,.footer li svg{width:16px;height:16px;flex:none;color:var(--red)}.ai-footer-bottom,.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98A6BD}.to-top{float:right;color:#fff;display:inline-flex;align-items:center;gap:8px}.to-top svg{width:14px;height:14px}.placeholder{background:var(--bg-soft)}.placeholder .ai-card,.placeholder .card{border-style:dashed}@media(max-width:1080px){.ai-nav-menu,.ai-header-cta,.hide-md{display:none}.ai-menu-button{display:grid}.ai-strip-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:760px){.container,.ai-wrap{width:min(100% - 40px,680px)}.ai-hero{min-height:760px}.ai-hero h1{font-size:clamp(38px,12vw,54px)}.ai-actions .ai-btn,.btn-row .primary-btn,.btn-row .ghost-btn{width:100%}.ai-section,section.ai-section{padding:64px 0}.ai-footer-top,.footer-top{grid-template-columns:1fr}.to-top{float:none;display:inline-flex;margin-top:10px}}`;
+}
+
 function buildAiSitePreviewDocument(pieces: string[], sectionKey = "section") {
   const body = pieces.map(sanitizeAiSitePreviewFragment).join("\n");
+  return `<!doctype html><html><head><meta charset="utf-8"><base href="about:blank"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(sectionKey)}.html</title><style>${aiSitePreviewFrameworkCss()}</style></head><body>${aiSitePreviewIconSprite()}${body}</body></html>`;
   return `<!doctype html><html><head><meta charset="utf-8"><base href="about:blank"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(sectionKey)}.html</title><style>
 :root{--ink:#101828;--muted:#667085;--line:#e5e7eb;--brand:#3157d5;--accent:#16a34a;--bg:#ffffff}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}.container{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.topbar{background:#0f172a;color:#e2e8f0;font-size:13px}.topbar .container{min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.socials{display:flex;gap:12px;color:#93c5fd;flex-wrap:wrap}.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}.header .container{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:clamp(20px,1.8vw,26px);font-weight:850;white-space:nowrap}.brand span{color:var(--brand)}.nav{display:flex;align-items:center;gap:clamp(14px,1.6vw,28px);font-size:14px;flex-wrap:wrap}.nav-item{position:relative}.dropdown{display:none;position:absolute;top:28px;left:0;width:min(300px,80vw);padding:12px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 45px rgba(15,23,42,.12)}.nav-item:hover .dropdown{display:grid;gap:8px}.header-cta{display:flex;align-items:center;gap:10px;white-space:nowrap}.phone{font-weight:800;color:var(--brand)}.send-inquiry{display:none;padding:10px 14px;border-radius:4px;background:var(--brand);color:#fff;font-weight:800}section{padding:clamp(56px,7vw,112px) 0;border-bottom:1px solid #eef2f7;overflow:hidden}.eyebrow{color:var(--brand);font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hero{background:linear-gradient(135deg,#f8fafc,#eef6ff)}.hero h1{font-size:clamp(36px,4.4vw,68px);line-height:1.05;margin:12px 0 18px;max-width:880px}.hero p{font-size:clamp(16px,1.4vw,19px);color:var(--muted);max-width:760px;line-height:1.75}.btn-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}.primary-btn,.ghost-btn{padding:13px 18px;border-radius:4px;font-weight:800}.primary-btn{background:var(--brand);color:white}.ghost-btn{border:1px solid var(--line);background:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:clamp(16px,2vw,30px)}.card{border:1px solid var(--line);padding:clamp(18px,2vw,28px);border-radius:6px;background:white;min-width:0}.card h3{margin:0 0 8px}.card p{color:var(--muted);line-height:1.7}.footer{background:#101828;color:#d0d5dd}.footer-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:clamp(22px,3vw,44px);padding:clamp(46px,6vw,72px) 0}.footer h3,.footer h4{color:#fff}.footer a,.footer p{color:#d0d5dd}.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98a2b3}.to-top{float:right;color:#fff}.placeholder{background:#f8fafc}.placeholder .card{border-style:dashed}@media(max-width:900px){.nav{display:none}.send-inquiry{display:inline-flex}.phone{display:none}}@media(max-width:760px){.container{width:min(100% - 36px,680px)}.topbar .container,.header .container{align-items:flex-start;justify-content:flex-start;padding:10px 0}.hero h1{font-size:36px}}
 </style></head><body>${body}</body></html>`;
 }
 
-async function generateAiSiteSection(projectId: string, sectionKey: string, button: HTMLButtonElement) {
+function currentAiSiteAgentInstruction() {
+  return (qs<HTMLTextAreaElement>("#aiSiteAgentInstructionInput")?.value || "").trim();
+}
+
+function aiSiteSectionGenerateInstruction(sectionKey: string, instruction = currentAiSiteAgentInstruction()) {
+  const trimmed = instruction.trim();
+  if (trimmed) return trimmed;
+  if (sectionKey === "hero") {
+    return [
+      "Refresh the Hero according to the current project theme colors.",
+      "Use the current palette visibly in the overlay, badge, CTA, arrow controls, and micro accents.",
+      "Keep the existing Hero contract: 72vh photo background, dark readable overlay, 2-line headline, two CTA buttons, and working slide controls."
+    ].join(" ");
+  }
+  return "";
+}
+
+async function generateAiSiteSection(projectId: string, sectionKey: string, button: HTMLButtonElement, instruction = currentAiSiteAgentInstruction()) {
   if (!sectionKey) return;
   const flightKey = `${projectId}:${sectionKey}`;
   if (aiSiteGenerationInFlight.has(flightKey)) {
@@ -1215,13 +1282,17 @@ async function generateAiSiteSection(projectId: string, sectionKey: string, butt
     return;
   }
   const previous = button.textContent || "生成";
+  const nextInstruction = aiSiteSectionGenerateInstruction(sectionKey, instruction);
   aiSiteGenerationInFlight.add(flightKey);
   button.disabled = true;
   button.textContent = "Agent生成中...";
   setAiSiteActiveSection(sectionKey);
   setAiSiteAgentProgress([`准备生成 ${sectionKey}.html`, "正在调用大模型生成带独立 CSS 的区块 HTML...", "生成完成后会写入本地 sections 目录并刷新预览。"], "running");
   try {
-    const result = await api<{ message?: string; progress?: string[] }>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/sections/${encodeURIComponent(sectionKey)}/generate`, { method: "POST" });
+    const result = await api<{ message?: string; progress?: string[]; changed?: boolean }>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/sections/${encodeURIComponent(sectionKey)}/generate`, {
+      method: "POST",
+      body: JSON.stringify({ instruction: nextInstruction })
+    });
     await loadAiSiteEditor(projectId);
     setAiSiteAgentProgress(result.progress || [result.message || `${sectionKey}.html 已生成。`], "ok");
     await refreshAiSitePreview(projectId, sectionKey);
@@ -1314,6 +1385,15 @@ function wireAiSiteEditorInteractions(projectId: string) {
   qs<HTMLButtonElement>("#aiSiteBatchGenerateButton")?.addEventListener("click", () => setAiSiteAgentProgress(["批量生成队列已启动", "将按左侧工作流顺序逐个生成非锁定区块。"], "running"), true);
   qs<HTMLButtonElement>("#aiSiteBatchGenerateButton")?.addEventListener("click", (event) => void batchGenerateAiSiteSections(projectId, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteExportButton")?.addEventListener("click", (event) => void exportAiSiteProject(projectId, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteAgentInstructionClearButton")?.addEventListener("click", () => {
+    const input = qs<HTMLTextAreaElement>("#aiSiteAgentInstructionInput");
+    if (input) input.value = "";
+  });
+  qs<HTMLButtonElement>("#aiSiteAgentInstructionGenerateButton")?.addEventListener("click", (event) => {
+    const sectionKey = state.selectedAiSiteSectionKey || currentAiSiteSectionOrder()[0] || "";
+    if (!sectionKey) return;
+    void generateAiSiteSection(projectId, sectionKey, event.currentTarget as HTMLButtonElement, currentAiSiteAgentInstruction());
+  });
 }
 
 async function batchGenerateAiSiteSections(projectId: string, button: HTMLButtonElement) {
@@ -1391,7 +1471,7 @@ function applyAiSiteSettings(settings: AiSiteBuilderSettings) {
   if (status) status.textContent = settings.lastTestMessage || settings.lastTestStatus || "未检查";
 }
 
-async function loadAiSiteBuilderSettings(button?: HTMLButtonElement) {
+async function loadAiSiteBuilderSettings(button?: HTMLButtonElement, silent = false) {
   const previous = button?.textContent || "";
   if (button) button.textContent = "读取中...";
   try {
@@ -1404,7 +1484,8 @@ async function loadAiSiteBuilderSettings(button?: HTMLButtonElement) {
       providerSelect.innerHTML = modelResult.providers.map((item) => `<option value="${escapeHtml(item.provider)}">${escapeHtml(item.label)}</option>`).join("");
     }
     applyAiSiteSettings(settingsResult.settings);
-    toast("ai建站 API 设置已读取");
+    if (silent) return;
+    toast("AI建站 API 设置已读取");
   } finally {
     if (button) button.textContent = previous;
   }
@@ -1427,7 +1508,7 @@ async function saveAiSiteBuilderSettings(button: HTMLButtonElement) {
     const keyInput = qs<HTMLInputElement>("#aiSiteApiKeyInput");
     if (keyInput) keyInput.value = "";
     applyAiSiteSettings(result.settings);
-    toast("ai建站 API 设置已保存");
+    toast("AI建站 API 设置已保存");
   } finally {
     button.textContent = previous;
   }
@@ -1465,7 +1546,7 @@ async function createAiSiteBuilderDraftLegacy(button: HTMLButtonElement) {
     const company = schemaData.company_profile;
     const taxonomy = schemaData.business_taxonomy;
     const siteName = company.legal_name || company.wordmark || "未命名网站";
-    const industry = taxonomy.product_categories[0] || taxonomy.solutions[0] || "未指定行业";
+    const industry = taxonomy.product_categories[0] || "未指定行业";
     const agentPayload = buildAiSiteAgentPayload(schemaData, pages);
     const result = await api<{
       project: AiSiteProject;
@@ -1491,7 +1572,7 @@ async function createAiSiteBuilderDraftLegacy(button: HTMLButtonElement) {
     const statusSub = qs<HTMLElement>("#aiSiteBuilderStatusSub");
     if (status) status.textContent = "草稿已创建";
     if (statusSub) statusSub.textContent = `${result.project.siteName} · ${result.project.pages.length} 个页面`;
-    toast(`ai建站草稿已创建：${result.project.id}`);
+    toast(`AI建站草稿已创建：${result.project.id}`);
   } finally {
     button.textContent = previous;
   }
@@ -1548,7 +1629,7 @@ async function createAiSiteBuilderDraft(button: HTMLButtonElement) {
     const company = schemaData.company_profile;
     const taxonomy = schemaData.business_taxonomy;
     const siteName = company.legal_name || company.wordmark || "未命名网站";
-    const industry = taxonomy.product_categories[0] || taxonomy.solutions[0] || "未指定行业";
+    const industry = taxonomy.product_categories[0] || "未指定行业";
     const agentPayload = buildAiSiteAgentPayload(schemaData, pages);
     const payload = {
       taskName: `${siteName} 建站任务`,
@@ -1577,7 +1658,7 @@ async function createAiSiteBuilderDraft(button: HTMLButtonElement) {
     const statusSub = qs<HTMLElement>("#aiSiteBuilderStatusSub");
     if (status) status.textContent = editingProjectId ? "已保存修改" : "草稿已创建";
     if (statusSub) statusSub.textContent = `${result.project.siteName} · ${result.project.pages.length} 个页面`;
-    toast(editingProjectId ? `建站任务已更新：${result.project.id}` : `ai建站草稿已创建：${result.project.id}`);
+    toast(editingProjectId ? `建站任务已更新：${result.project.id}` : `AI建站草稿已创建：${result.project.id}`);
   } finally {
     button.textContent = previous;
     applyAiSiteBuilderEditMode();
@@ -1881,7 +1962,7 @@ async function refreshAll(user: User) {
   renderProspectList();
   renderTopbarStats();
   void loadLeadProviders();
-  void loadAiSiteBuilderSettings();
+  void loadAiSiteBuilderSettings(undefined, true);
 }
 
 async function loadLeadProviders() {
@@ -7687,6 +7768,8 @@ function installEvents() {
   qs<HTMLButtonElement>("#aiSiteApiLoadButton")?.addEventListener("click", (event) => void loadAiSiteBuilderSettings(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteApiSaveButton")?.addEventListener("click", (event) => void saveAiSiteBuilderSettings(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteApiTestButton")?.addEventListener("click", (event) => void testAiSiteBuilderSettings(event.currentTarget as HTMLButtonElement));
+  qs<HTMLElement>("#schemaProductCategoriesList")?.addEventListener("input", syncSchemaProductCategoryInputs);
+  renderSchemaProductCategoryInputs();
   qs<HTMLSelectElement>("#aiSiteProviderSelect")?.addEventListener("change", (event) => {
     const preset = aiSiteProviderPresets[(event.currentTarget as HTMLSelectElement).value] || aiSiteProviderPresets.custom;
     const model = qs<HTMLInputElement>("#aiSiteModelInput");
@@ -7787,6 +7870,7 @@ function activateNavView(view: string, after?: () => void) {
   qsa<HTMLElement>(".nav button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   qsa<HTMLElement>(".view").forEach((node) => node.classList.toggle("active", node.id === view));
   renderTopbarForView(view);
+  if (view === "ai-site-builder") void loadAiSiteBuilderSettings(undefined, true);
   window.scrollTo({ top: 0, behavior: "smooth" });
   after?.();
 }
@@ -7840,6 +7924,7 @@ function resolveTopbarSearchView(rawValue: string) {
     ["线索搜索", "lead-finder"],
     ["lead", "lead-finder"],
     ["prospect", "prospect-list"],
+    ["AI建站", "ai-site-builder"],
     ["ai建站", "ai-site-builder"],
     ["建站详细", "ai-site-detail"],
     ["建站详情", "ai-site-detail"],

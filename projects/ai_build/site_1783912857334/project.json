@@ -1,8 +1,8 @@
 {
-  "id": "site_1783592451731",
+  "id": "site_1783912857334",
   "taskName": "询盘云 建站任务",
   "siteName": "询盘云",
-  "industry": "seo优化",
+  "industry": "未指定行业",
   "goal": "lead-generation",
   "tone": "industrial-professional",
   "pages": [
@@ -17,9 +17,8 @@
       "legal_name": "询盘云",
       "wordmark": "询盘云",
       "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
-      "description": "xxxxxxxxxxxxxxxxxxx",
-      "logo_url": "",
-      "established_year": ""
+      "description": "面向外贸公司进行网站优化",
+      "logo_url": ""
     },
     "contact_info": {
       "phone": "",
@@ -27,14 +26,8 @@
       "address": ""
     },
     "business_taxonomy": {
-      "product_categories": [
-        "seo优化",
-        "询盘优化"
-      ],
-      "solutions": [
-        "解决1",
-        "解决2"
-      ]
+      "product_categories": [],
+      "solutions": []
     },
     "social_links": {
       "linkedin": "",
@@ -43,15 +36,9 @@
     },
     "style_requirements": {
       "preset": "industrial-professional",
-      "colors": [
-        "蓝白"
-      ],
-      "keywords": [
-        "海外专业可信"
-      ],
-      "reference_sites": [
-        "https://www.leadscloud.com/"
-      ],
+      "colors": [],
+      "keywords": [],
+      "reference_sites": [],
       "custom_notes": ""
     }
   },
@@ -65,9 +52,8 @@
         "legal_name": "询盘云",
         "wordmark": "询盘云",
         "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
-        "description": "xxxxxxxxxxxxxxxxxxx",
-        "logo_url": "",
-        "established_year": ""
+        "description": "面向外贸公司进行网站优化",
+        "logo_url": ""
       },
       "contact_info": {
         "phone": "",
@@ -75,14 +61,8 @@
         "address": ""
       },
       "business_taxonomy": {
-        "product_categories": [
-          "seo优化",
-          "询盘优化"
-        ],
-        "solutions": [
-          "解决1",
-          "解决2"
-        ]
+        "product_categories": [],
+        "solutions": []
       },
       "social_links": {
         "linkedin": "",
@@ -92,15 +72,9 @@
     },
     "style_requirements": {
       "preset": "industrial-professional",
-      "colors": [
-        "蓝白"
-      ],
-      "keywords": [
-        "海外专业可信"
-      ],
-      "reference_sites": [
-        "https://www.leadscloud.com/"
-      ],
+      "colors": [],
+      "keywords": [],
+      "reference_sites": [],
       "custom_notes": ""
     },
     "generation_requirements": {
@@ -118,5 +92,5 @@
   "status": "draft_reserved",
   "ownerId": "u_sales_shirley",
   "teamId": "europe",
-  "createdAt": "2026-07-09T10:20:51.731Z"
+  "createdAt": "2026-07-13T03:20:57.334Z"
 }

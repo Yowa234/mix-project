@@ -2024,6 +2024,7 @@ app.post("/api/tools/ai-config", requireAuth, asyncRoute(async (req, res) => {
   };
   if (existing) Object.assign(existing, config);
   else store.aiModelConfigs.unshift(config);
+  await syncAiSiteSettingFromAiConfig(config, req.user!);
   await store.persist();
   res.json({ config: publicAiConfig(config), configs: getAiConfigs(req.user!).map(publicAiConfig) });
 }));
@@ -2036,6 +2037,8 @@ app.delete("/api/tools/ai-config/:id", requireAuth, asyncRoute(async (req, res) 
     return;
   }
   store.aiModelConfigs.splice(index, 1);
+  const fallback = getAiConfig(req.user!);
+  if (fallback) await syncAiSiteSettingFromAiConfig(fallback, req.user!);
   await store.persist();
   const config = getAiConfig(req.user!);
   res.json({ config: config ? publicAiConfig(config) : null, configs: getAiConfigs(req.user!).map(publicAiConfig) });
@@ -2060,6 +2063,7 @@ app.post("/api/tools/ai-config/test", requireAuth, asyncRoute(async (req, res) =
   config.lastTestStatus = result.ok ? "passed" : "failed";
   config.lastTestMessage = result.message;
   config.updatedAt = new Date().toISOString();
+  await syncAiSiteSettingFromAiConfig(config, req.user!);
   await getStore().persist();
   res.json({ ok: result.ok, message: result.message, config: publicAiConfig(config), configs: getAiConfigs(req.user!).map(publicAiConfig) });
 }));
@@ -2534,8 +2538,7 @@ function normalizeAiSiteSchemaData(value: unknown) {
       wordmark: normalizeString(company.wordmark),
       tagline: normalizeString(company.tagline),
       description: normalizeString(company.description),
-      logo_url: normalizeString(company.logo_url),
-      established_year: normalizeString(company.established_year)
+      logo_url: normalizeString(company.logo_url)
     },
     contact_info: {
       phone: normalizeString(contact.phone),
@@ -2543,8 +2546,8 @@ function normalizeAiSiteSchemaData(value: unknown) {
       address: normalizeString(contact.address)
     },
     business_taxonomy: {
-      product_categories: normalizeStringArray(taxonomy.product_categories),
-      solutions: normalizeStringArray(taxonomy.solutions)
+      product_categories: normalizeStringArray(taxonomy.product_categories).slice(0, 10),
+      solutions: []
     },
     social_links: {
       linkedin: normalizeString(social.linkedin),
@@ -2668,12 +2671,11 @@ function aiSiteBlueprint(project: AiSiteBuilderProject) {
   const style = schema.style_requirements;
   const siteName = company.wordmark || company.legal_name || project.siteName || "Industrial Website";
   const categories = sectionArray(taxonomy.product_categories);
-  const solutions = sectionArray(taxonomy.solutions);
   const styleWords = sectionArray(style.keywords).join("、") || style.preset;
   return {
     hero: `首屏突出 ${siteName} 的跨境工业品牌可信度，展示核心产品、交付能力和询盘入口，视觉风格：${styleWords}。`,
     products: `产品区块聚焦 ${categories.join("、") || "核心工业产品"}，用卡片展示类别、典型参数和快速询盘入口。`,
-    applications: `应用区块围绕 ${solutions.join("、") || "典型工业应用场景"} 展开，说明客户痛点、解决方案和适配产品。`,
+    applications: `应用区块围绕 ${categories.join("、") || "典型工业应用场景"} 展开，说明客户痛点、应用场景和适配产品。`,
     project_cases: "项目案例区块展示跨境交付、行业场景、客户收益和可复用经验，增强采购信任。",
     about_us: `关于我们区块介绍 ${company.legal_name || siteName} 的成立背景、制造能力、质量体系和外贸服务能力。`,
     blog: "博客区块用于承接产品知识、选型指南、行业洞察和SEO长尾流量。",
@@ -2688,24 +2690,54 @@ function cleanAiSiteBlueprint(project: AiSiteBuilderProject) {
   const style = schema.style_requirements;
   const siteName = company.wordmark || company.legal_name || project.siteName || "Industrial Website";
   const categories = sectionArray(taxonomy.product_categories);
-  const solutions = sectionArray(taxonomy.solutions);
   const styleWords = sectionArray(style.keywords).join(", ") || style.preset || "professional";
   return {
     header: "Render the fixed B2B topbar, navigation, product dropdown, and inquiry CTA using the company brand and product categories.",
     hero: `Open with a credible industrial B2B value proposition for ${siteName}. Show product strength, export readiness, delivery capability, and a clear inquiry CTA. Visual style: ${styleWords}.`,
     products: `Present ${categories.join(", ") || "core industrial product categories"} with category cards, practical specifications, buyer benefits, and inquiry entry points.`,
-    applications: `Explain ${solutions.join(", ") || "typical industrial application scenarios"} by pairing buyer pain points, recommended solutions, and suitable products.`,
+    applications: `Explain application scenarios for ${categories.join(", ") || "the core product categories"} by pairing buyer pain points, operating environments, and suitable products.`,
     project_cases: "Show export project cases with industry context, delivered scope, measurable buyer value, and trust-building proof points.",
     about_us: `Introduce ${company.legal_name || siteName} with manufacturing capability, quality control, export service process, and long-term reliability.`,
     blog: "Provide SEO-ready article cards for product knowledge, selection guides, maintenance tips, and industrial market insights.",
     contact_us: "Provide phone, email, location, social links, and an inquiry CTA that makes it easy for international buyers to contact the supplier.",
-    footer: "Render the fixed B2B footer with brand summary, solutions, product categories, contact information, copyright, and a back-to-top link."
+    footer: "Render the fixed B2B footer with brand summary, product categories, contact information, copyright, and a back-to-top link."
   };
 }
 
 function cleanHexColor(value: string, fallback: string) {
   const color = value.trim();
-  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : fallback;
+  if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) return fallback;
+  if (color.length === 4) return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`.toUpperCase();
+  return color.toUpperCase();
+}
+
+function hexToRgb(color: string) {
+  const clean = cleanHexColor(color, "#000000").slice(1);
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16)
+  };
+}
+
+function rgbToHex(r: number, g: number, b: number) {
+  return `#${[r, g, b].map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+}
+
+function mixHexColor(color: string, target: string, amount: number) {
+  const from = hexToRgb(color);
+  const to = hexToRgb(target);
+  return rgbToHex(
+    from.r + (to.r - from.r) * amount,
+    from.g + (to.g - from.g) * amount,
+    from.b + (to.b - from.b) * amount
+  );
+}
+
+function readableTextOn(color: string) {
+  const { r, g, b } = hexToRgb(color);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.62 ? "#16202E" : "#FFFFFF";
 }
 
 function aiSiteDesignSystem(project: AiSiteBuilderProject) {
@@ -2713,47 +2745,66 @@ function aiSiteDesignSystem(project: AiSiteBuilderProject) {
   const style = schema.style_requirements;
   const colors = sectionArray(style.colors);
   const preset = style.preset || project.tone || "industrial-professional";
-  const brand = cleanHexColor(colors[0] || "", preset.includes("clean") ? "#2563eb" : "#3157d5");
-  const accent = cleanHexColor(colors[1] || "", preset.includes("dark") ? "#f59e0b" : "#16a34a");
-  const surface = cleanHexColor(colors[2] || "", "#f8fafc");
+  const brand = cleanHexColor(colors[0] || "", preset.includes("clean") ? "#143A7B" : "#143A7B");
+  const accent = cleanHexColor(colors[1] || "", preset.includes("dark") ? "#C8161C" : "#C8161C");
+  const surface = cleanHexColor(colors[2] || "", "#F4F6FA");
+  const brandDeep = cleanHexColor(colors[3] || "", mixHexColor(brand, "#000000", 0.54));
+  const brandWide = mixHexColor(brand, "#FFFFFF", 0.14);
+  const dark = cleanHexColor(colors[4] || "", mixHexColor(brandDeep, "#000000", 0.28));
   return {
-    version: "ai-site-design-system.v1",
+    version: "ai-site-design-system.v2-xinhai-industrial",
     preset,
     palette: {
       brand,
       accent,
-      ink: "#101828",
-      muted: "#667085",
-      line: "#e5e7eb",
+      brandDeep,
+      brandWide,
+      ink: "#16202E",
+      body: "#3C4858",
+      muted: "#6B7686",
+      line: "#E2E7EE",
       surface,
-      dark: "#0f172a",
+      steel: "#EAEEF4",
+      dark,
       light: "#ffffff"
     },
     typography: {
-      family: "Inter, Arial, sans-serif",
-      h2: "clamp(2rem,4.2vw,4.6rem)",
-      body: "clamp(1rem,1.2vw,1.08rem)",
-      lineHeight: "1.65"
+      family: "Barlow, Inter, Arial, sans-serif",
+      displayFamily: "Barlow Semi Condensed, Barlow, Arial, sans-serif",
+      h1: "clamp(40px,5.4vw,72px)",
+      h2: "clamp(30px,3.6vw,46px)",
+      body: "clamp(16px,1.2vw,17px)",
+      lineHeight: "1.72"
     },
     layout: {
-      wrapper: "width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:auto",
-      sectionPadding: "clamp(56px,7vw,112px) 0",
-      gap: "clamp(18px,3vw,48px)",
+      wrapper: "width:min(1280px,calc(100vw - clamp(32px,6vw,120px)));margin:auto",
+      sectionPadding: "96px 0 desktop, 64px 0 mobile",
+      gap: "clamp(18px,3vw,32px)",
       grid: "repeat(auto-fit,minmax(min(280px,100%),1fr))",
       mobileBreakpoint: "760px",
-      wideBreakpoint: "1200px"
+      tabletBreakpoint: "1080px",
+      wideBreakpoint: "1200px",
+      fixedModules: ["topbar", "sticky-header", "hero-slider-look", "hero-stats-strip", "section-head", "card-grid", "cta-band", "footer"]
     },
     components: {
-      cardRadius: "6px",
-      cardBorder: "1px solid rgba(16,24,40,.12)",
-      shadow: "0 24px 70px rgba(15,23,42,.14)",
-      buttonRadius: "4px"
+      cardRadius: "4px",
+      cardBorder: "1px solid #E2E7EE",
+      shadow: "0 24px 60px rgba(16,32,60,.16)",
+      buttonRadius: "4px",
+      primaryButton: "red uppercase rectangular CTA with arrow icon",
+      secondaryButton: "transparent or white outlined rectangular CTA"
+    },
+    icons: {
+      sprite: "inline SVG symbols injected by framework",
+      allowedIds: ["icon-location", "icon-phone", "icon-mail", "icon-linkedin", "icon-youtube", "icon-facebook", "icon-arrow-right", "icon-cube", "icon-globe", "icon-expertise", "icon-building", "icon-check", "icon-send"]
     },
     rules: [
-      "Use the same palette and spacing tokens in every section.",
+      "Use the same navy/red/steel palette and spacing tokens in every section.",
+      "Follow the Xinhai-style structure: eyebrow, large condensed heading, technical proof cards, red CTA, small-radius industrial panels.",
       "Every generated business section must include one scoped style tag as its first child.",
       "Selectors must be prefixed with the current section id.",
       "Use semantic section/article/list markup that can become a WordPress block.",
+      "Use <svg><use href=\"#icon-name\"></use></svg> for framework icons instead of inventing new icon paths.",
       "Avoid unscoped .container, .grid, .card, body, html, :root, header, footer selectors."
     ]
   };
@@ -2769,6 +2820,73 @@ function brandWithHighlight(brand: string) {
   return `${htmlEscape(clean.slice(0, -3))}<span>${htmlEscape(clean.slice(-3))}</span>`;
 }
 
+function aiSiteIconSprite() {
+  return `<svg data-ai-site-sprite="xinhai-reference" xmlns="http://www.w3.org/2000/svg" style="display:none"><symbol id="icon-location" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 7l10 7 10-7" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-linkedin" viewBox="0 0 24 24"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" fill="currentColor"/><circle cx="4" cy="4" r="2" fill="currentColor"/></symbol><symbol id="icon-youtube" viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 00-1.95 1.96A29 29 0 001 12a29 29 0 00.46 5.58 2.78 2.78 0 001.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z" fill="currentColor"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor"/></symbol><symbol id="icon-facebook" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" fill="currentColor"/></symbol><symbol id="icon-caret-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5"/></symbol><symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol><symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-arrow-next" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-cube" viewBox="0 0 24 24"><path d="M12 2l9 4.5v11L12 22l-9-4.5v-11L12 2z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 22V12M21 6.5L12 12 3 6.5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-expertise" viewBox="0 0 24 24"><path d="M12 8V4M8 4h8M4 22V12a8 8 0 0116 0v10M4 22h16" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol><symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3"/></symbol><symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol><symbol id="icon-to-top" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol></svg>`;
+}
+
+function aiSiteFrameworkCss(project?: AiSiteBuilderProject) {
+  const design = project ? aiSiteDesignSystem(project) : null;
+  const palette = design?.palette;
+  const brand = palette?.brand || "#143A7B";
+  const accent = palette?.accent || "#C8161C";
+  const brandDeep = palette?.brandDeep || mixHexColor(brand, "#000000", 0.54);
+  const brandWide = palette?.brandWide || mixHexColor(brand, "#FFFFFF", 0.14);
+  const footer = palette?.dark || mixHexColor(brandDeep, "#000000", 0.28);
+  const surface = palette?.surface || "#F4F6FA";
+  return `:root{--blue:${brand};--blue-deep:${brandDeep};--blue-700:${brandWide};--red:${accent};--red-deep:${mixHexColor(accent, "#000000", 0.18)};--ink:#16202E;--body:#3C4858;--mid:#6B7686;--line:#E2E7EE;--bg:#FFFFFF;--bg-soft:${surface};--bg-steel:#EAEEF4;--footer:${footer};--footer-2:${mixHexColor(footer, "#000000", 0.16)};--gold:#E8A12C;--max:1280px;--r:4px;--ease:cubic-bezier(.4,0,.2,1);--shadow:0 10px 30px rgba(16,32,60,.10);--shadow-lg:0 24px 60px rgba(16,32,60,.16)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Barlow,Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--body);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}svg{display:block}.container,.ai-wrap{width:min(var(--max),calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.ai-topbar{background:var(--blue-deep);color:#AFC0DD;font-size:13.5px}.ai-topbar .container{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:18px}.ai-topbar-left,.ai-topbar-right,.ai-socials,.ai-contact-line{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.ai-topbar svg{width:14px;height:14px;color:var(--red);flex:none}.ai-socials a{width:24px;height:24px;border:1px solid rgba(255,255,255,.18);border-radius:3px;display:grid;place-items:center;color:#C7D5EC}.ai-socials a:hover{background:var(--red);border-color:var(--red);color:#fff}.ai-socials svg{width:12px;height:12px}.ai-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(16,32,60,.04)}.ai-nav{min-height:84px;display:flex;align-items:center;justify-content:space-between;gap:clamp(14px,2vw,28px)}.ai-brand{font-weight:800;color:var(--blue);font-size:clamp(24px,2vw,34px);letter-spacing:-.02em;line-height:1;white-space:nowrap;flex:none}.ai-brand small{display:block;font-size:10px;color:var(--mid);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}.ai-brand span{color:var(--red)}.ai-nav-menu{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;flex-wrap:nowrap;min-width:0}.ai-nav-menu li{flex:none}.ai-nav-link{display:flex;align-items:center;gap:6px;height:84px;padding:0 clamp(9px,1vw,17px);font-weight:700;font-size:clamp(13.5px,1vw,15px);color:var(--ink);position:relative;white-space:nowrap;flex:none}.ai-nav-link svg{width:12px;height:12px;flex:none}.ai-nav-link::after{content:"";position:absolute;left:17px;right:17px;bottom:24px;height:2px;background:var(--red);transform:scaleX(0);transform-origin:left;transition:transform .28s var(--ease)}.ai-nav-link:hover::after,.ai-nav-link.is-active::after{transform:scaleX(1)}.ai-caret{width:10px;height:10px}.ai-nav-item{position:relative}.ai-dropdown{position:absolute;top:100%;left:0;min-width:280px;background:#fff;border:1px solid var(--line);border-top:3px solid var(--red);box-shadow:var(--shadow);padding:10px;opacity:0;visibility:hidden;transform:translateY(10px);transition:all .26s var(--ease);border-radius:0 0 var(--r) var(--r)}.ai-nav-item:hover .ai-dropdown{opacity:1;visibility:visible;transform:none}.ai-dropdown a{display:flex;align-items:center;gap:10px;padding:11px 14px;font-size:14.5px;font-weight:600;color:var(--body);border-radius:3px;white-space:nowrap}.ai-dropdown a::before{content:"";width:6px;height:6px;background:var(--red);border-radius:50%;flex:none}.ai-header-cta{display:flex;align-items:center;gap:12px;flex:none}.ai-cta-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#F1F5FB;color:var(--blue);flex:none}.ai-cta-icon svg{width:20px;height:20px}.ai-header-cta > span:not(.ai-cta-icon){display:block;font-size:12px;color:var(--mid)}.ai-header-cta b{display:block;color:var(--ink);font-size:16px;white-space:nowrap}.ai-menu-button{display:none;width:46px;height:46px;border:1px solid var(--line);border-radius:4px;background:#fff;place-items:center}.ai-menu-button i,.ai-menu-button i::before,.ai-menu-button i::after{display:block;width:22px;height:2px;background:var(--ink);content:""}.ai-menu-button i::before{transform:translateY(-7px)}.ai-menu-button i::after{transform:translateY(5px)}.ai-hero{position:relative;min-height:clamp(560px,82vh,760px);padding:0;overflow:hidden;background:radial-gradient(circle at 72% 32%,rgba(127,176,255,.18),transparent 28%),linear-gradient(100deg,rgba(10,22,41,.96) 0%,rgba(10,22,41,.78) 48%,rgba(10,22,41,.48) 100%),linear-gradient(135deg,#20344f 0%,#6f7f83 48%,#1d3b65 100%);color:#fff}.ai-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(0deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:72px 72px;opacity:.35}.ai-hero-inner{position:relative;z-index:2;min-height:inherit;display:flex;align-items:center}.ai-hero-card{max-width:720px}.ai-hero-tag{display:inline-flex;align-items:center;gap:10px;background:rgba(200,22,28,.16);border:1px solid rgba(200,22,28,.5);color:#FFB2B6;font-weight:800;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;padding:9px 16px;border-radius:var(--r);margin-bottom:22px}.ai-hero-tag::before{content:"";width:8px;height:8px;background:var(--red);border-radius:50%;box-shadow:0 0 0 4px rgba(200,22,28,.3)}.ai-hero h1{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(40px,5.4vw,72px);line-height:.98;color:#fff;letter-spacing:.01em;margin:0 0 20px}.ai-hero p{font-size:clamp(16px,1.7vw,20px);line-height:1.7;color:#C8D6EE;max-width:620px;margin:0 0 34px}.ai-actions,.btn-row{display:flex;gap:16px;flex-wrap:wrap}.ai-btn,.primary-btn,.ghost-btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 28px;border-radius:var(--r);font-weight:800;text-transform:uppercase;letter-spacing:.03em}.ai-btn svg,.primary-btn svg,.ghost-btn svg{width:18px;height:18px}.ai-btn-primary,.primary-btn{background:var(--red);color:#fff;border:1px solid var(--red)}.ai-btn-ghost,.ghost-btn{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.46)}.ai-hero-nav{position:absolute;z-index:3;left:0;right:0;bottom:38px}.ai-hero-nav .container{display:flex;justify-content:space-between;align-items:center}.ai-hero-dots{display:flex;gap:10px}.ai-dot{width:38px;height:4px;background:rgba(255,255,255,.3);border-radius:2px}.ai-dot.is-active{background:var(--red);width:54px}.ai-hero-arrows{display:flex;gap:10px}.ai-arrow{width:50px;height:50px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.05);color:#fff;border-radius:var(--r);display:grid;place-items:center}.ai-arrow svg{width:20px;height:20px}.ai-hero-strip{background:var(--blue);color:#fff}.ai-hero-strip .ai-strip-grid{display:grid;grid-template-columns:repeat(4,1fr)}.ai-stat{display:flex;align-items:center;gap:18px;min-height:100px;padding:22px 34px;border-left:1px solid rgba(255,255,255,.16)}.ai-stat:last-child{border-right:1px solid rgba(255,255,255,.16)}.ai-stat svg{width:32px;height:32px;color:#B9D2FF}.ai-stat strong{display:block;font-size:clamp(24px,2.2vw,32px);line-height:1;font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif}.ai-stat span{display:block;color:#D7E4FF;font-size:14px;margin-top:3px}.ai-section,section.ai-section{padding:96px 0;border:0;overflow:hidden}.ai-section-soft{background:var(--bg-soft)}.ai-section-steel{background:var(--bg-steel)}.ai-section-dark{background:var(--footer);color:#C7D2E4}.ai-section-head{max-width:760px;margin:0 0 52px}.ai-section-head.center{margin-left:auto;margin-right:auto;text-align:center}.eyebrow,.ai-eyebrow{display:inline-flex;align-items:center;gap:10px;color:var(--red);font-weight:900;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px}.eyebrow::before,.ai-eyebrow::before{content:"";width:28px;height:2px;background:var(--red)}.ai-section h2,.ai-section-title{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(30px,3.6vw,46px);line-height:1.06;color:var(--ink);margin:0}.ai-section-dark h2{color:#fff}.ai-section-sub{margin-top:18px;font-size:17px;color:var(--mid);line-height:1.75}.ai-grid,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:clamp(18px,3vw,32px)}.ai-card,.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 1px 0 rgba(16,32,60,.04);padding:clamp(22px,2.4vw,32px);min-width:0}.ai-card h3,.card h3{margin:0 0 10px;color:var(--ink);font-size:clamp(20px,1.6vw,24px)}.ai-card p,.card p{color:var(--body);line-height:1.72}.ai-footer,.footer{background:var(--footer);color:#C7D2E4}.ai-footer-top,.footer-top{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.15fr;gap:clamp(26px,4vw,56px);padding:72px 0}.ai-footer h3,.ai-footer h4,.footer h3,.footer h4{color:#fff;margin-top:0}.ai-footer ul,.footer ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}.ai-footer li,.footer li{display:flex;align-items:center;gap:9px;min-width:0}.ai-footer li svg,.footer li svg{width:16px;height:16px;flex:none;color:var(--red)}.ai-footer li,.ai-footer p,.footer li,.footer p{color:#C7D2E4;line-height:1.7}.ai-footer-brand{font-size:28px;font-weight:900;color:#fff}.ai-footer-brand span{color:var(--red)}.ai-footer-bottom,.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98A6BD}.to-top{float:right;color:#fff;display:inline-flex;align-items:center;gap:8px}.to-top svg{width:14px;height:14px;display:inline-block}.placeholder{background:var(--bg-soft)}.placeholder .ai-card,.placeholder .card{border-style:dashed}@media(max-width:1180px){.ai-nav-menu,.ai-header-cta,.ai-topbar-left .hide-md{display:none}.ai-menu-button{display:grid}.ai-nav{min-height:84px}.ai-hero-strip .ai-strip-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:760px){.container,.ai-wrap{width:min(100% - 40px,680px)}.ai-topbar .container{justify-content:space-between}.ai-topbar-left{gap:12px}.ai-topbar-left .ai-contact-line:nth-child(n+2){display:none}.ai-hero{min-height:760px}.ai-hero-card{max-width:100%}.ai-hero h1{font-size:clamp(38px,12vw,54px)}.ai-actions .ai-btn,.btn-row .primary-btn,.btn-row .ghost-btn{width:100%}.ai-hero-nav{bottom:38px}.ai-stat{min-height:122px;padding:24px 20px}.ai-section,section.ai-section{padding:64px 0}.ai-footer-top,.footer-top{grid-template-columns:1fr}.ai-footer-bottom,.footer-bottom{text-align:center}.to-top{float:none;display:inline-flex;margin-top:10px}}`;
+}
+
+function aiSiteStats(project: AiSiteBuilderProject) {
+  const schema = normalizeAiSiteSchemaData(project.schemaData);
+  const productCount = Math.max(3, sectionArray(schema.business_taxonomy.product_categories).length);
+  return [
+    { icon: "icon-cube", value: "272+", label: "Projects Delivered" },
+    { icon: "icon-globe", value: "12+", label: "Countries Served" },
+    { icon: "icon-expertise", value: `${productCount}+`, label: "Core Product Lines" },
+    { icon: "icon-building", value: "EPCM+O", label: "One-Stop Delivery" }
+  ];
+}
+
+function svgUse(icon: string) {
+  return `<svg aria-hidden="true"><use href="#${icon}"></use></svg>`;
+}
+
+function aiSiteChromeThemeCss(project: AiSiteBuilderProject) {
+  const schema = normalizeAiSiteSchemaData(project.schemaData);
+  const design = aiSiteDesignSystem(project);
+  const preset = `${schema.style_requirements.preset || project.tone || ""} ${sectionArray(schema.style_requirements.keywords).join(" ")}`.toLowerCase();
+  const customColors = sectionArray(schema.style_requirements.colors).length > 0;
+  const brand = design.palette.brand;
+  const accent = design.palette.accent;
+  const deep = design.palette.brandDeep;
+  const footer = design.palette.dark;
+  const soft = design.palette.surface;
+  const lightHeader = /clean|minimal|white|light/.test(preset);
+  const darkHeader = !lightHeader && (customColors || /dark|black|luxury|tech|futur|cyber|bold/.test(preset));
+  const headerBg = darkHeader ? `linear-gradient(90deg,${deep},${brand})` : "#ffffff";
+  const headerText = darkHeader ? readableTextOn(deep) : design.palette.ink;
+  const mutedText = darkHeader ? "rgba(255,255,255,.72)" : design.palette.muted;
+  const dropdownBg = darkHeader ? "#ffffff" : "#ffffff";
+  const ctaBg = darkHeader ? "rgba(255,255,255,.12)" : soft;
+  return `<style data-ai-site-chrome-theme="color-only">
+.ai-topbar{background:${deep};color:rgba(255,255,255,.74)}
+.ai-topbar svg,.ai-footer li svg{color:${accent}}
+.ai-socials a:hover{background:${accent};border-color:${accent};color:#fff}
+.ai-header{background:${headerBg};border-bottom-color:${darkHeader ? "rgba(255,255,255,.12)" : design.palette.line}}
+.ai-brand,.ai-nav-link,.ai-header-cta b{color:${headerText}}
+.ai-brand span,.ai-eyebrow,.eyebrow{color:${accent}}
+.ai-brand small,.ai-header-cta > span:not(.ai-cta-icon){color:${mutedText}}
+.ai-nav-link::after,.ai-dropdown{border-top-color:${accent}}
+.ai-dropdown{background:${dropdownBg}}
+.ai-dropdown a::before{background:${accent}}
+.ai-cta-icon{background:${ctaBg};color:${darkHeader ? "#ffffff" : brand}}
+.ai-footer,.footer{background:${footer};color:rgba(255,255,255,.76)}
+.ai-footer-brand span{color:${accent}}
+.ai-footer-bottom,.footer-bottom{border-top-color:rgba(255,255,255,.12)}
+</style>`;
+}
+
 function defaultAiSectionHtml(sectionKey: AiSiteSectionKey, project: AiSiteBuilderProject, generated = false) {
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const company = schema.company_profile;
@@ -2779,6 +2897,47 @@ function defaultAiSectionHtml(sectionKey: AiSiteSectionKey, project: AiSiteBuild
   const categories = sectionArray(taxonomy.product_categories);
   const solutions = sectionArray(taxonomy.solutions);
   const generatedBadge = generated ? "Generated" : "Blueprint";
+  const text = blueprint[sectionKey as keyof ReturnType<typeof aiSiteBlueprint>] || aiSiteSectionLabels[sectionKey];
+  const frameworkCss = aiSiteFrameworkCss(project);
+  const chromeThemeCss = aiSiteChromeThemeCss(project);
+  const contactEmail = contact.email || "sales@example.com";
+  const contactPhone = contact.phone || "+86-0000-0000";
+  const contactAddress = contact.address || "Shandong, China";
+  if (sectionKey === "header") {
+    const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<a href="#products">${htmlEscape(item)}</a>`).join("");
+    return `<!doctype html><html><head><meta charset="utf-8"><style>${frameworkCss}</style></head><body>${aiSiteIconSprite()}${chromeThemeCss}<div class="ai-topbar"><div class="container"><div class="ai-topbar-left"><span class="ai-contact-line">${svgUse("icon-location")}${htmlEscape(contactAddress)}</span><a class="ai-contact-line hide-md" href="tel:${htmlEscape(contactPhone)}">${svgUse("icon-phone")}24/7 Engineering Support</a><a class="ai-contact-line hide-md" href="mailto:${htmlEscape(contactEmail)}">${svgUse("icon-mail")}${htmlEscape(contactEmail)}</a></div><div class="ai-topbar-right"><span>EN</span><div class="ai-socials"><a href="#" aria-label="LinkedIn">${svgUse("icon-linkedin")}</a><a href="#" aria-label="YouTube">${svgUse("icon-youtube")}</a><a href="#" aria-label="Facebook">${svgUse("icon-facebook")}</a></div></div></div></div><header class="ai-header"><div class="container ai-nav"><a class="ai-brand" href="#home">${brandWithHighlight(brand)}<small>Industrial Website</small></a><ul class="ai-nav-menu"><li><a class="ai-nav-link is-active" href="#home">Home</a></li><li class="ai-nav-item"><a class="ai-nav-link" href="#products">Products ${svgUse("icon-caret-down")}</a><div class="ai-dropdown">${productItems}</div></li><li><a class="ai-nav-link" href="#applications">Applications</a></li><li><a class="ai-nav-link" href="#project-cases">Project Cases</a></li><li><a class="ai-nav-link" href="#about-us">About Us</a></li><li><a class="ai-nav-link" href="#blog">Blog</a></li><li><a class="ai-nav-link" href="#contact-us">Contact Us</a></li></ul><a class="ai-header-cta" href="#contact-us"><span class="ai-cta-icon">${svgUse("icon-phone")}</span><span>Get a Free Consultation<b>Contact Us</b></span></a><button class="ai-menu-button" type="button" aria-label="Menu"><i></i></button></div></header>`;
+  }
+  if (sectionKey === "footer") {
+    const serviceItems = ["Application Matching", "Export Documentation", "Distributor Support"].map((item) => `<li>${htmlEscape(item)}</li>`).join("");
+    const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<li>${htmlEscape(item)}</li>`).join("");
+    return `${chromeThemeCss}<footer class="ai-footer"><div class="container ai-footer-top"><div><h3 class="ai-footer-brand">${brandWithHighlight(brand)}</h3><p>${htmlEscape(company.tagline || "Turnkey industrial website delivery for global B2B buyers.")}</p><p>${htmlEscape(company.description || "We help overseas buyers understand products, applications, service capability, and inquiry paths with a consistent industrial website framework.")}</p><div class="ai-socials"><a href="#" aria-label="LinkedIn">${svgUse("icon-linkedin")}</a><a href="#" aria-label="YouTube">${svgUse("icon-youtube")}</a><a href="#" aria-label="Facebook">${svgUse("icon-facebook")}</a></div></div><div><h4>Capabilities</h4><ul>${serviceItems}</ul></div><div><h4>Products</h4><ul>${productItems}</ul></div><div><h4>Contact</h4><ul><li>${svgUse("icon-location")}${htmlEscape(contactAddress)}</li><li>${svgUse("icon-mail")}${htmlEscape(contactEmail)}</li><li>${svgUse("icon-phone")}${htmlEscape(contactPhone)}</li></ul></div></div><div class="container ai-footer-bottom">&copy; ${new Date().getFullYear()} ${htmlEscape(brand)}. All rights reserved. <a href="#home" id="toTop" class="to-top">Back to top ${svgUse("icon-to-top")}</a></div></footer>`;
+  }
+  if (sectionKey === "hero") {
+    const category = categories[0] || "Industrial Systems";
+    const title = company.tagline || `${brand} ${category} Solutions for Global Buyers`;
+    const eyebrow = brand.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim().slice(0, 28) || "B2B INDUSTRIAL";
+    return `<section class="ai-hero ai-photo-hero ${generated ? "" : "placeholder"}" id="home" data-hero-image-api="/api/ai-site-builder/projects/{projectId}/hero-backgrounds"><style>#home.ai-photo-hero{position:relative;min-height:72vh;color:#fff;background:#091526;overflow:hidden}#home .hero-radio{position:absolute;opacity:0;pointer-events:none}#home .hero-bg{position:absolute;inset:0;z-index:0;background:#091526}#home .hero-bg span{position:absolute;inset:0;background-position:center;background-size:cover;opacity:0;animation:heroAutoFade 18s infinite}#home .hero-bg span::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,17,32,.92),rgba(7,17,32,.66) 48%,rgba(7,17,32,.32)),linear-gradient(180deg,rgba(7,17,32,.12),rgba(7,17,32,.42))}#home .hero-bg-1{background-image:url("https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=1800&q=80");animation-delay:0s}#home .hero-bg-2{background-image:url("https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1800&q=80");animation-delay:6s}#home .hero-bg-3{background-image:url("https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=1800&q=80");animation-delay:12s}#home #hero-slide-1:checked~.hero-bg span,#home #hero-slide-2:checked~.hero-bg span,#home #hero-slide-3:checked~.hero-bg span{animation:none;opacity:0}#home #hero-slide-1:checked~.hero-bg .hero-bg-1,#home #hero-slide-2:checked~.hero-bg .hero-bg-2,#home #hero-slide-3:checked~.hero-bg .hero-bg-3{opacity:1}#home .ai-hero-inner{position:relative;z-index:2;min-height:72vh}#home .ai-hero-card{max-width:min(760px,72vw)}#home .ai-hero-tag{background:rgba(200,22,28,.22);border-color:rgba(200,22,28,.72);color:#ffd7d9}#home h1{max-width:820px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:balance}#home .ai-hero-nav{left:auto;right:clamp(24px,6vw,92px);bottom:clamp(22px,4vw,48px);width:auto;z-index:4}#home .ai-hero-nav .container{width:auto;display:flex;align-items:center;gap:14px}#home .ai-hero-status span{display:none;color:#fff;font-weight:900;letter-spacing:.16em}#home .ai-hero-status .auto{display:inline-block;opacity:0;animation:heroStatusFade 18s infinite}#home .ai-hero-status .auto-2{animation-delay:6s}#home .ai-hero-status .auto-3{animation-delay:12s}#home #hero-slide-1:checked~.ai-hero-nav .s1,#home #hero-slide-2:checked~.ai-hero-nav .s2,#home #hero-slide-3:checked~.ai-hero-nav .s3{display:inline}#home #hero-slide-1:checked~.ai-hero-nav .auto,#home #hero-slide-2:checked~.ai-hero-nav .auto,#home #hero-slide-3:checked~.ai-hero-nav .auto{display:none}#home .ai-hero-arrows{display:grid;grid-template-columns:52px 52px;gap:10px}#home .ai-arrow{display:none;width:52px;height:52px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.08);color:#fff;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}#home .hero-prev-auto,#home .hero-next-auto{display:grid}#home #hero-slide-1:checked~.ai-hero-nav .ai-arrow,#home #hero-slide-2:checked~.ai-hero-nav .ai-arrow,#home #hero-slide-3:checked~.ai-hero-nav .ai-arrow{display:none}#home #hero-slide-1:checked~.ai-hero-nav .hero-prev-1,#home #hero-slide-1:checked~.ai-hero-nav .hero-next-1,#home #hero-slide-2:checked~.ai-hero-nav .hero-prev-2,#home #hero-slide-2:checked~.ai-hero-nav .hero-next-2,#home #hero-slide-3:checked~.ai-hero-nav .hero-prev-3,#home #hero-slide-3:checked~.ai-hero-nav .hero-next-3{display:grid}@keyframes heroAutoFade{0%,30%{opacity:1}33%,100%{opacity:0}}@keyframes heroStatusFade{0%,30%{opacity:1}33%,100%{opacity:0}}@media(max-width:760px){#home.ai-photo-hero,#home .ai-hero-inner{min-height:72vh}#home .ai-hero-card{max-width:100%}#home .ai-hero-nav{right:20px;bottom:18px}#home .ai-hero-arrows{grid-template-columns:44px 44px}#home .ai-arrow{width:44px;height:44px}}</style><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-1"><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-2"><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-3"><div class="hero-bg"><span class="hero-bg-1" data-upload-slot="hero-background-1"></span><span class="hero-bg-2" data-upload-slot="hero-background-2"></span><span class="hero-bg-3" data-upload-slot="hero-background-3"></span></div><div class="container ai-hero-inner"><div class="ai-hero-card"><span class="ai-hero-tag">${htmlEscape(eyebrow)}</span><h1>${htmlEscape(title)}</h1><p>${htmlEscape(company.description || text)}</p><div class="ai-actions"><a class="ai-btn ai-btn-primary" href="#contact-us">Request a Proposal ${svgUse("icon-arrow-right")}</a><a class="ai-btn ai-btn-ghost" href="#products">Learn More</a></div></div></div><div class="ai-hero-nav"><div class="container"><div class="ai-hero-status"><span class="auto auto-1">01 / 03</span><span class="auto auto-2">02 / 03</span><span class="auto auto-3">03 / 03</span><span class="s1">01 / 03</span><span class="s2">02 / 03</span><span class="s3">03 / 03</span></div><div class="ai-hero-arrows"><label class="ai-arrow hero-prev-auto" for="hero-slide-3">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-auto" for="hero-slide-2">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-1" for="hero-slide-3">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-1" for="hero-slide-2">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-2" for="hero-slide-1">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-2" for="hero-slide-3">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-3" for="hero-slide-2">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-3" for="hero-slide-1">${svgUse("icon-arrow-next")}</label></div></div></div></section>`;
+  }
+  if (sectionKey === "products") {
+    const productCategories = (categories.length ? categories : ["Gate Valve", "Butterfly Valve", "Check Valve & Strainer", "Ball Valve", "Globe Valve", "Control Valve", "Other Valve And Fittings"]).slice(0, 8);
+    const activeCategory = productCategories[Math.min(3, productCategories.length - 1)] || productCategories[0] || "Industrial Product";
+    const categoryButtons = productCategories.map((item) => `<button type="button" class="products-tab${item === activeCategory ? " is-active" : ""}">${htmlEscape(item)}</button>`).join("");
+    const productBase = activeCategory.replace(/\s*&\s*/g, " ").replace(/\s+/g, " ").trim() || "Industrial Product";
+    const products = [
+      `1PC ${productBase} Standard Model`,
+      `2PC ${productBase} Export Series`,
+      `${productBase} Heavy Duty Assembly`,
+      `Stainless Steel ${productBase} Custom Unit`,
+      `${productBase} OEM Compact Type`,
+      `${productBase} High Flow Version`,
+      `${productBase} Corrosion Resistant Series`,
+      `${productBase} Project Spare Kit`
+    ];
+    const cardMarkup = (items: string[]) => items.map((name) => `<article class="products-card"><div class="products-image"><img src="https://placehold.co/560x420/f8fafc/244aa5?text=${encodeURIComponent(name).replace(/%20/g, "+")}" alt="${htmlEscape(name)}"></div><h3>${htmlEscape(name)}</h3><a href="#contact-us" aria-label="Request ${htmlEscape(name)}">${svgUse("icon-arrow-right")}</a></article>`).join("");
+    return `<section class="ai-section products-category-showcase ${generated ? "" : "placeholder"}" id="products"><style>#products{background:#fff;padding:clamp(54px,6vw,92px) 0;overflow:hidden}#products .products-wrap{width:min(1560px,calc(100vw - clamp(34px,6vw,120px)));margin:auto}#products .products-head{text-align:center;max-width:980px;margin:0 auto clamp(28px,4vw,52px)}#products .products-head h2{font-size:clamp(36px,4.2vw,58px);line-height:1.04;margin:0 0 14px;color:#050b18}#products .products-head p{margin:0;color:#586171;font-size:clamp(15px,1.15vw,18px);line-height:1.7}#products .products-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(10px,1.4vw,18px);margin-bottom:clamp(34px,4.4vw,58px)}#products .products-tab{min-width:min(184px,100%);border:1px solid #a7acb8;border-radius:999px;background:#fff;color:#868b95;padding:12px 22px;font-weight:800;cursor:pointer}#products .products-tab.is-active{border-color:#244aa5;background:#244aa5;color:#fff}#products .products-radio{position:absolute;opacity:0;pointer-events:none}#products .products-stage{position:relative}#products .products-track{display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(22px,2.8vw,38px);padding:0 clamp(34px,5vw,70px)}#products #products-page-1:checked~.products-stage .page-1,#products #products-page-2:checked~.products-stage .page-2{display:grid}#products .products-card{position:relative;background:#f5f5f6;min-width:0;padding:14px 14px 0;text-align:center;overflow:hidden}#products .products-image{background:#fff;aspect-ratio:1/1;display:grid;place-items:center;margin-bottom:22px}#products .products-image img{width:100%;height:100%;object-fit:contain;display:block}#products .products-card h3{min-height:64px;margin:0;padding:0 6px 26px;color:#111827;font-size:clamp(15px,1.1vw,18px);line-height:1.45;text-transform:uppercase;letter-spacing:.02em}#products .products-card a{position:absolute;right:0;bottom:0;width:52px;height:52px;display:grid;place-items:end;background:linear-gradient(135deg,transparent 0 49%,#244aa5 50%);color:#fff;padding:0 7px 7px 0}#products .products-card svg{width:18px;height:18px}#products .products-arrow{position:absolute;top:50%;transform:translateY(-50%);width:54px;height:74px;color:#244aa5;display:grid;place-items:center;cursor:pointer}#products .products-arrow svg{width:46px;height:46px;stroke-width:3}#products .products-arrow.prev{left:0}#products .products-arrow.next{right:0}#products .prev-1,#products .next-1,#products .prev-2,#products .next-2{display:none}#products #products-page-1:checked~.products-stage .prev-1,#products #products-page-1:checked~.products-stage .next-1,#products #products-page-2:checked~.products-stage .prev-2,#products #products-page-2:checked~.products-stage .next-2{display:grid}@media(max-width:1080px){#products .products-track{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 58px}#products .products-tab{min-width:150px}}@media(max-width:760px){#products{padding:44px 0}#products .products-wrap{width:min(100% - 32px,680px)}#products .products-track{grid-template-columns:1fr;padding:0}#products .products-arrow{display:none}#products .products-tab{min-width:0;flex:1 1 150px}}</style><div class="products-wrap"><div class="products-head"><h2>Product Category</h2><p>${htmlEscape(text || `We provide ${productCategories.slice(0, 4).join(", ")} and related industrial products manufactured for global B2B purchasing standards.`)}</p></div><div class="products-tabs">${categoryButtons}</div><input class="products-radio" type="radio" name="products-page" id="products-page-1" checked><input class="products-radio" type="radio" name="products-page" id="products-page-2"><div class="products-stage"><label class="products-arrow prev prev-1" for="products-page-2" aria-label="Previous products">${svgUse("icon-arrow-left")}</label><label class="products-arrow next next-1" for="products-page-2" aria-label="Next products">${svgUse("icon-arrow-next")}</label><label class="products-arrow prev prev-2" for="products-page-1" aria-label="Previous products">${svgUse("icon-arrow-left")}</label><label class="products-arrow next next-2" for="products-page-1" aria-label="Next products">${svgUse("icon-arrow-next")}</label><div class="products-track page-1">${cardMarkup(products.slice(0, 4))}</div><div class="products-track page-2">${cardMarkup(products.slice(4, 8))}</div></div></div></section>`;
+  }
+  const panelCards = [1, 2, 3].map((index) => `<article class="ai-card"><h3>${htmlEscape(aiSiteSectionLabels[sectionKey])} ${index}</h3><p>${htmlEscape(text)}</p></article>`).join("");
+  return `<section class="ai-section ${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="ai-wrap"><div class="ai-section-head"><span class="ai-eyebrow">${generatedBadge}</span><h2 class="ai-section-title">${htmlEscape(aiSiteSectionLabels[sectionKey])}</h2><p class="ai-section-sub">${htmlEscape(text)}</p></div><div class="ai-grid">${panelCards}</div></div></section>`;
   if (sectionKey === "header") {
     const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<a href="#products">${htmlEscape(item)}</a>`).join("");
     return `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -2791,11 +2950,11 @@ function defaultAiSectionHtml(sectionKey: AiSiteSectionKey, project: AiSiteBuild
     const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<li>${htmlEscape(item)}</li>`).join("");
     return `<footer class="footer"><div class="container footer-top"><div><h3 class="brand">${brandWithHighlight(brand)}</h3><p>${htmlEscape(company.tagline || "Reliable industrial supply for global B2B buyers.")}</p><p>${htmlEscape(company.description || "We help overseas buyers source stable industrial products with responsive service and clear documentation.")}</p></div><div><h4>Solutions</h4><ul>${solutionItems}</ul></div><div><h4>Products</h4><ul>${productItems}</ul></div><div><h4>Contact</h4><p>${htmlEscape(contact.email || "sales@example.com")}</p><p>${htmlEscape(contact.phone || "+86-0000-0000")}</p><p>${htmlEscape(contact.address || "China")}</p></div></div><div class="container footer-bottom">© ${new Date().getFullYear()} ${htmlEscape(brand)}. All rights reserved. <a href="#home" id="toTop" class="to-top">Back to top</a></div></footer></body></html>`;
   }
-  const text = blueprint[sectionKey as keyof ReturnType<typeof aiSiteBlueprint>] || aiSiteSectionLabels[sectionKey];
+  const legacyText = blueprint[sectionKey as keyof ReturnType<typeof aiSiteBlueprint>] || aiSiteSectionLabels[sectionKey];
   if (sectionKey === "hero") {
-    return `<section class="hero ${generated ? "" : "placeholder"}" id="home"><div class="container"><span class="eyebrow">${generatedBadge}</span><h1>${htmlEscape(company.tagline || `${brand} Industrial Solutions`)}</h1><p>${htmlEscape(text)}</p><div class="btn-row"><a class="primary-btn" href="#contact-us">Send Inquiry</a><a class="ghost-btn" href="#products">View Products</a></div></div></section>`;
+    return `<section class="hero ${generated ? "" : "placeholder"}" id="home"><div class="container"><span class="eyebrow">${generatedBadge}</span><h1>${htmlEscape(company.tagline || `${brand} Industrial Solutions`)}</h1><p>${htmlEscape(legacyText)}</p><div class="btn-row"><a class="primary-btn" href="#contact-us">Send Inquiry</a><a class="ghost-btn" href="#products">View Products</a></div></div></section>`;
   }
-  const cards = [1, 2, 3].map((index) => `<article class="card"><h3>${htmlEscape(aiSiteSectionLabels[sectionKey])} ${index}</h3><p>${htmlEscape(text)}</p></article>`).join("");
+  const cards = [1, 2, 3].map((index) => `<article class="card"><h3>${htmlEscape(aiSiteSectionLabels[sectionKey])} ${index}</h3><p>${htmlEscape(legacyText)}</p></article>`).join("");
   return `<section class="${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="container"><span class="eyebrow">${generatedBadge}</span><h2>${htmlEscape(aiSiteSectionLabels[sectionKey])}</h2><div class="grid">${cards}</div></div></section>`;
 }
 
@@ -2813,10 +2972,8 @@ async function ensureAiSiteSandbox(project: AiSiteBuilderProject) {
   if (!(await fileExists(orderPath))) await writeFile(orderPath, JSON.stringify(aiSiteSectionKeys, null, 2), "utf8");
   const headerPath = aiSectionFile(project.id, "header");
   const footerPath = aiSectionFile(project.id, "footer");
-  const headerHtml = await readFile(headerPath, "utf8").catch(() => "");
-  const footerHtml = await readFile(footerPath, "utf8").catch(() => "");
-  if (!headerHtml || looksCorruptAiSiteText(headerHtml)) await writeFile(headerPath, defaultAiSectionHtml("header", project, true), "utf8");
-  if (!footerHtml || looksCorruptAiSiteText(footerHtml)) await writeFile(footerPath, defaultAiSectionHtml("footer", project, true), "utf8");
+  await writeFile(headerPath, defaultAiSectionHtml("header", project, true), "utf8");
+  await writeFile(footerPath, defaultAiSectionHtml("footer", project, true), "utf8");
 }
 
 async function persistAiSiteSettingsLocal(settings: AiSiteBuilderSetting[]) {
@@ -2833,7 +2990,7 @@ function projectFromSandbox(projectId: string, schemaData: Record<string, unknow
     id: projectId,
     taskName: `${company.legal_name || company.wordmark || "未命名网站"} 建站任务`,
     siteName: company.legal_name || company.wordmark || "未命名网站",
-    industry: taxonomy.product_categories[0] || taxonomy.solutions[0] || "未指定行业",
+    industry: taxonomy.product_categories[0] || "未指定行业",
     goal: "lead-generation",
     tone: schema.style_requirements.preset || "industrial-professional",
     pages,
@@ -2914,6 +3071,7 @@ function sanitizeAiSiteExportFragment(html: string) {
     .replace(/<head[\s\S]*?<\/head>/gi, "")
     .replace(/<body[^>]*>/gi, "")
     .replace(/<\/body>/gi, "")
+    .replace(/<svg[^>]*data-ai-site-sprite=["']xinhai-reference["'][\s\S]*?<\/svg>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
     .replace(/\shref\s*=\s*"(?!#|mailto:|tel:)[^"]*"/gi, " href=\"#\"")
@@ -2928,6 +3086,7 @@ function buildAiSiteExportDocument(project: AiSiteBuilderProject, fragments: str
   const company = schema.company_profile;
   const title = company.wordmark || company.legal_name || project.siteName || "Industrial Website";
   const description = company.description || company.tagline || "B2B industrial website generated by GoodJob AI Website Factory.";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${htmlEscape(title)}</title><meta name="description" content="${htmlEscape(description)}"><style>${aiSiteFrameworkCss(project)}</style></head><body>${aiSiteIconSprite()}${fragments.map(sanitizeAiSiteExportFragment).join("\n")}</body></html>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${htmlEscape(title)}</title><meta name="description" content="${htmlEscape(description)}"><style>
 :root{--ink:#101828;--muted:#667085;--line:#e5e7eb;--brand:#3157d5;--accent:#16a34a;--bg:#ffffff}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}.container{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.topbar{background:#0f172a;color:#e2e8f0;font-size:13px}.topbar .container{min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.socials{display:flex;gap:12px;color:#93c5fd;flex-wrap:wrap}.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}.header .container{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:clamp(20px,1.8vw,26px);font-weight:850;white-space:nowrap}.brand span{color:var(--brand)}.nav{display:flex;align-items:center;gap:clamp(14px,1.6vw,28px);font-size:14px;flex-wrap:wrap}.nav-item{position:relative}.dropdown{display:none;position:absolute;top:28px;left:0;width:min(300px,80vw);padding:12px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 45px rgba(15,23,42,.12)}.nav-item:hover .dropdown{display:grid;gap:8px}.header-cta{display:flex;align-items:center;gap:10px;white-space:nowrap}.phone{font-weight:800;color:var(--brand)}.send-inquiry{display:none;padding:10px 14px;border-radius:4px;background:var(--brand);color:#fff;font-weight:800}section{padding:clamp(56px,7vw,112px) 0;border-bottom:1px solid #eef2f7;overflow:hidden}.eyebrow{color:var(--brand);font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hero{background:linear-gradient(135deg,#f8fafc,#eef6ff)}.hero h1{font-size:clamp(36px,4.4vw,68px);line-height:1.05;margin:12px 0 18px;max-width:880px}.hero p{font-size:clamp(16px,1.4vw,19px);color:var(--muted);max-width:760px;line-height:1.75}.btn-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}.primary-btn,.ghost-btn{padding:13px 18px;border-radius:4px;font-weight:800}.primary-btn{background:var(--brand);color:white}.ghost-btn{border:1px solid var(--line);background:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:clamp(16px,2vw,30px)}.card{border:1px solid var(--line);padding:clamp(18px,2vw,28px);border-radius:6px;background:white;min-width:0}.card h3{margin:0 0 8px}.card p{color:var(--muted);line-height:1.7}.footer{background:#101828;color:#d0d5dd}.footer-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:clamp(22px,3vw,44px);padding:clamp(46px,6vw,72px) 0}.footer h3,.footer h4{color:#fff}.footer a,.footer p{color:#d0d5dd}.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98a2b3}.to-top{float:right;color:#fff}.placeholder{background:#f8fafc}.placeholder .card{border-style:dashed}@media(max-width:900px){.nav{display:none}.send-inquiry{display:inline-flex}.phone{display:none}}@media(max-width:760px){.container{width:min(100% - 36px,680px)}.topbar .container,.header .container{align-items:flex-start;justify-content:flex-start;padding:10px 0}.hero h1{font-size:36px}}
@@ -2997,7 +3156,7 @@ async function testAiSiteBuilderModel(settings: AiSiteBuilderSetting) {
     id: `ai_site_${settings.ownerId}`,
     provider: settings.provider,
     protocol: aiSiteProviderProtocol(settings.provider),
-    name: "ai建站模型配置",
+    name: "AI建站模型配置",
     baseUrl: settings.baseUrl,
     model: settings.model,
     apiKey: settings.apiKey,
@@ -3017,10 +3176,10 @@ async function testAiSiteBuilderModel(settings: AiSiteBuilderSetting) {
 
 function aiSiteSettingsToModelConfig(settings: AiSiteBuilderSetting): AiModelConfig {
   return {
-    id: `ai_site_${settings.ownerId}`,
+    id: aiSiteMirrorConfigId(settings.ownerId),
     provider: settings.provider,
     protocol: aiSiteProviderProtocol(settings.provider),
-    name: "ai建站模型配置",
+    name: "AI建站模型配置",
     baseUrl: settings.baseUrl,
     model: settings.model,
     apiKey: settings.apiKey,
@@ -3035,6 +3194,66 @@ function aiSiteSettingsToModelConfig(settings: AiSiteBuilderSetting): AiModelCon
     teamId: settings.teamId,
     updatedAt: settings.updatedAt
   };
+}
+
+function aiSiteMirrorConfigId(ownerId: string) {
+  return `ai_site_${ownerId}`;
+}
+
+function aiSiteSettingFromAiConfig(config: AiModelConfig, user: SessionUser): AiSiteBuilderSetting {
+  return {
+    ownerId: user.id,
+    teamId: user.teamId,
+    provider: config.provider,
+    model: config.model,
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    enabled: config.enabled,
+    lastTestStatus: config.lastTestStatus || "untested",
+    lastTestMessage: config.lastTestMessage || "",
+    updatedAt: new Date().toISOString()
+  };
+}
+
+async function syncAiSiteSettingFromAiConfig(config: AiModelConfig, user: SessionUser) {
+  if (config.ownerId !== user.id) return;
+  const store = getStore();
+  const next = aiSiteSettingFromAiConfig(config, user);
+  const index = store.aiSiteBuilderSettings.findIndex((item) => item.ownerId === user.id);
+  if (index >= 0) store.aiSiteBuilderSettings[index] = next;
+  else store.aiSiteBuilderSettings.push(next);
+  await persistAiSiteSettingsLocal(store.aiSiteBuilderSettings);
+}
+
+function upsertAiConfigFromAiSiteSetting(settings: AiSiteBuilderSetting) {
+  const store = getStore();
+  const id = aiSiteMirrorConfigId(settings.ownerId);
+  const existing = store.aiModelConfigs.find((item) => item.id === id && item.ownerId === settings.ownerId);
+  const next: AiModelConfig = {
+    id,
+    provider: settings.provider,
+    protocol: aiSiteProviderProtocol(settings.provider),
+    name: existing?.name || "AI建站模型配置",
+    baseUrl: settings.baseUrl,
+    model: settings.model,
+    apiKey: settings.apiKey,
+    enabled: settings.enabled,
+    temperature: existing?.temperature ?? 0.25,
+    useLeadFinder: existing?.useLeadFinder ?? true,
+    useWebsiteParse: existing?.useWebsiteParse ?? true,
+    useScoring: existing?.useScoring ?? true,
+    useEmailDraft: existing?.useEmailDraft ?? true,
+    useExam: existing?.useExam ?? false,
+    lastTestAt: existing?.lastTestAt,
+    lastTestStatus: settings.lastTestStatus || existing?.lastTestStatus || "untested",
+    lastTestMessage: settings.lastTestMessage || existing?.lastTestMessage || "",
+    ownerId: settings.ownerId,
+    teamId: settings.teamId,
+    updatedAt: settings.updatedAt
+  };
+  if (existing) Object.assign(existing, next);
+  else store.aiModelConfigs.unshift(next);
+  return existing || next;
 }
 
 function aiSiteModelReady(settings?: AiSiteBuilderSetting) {
@@ -3067,8 +3286,9 @@ function stripUnsafeAiSiteHtml(value: unknown, sectionKey: AiSiteSectionKey) {
   if (!/^<(section|header|footer)\b/i.test(html)) {
     throw new Error("模型必须只返回一个 header/footer/section HTML 片段");
   }
-  if (sectionKey !== "header" && sectionKey !== "footer" && !new RegExp(`<section\\b[\\s\\S]*id=["']${sectionKey.replace(/_/g, "-")}["']`, "i").test(html)) {
-    html = html.replace(/^<section\b/i, `<section id="${sectionKey.replace(/_/g, "-")}"`);
+  const expectedId = sectionKey === "hero" ? "(?:home|hero)" : sectionKey.replace(/_/g, "-");
+  if (sectionKey !== "header" && sectionKey !== "footer" && !new RegExp(`<section\\b[\\s\\S]*id=["']${expectedId}["']`, "i").test(html)) {
+    html = html.replace(/^<section\b/i, `<section id="${sectionKey === "hero" ? "home" : sectionKey.replace(/_/g, "-")}"`);
   }
   return html;
 }
@@ -3086,15 +3306,24 @@ function aiSiteHtmlFromModelOutput(content: string, sectionKey: AiSiteSectionKey
 function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSectionKey) {
   if (aiSiteLockedSections.has(sectionKey)) return;
   const sectionId = sectionKey.replace(/_/g, "-");
+  const expectedId = sectionKey === "hero" ? "(?:home|hero)" : sectionId;
   const styleBlocks = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1].trim()).filter(Boolean);
   if (!styleBlocks.length) throw new Error(`Generated ${sectionId}.html is missing a scoped <style> block`);
   const css = styleBlocks.join("\n").replace(/\/\*[\s\S]*?\*\//g, " ").trim();
   const declarationCount = (css.match(/:[^;{}]+;/g) || []).length;
-  if (css.length < 520 || declarationCount < 24) {
+  const minCssLength = sectionKey === "hero" ? 420 : 520;
+  const minDeclarationCount = sectionKey === "hero" ? 18 : 24;
+  if (css.length < minCssLength || declarationCount < minDeclarationCount) {
     throw new Error(`Generated ${sectionId}.html CSS is too thin (${declarationCount} declarations)`);
   }
-  const scopePattern = new RegExp(`#${sectionId}(?:\\b|\\s|[.#:{>])`, "i");
+  const scopePattern = new RegExp(sectionKey === "hero" ? "#(?:home|hero)(?:\\b|\\s|[.#:{>])" : `#${sectionId}(?:\\b|\\s|[.#:{>])`, "i");
   if (!scopePattern.test(css)) throw new Error(`Generated ${sectionId}.html CSS is not scoped to #${sectionId}`);
+  if (!new RegExp(`<section\\b[\\s\\S]*id=["']${expectedId}["']`, "i").test(html)) {
+    throw new Error(`Generated ${sectionId}.html is missing the required section id`);
+  }
+  if (sectionKey !== "hero" && !/class=["'][^"']*\bai-section\b/i.test(html)) {
+    throw new Error(`Generated ${sectionId}.html must use the shared ai-section framework class`);
+  }
   if (!/@media/i.test(css)) throw new Error(`Generated ${sectionId}.html CSS is missing responsive @media rules`);
   if (!/(clamp\(|minmax\(|auto-fit|grid-template-columns|flex-wrap)/i.test(css)) {
     throw new Error(`Generated ${sectionId}.html CSS is missing responsive layout primitives`);
@@ -3104,25 +3333,232 @@ function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSect
   }
 }
 
-function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey, repairReason = "") {
+type AiSiteSectionLayoutStrategy = {
+  family: string;
+  blueprintSignals: string[];
+  composition: string[];
+  requiredElements: string[];
+  avoid: string[];
+};
+
+function aiSiteBlueprintSignals(plan: string, schema: ReturnType<typeof normalizeAiSiteSchemaData>) {
+  const text = plan.toLowerCase();
+  const categories = sectionArray(schema.business_taxonomy.product_categories);
+  const signals = [
+    categories.length ? `${Math.min(categories.length, 10)} product families available` : "no product families supplied",
+    schema.contact_info.phone ? "phone CTA available" : "",
+    schema.contact_info.email ? "email CTA available" : "",
+    schema.company_profile.description ? "company description available" : ""
+  ];
+  if (/cert|quality|iso|test|inspection|factory|manufactur/i.test(text)) signals.push("quality/manufacturing proof");
+  if (/case|project|deliver|result|export|buyer|value/i.test(text)) signals.push("delivery proof");
+  if (/application|scenario|environment|pain|operating/i.test(text)) signals.push("application scenario logic");
+  if (/seo|guide|knowledge|article|insight|blog/i.test(text)) signals.push("editorial/SEO intent");
+  return signals.filter(Boolean).slice(0, 8);
+}
+
+function aiSiteSectionLayoutStrategy(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey): AiSiteSectionLayoutStrategy {
+  const schema = normalizeAiSiteSchemaData(project.schemaData);
+  const blueprint = cleanAiSiteBlueprint(project);
+  const plan = blueprint[sectionKey] || "";
+  const categories = sectionArray(schema.business_taxonomy.product_categories);
+  const signals = aiSiteBlueprintSignals(plan, schema);
+  const categoryInstruction = categories.length
+    ? `Use these category labels as real content anchors: ${categories.slice(0, 10).join(", ")}.`
+    : "Create realistic industrial category labels from the company description.";
+
+  const strategies: Record<AiSiteSectionKey, AiSiteSectionLayoutStrategy> = {
+    header: {
+      family: "locked_fixed_header",
+      blueprintSignals: signals,
+      composition: ["Locked framework component; do not generate with this prompt."],
+      requiredElements: [],
+      avoid: []
+    },
+    hero: {
+      family: "darkened_photo_hero_slider",
+      blueprintSignals: signals,
+      composition: [
+        "Build one compact full-width hero section that visually occupies about 72vh.",
+        "Use 3 external industrial photo backgrounds with a dark overlay strong enough for clear white text.",
+        "Create a company-specific headline from the form data; do not force a generic Industrial ... formula. Keep the H1 visually to 2 lines maximum.",
+        "Place eyebrow, oversized H1, short subtitle, and exactly two buttons: Request a Proposal and Learn More.",
+        "Put working previous/next square controls plus a current slide indicator such as 01 / 03 in the bottom-right corner.",
+        "Use script-free HTML/CSS radio inputs and labels for manual switching; use CSS keyframes for automatic background switching every 6 seconds."
+      ],
+      requiredElements: ["one H1 clamped to 2 lines", "one subtitle paragraph", "exactly two CTA links", "3 darkened image backgrounds", "working bottom-right prev/next controls", "slide status indicator", "CSS auto-switch every 6 seconds", "data-upload-slot markers for future custom image upload"],
+      avoid: ["cards", "metrics", "proof strip", "stats rail", "grids", "decorative panels", "extra content blocks", "two-column split"]
+    },
+    products: {
+      family: "product_category_tabs_catalog_slider",
+      blueprintSignals: [...signals, categoryInstruction],
+      composition: [
+        "Build a reference-style Product Category catalog section from top to bottom.",
+        "Start with a centered Product Category heading and one concise explanatory line.",
+        "Place product category pill buttons in a horizontal wrapped row; highlight the current category.",
+        "Below the buttons, show the current category product catalog as large image cards with uppercase product names.",
+        "Put previous/next browsing arrows on the left and right sides of the product card stage; use script-free radio inputs and labels if interaction is needed."
+      ],
+      requiredElements: ["Product Category h2", "one explanation paragraph", "category pill buttons", "4 visible product cards", "left and right browsing arrows", "responsive catalog grid"],
+      avoid: ["specification matrix", "proof strip", "identical 3-card layout", "plain list only", "image-left text-right split", "crowded card columns"]
+    },
+    applications: {
+      family: "vertical_application_lanes",
+      blueprintSignals: signals,
+      composition: [
+        "Create a vertical set of application lanes connected by a thin process rule or numbered markers.",
+        "Each lane should map operating environment -> buyer pain point -> suitable product -> outcome.",
+        "Use alternating surface bands or stepped rows, not detached equal cards.",
+        "Keep the section top-to-bottom so it feels like a consultative scenario map."
+      ],
+      requiredElements: ["3-5 application lanes", "pain point labels", "matching product chips", "outcome notes"],
+      avoid: ["same product card layout", "generic features grid", "two-column split", "decorative cards without scenario logic"]
+    },
+    project_cases: {
+      family: "proof_timeline_and_result_board",
+      blueprintSignals: signals,
+      composition: [
+        "Use a case timeline, milestone board, or stacked proof ledger.",
+        "For each case, show industry context, delivered scope, measurable value, and repeatable proof.",
+        "Add a result board or metrics row that visually differs from Products and Applications.",
+        "Use vertical storytelling with strong dividers and red proof accents."
+      ],
+      requiredElements: ["3 project case entries", "scope/value/proof fields", "result metrics", "trust-building CTA"],
+      avoid: ["simple three case cards only", "same category tiles as Products", "hero-style banner", "fake testimonials"]
+    },
+    about_us: {
+      family: "capability_stack_and_quality_process",
+      blueprintSignals: signals,
+      composition: [
+        "Use stacked capability bands for manufacturing, QC, export service, and support.",
+        "Add a process belt or certification/checkpoint strip instead of generic biography cards.",
+        "Show the company as an operating system: facilities, standards, response, documentation.",
+        "Make this section calmer and more institutional than Products or Cases."
+      ],
+      requiredElements: ["capability stack", "quality/export process", "documentation or certification proof", "company reliability statement"],
+      avoid: ["founder story card grid", "same 3-column cards", "left text plus right image", "oversized decorative badge"]
+    },
+    blog: {
+      family: "industrial_editorial_digest",
+      blueprintSignals: signals,
+      composition: [
+        "Use an editorial layout: one featured guide, then compact article rows or a knowledge index.",
+        "Organize posts by buyer intent such as selection guide, maintenance, troubleshooting, and market insight.",
+        "Include SEO tags or reading paths so it does not look like another product grid.",
+        "Use white space and typography to make it feel like an industrial knowledge center."
+      ],
+      requiredElements: ["featured article", "3-4 article rows", "SEO/intent tags", "knowledge CTA"],
+      avoid: ["same cards as Products", "large equal blocks only", "fake news feed clutter", "two-column split"]
+    },
+    contact_us: {
+      family: "inquiry_command_center",
+      blueprintSignals: signals,
+      composition: [
+        "Build a contact command center with a strong CTA band first.",
+        "Use compact contact method strips, inquiry checklist, and response promise.",
+        "Place phone/email/location/social data as operational channels, not oversized cards.",
+        "End with a buyer-ready next-step checklist for RFQ details."
+      ],
+      requiredElements: ["CTA band", "phone/email/location channels when available", "RFQ checklist", "response promise"],
+      avoid: ["large generic contact cards", "map placeholder", "same grid as Footer", "unusable form controls"]
+    },
+    footer: {
+      family: "locked_fixed_footer",
+      blueprintSignals: signals,
+      composition: ["Locked framework component; do not generate with this prompt."],
+      requiredElements: [],
+      avoid: []
+    }
+  };
+
+  return strategies[sectionKey];
+}
+
+function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey, repairReason = "", userInstruction = "") {
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const blueprint = cleanAiSiteBlueprint(project);
   const designSystem = aiSiteDesignSystem(project);
+  const layoutStrategy = aiSiteSectionLayoutStrategy(project, sectionKey);
   const sectionId = sectionKey.replace(/_/g, "-");
+  if (sectionKey === "hero") {
+    const company = schema.company_profile;
+    const heroBrief = {
+      brand: company.wordmark || company.legal_name || project.siteName,
+      tagline: company.tagline,
+      description: company.description,
+      plan: blueprint.hero,
+      palette: designSystem.palette,
+      layout: layoutStrategy
+    };
+    return [
+      "Generate one premium B2B industrial HERO section. Return only JSON: {\"html\":\"...\"}.",
+      "Speed mode: keep output compact. No explanations. No markdown.",
+      `Required root: <section id="home" class="ai-hero ai-photo-hero">`,
+      "First child inside the section must be one scoped <style>. Every selector must start with #home.",
+      repairReason ? `Previous output failed validation: ${repairReason}` : "",
+      userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      "Hero composition: 3 external industrial photo backgrounds; height about 72vh; dark overlay so white text is clearly readable.",
+      "Theme color rule: use the palette from Brief JSON as literal hex colors inside the scoped CSS. The overlay gradient, eyebrow badge, primary CTA, arrow hover/focus state, and status indicator must visibly reflect brand/accent/brandDeep. Do not rely only on CSS variables and do not fall back to the old navy/red palette unless the palette actually matches it.",
+      "Content only: eyebrow badge, H1, one subtitle paragraph, two buttons named exactly Request a Proposal and Learn More.",
+      "Headline rule: create a suitable company-specific headline from the form data. Do not force the generic 'Industrial ...' wording. CSS must visually limit H1 to 2 lines with max-width and line clamp or balanced wrapping.",
+      "Bottom-right only: working previous/next arrow controls and slide status text like 01 / 03.",
+      "Interaction: no script. Use hidden radio inputs plus label controls for manual switching, and CSS keyframes so backgrounds auto-switch every 6 seconds.",
+      "Future upload hook: add data-hero-image-api=\"/api/ai-site-builder/projects/{projectId}/hero-backgrounds\" on the section and data-upload-slot=\"hero-background-1/2/3\" on each background element.",
+      "Do not add cards, metrics, proof strips, stats, grids, side panels, extra sections, forms, testimonials, or product lists.",
+      "Use reliable external image URLs in CSS background-image, preferably industrial plant/factory/mining/manufacturing photos from images.unsplash.com with auto=format&fit=crop&w=1800&q=80. If unsure, use neutral placeholder background URLs and keep upload hooks.",
+      "CSS quality: 24-56 declarations, include @media(max-width:760px), use clamp(), min-height:72vh, background-size:cover, and safe 16:9 spacing.",
+      "Links: Request a Proposal href=\"#contact-us\"; Learn More href=\"#products\". No external links except the CSS background image URL.",
+      "Brief JSON: " + JSON.stringify(heroBrief)
+    ].filter(Boolean).join("\n");
+  }
+  if (sectionKey === "products") {
+    const productsBrief = {
+      categories: sectionArray(schema.business_taxonomy.product_categories),
+      brand: schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName,
+      plan: blueprint.products,
+      palette: designSystem.palette,
+      layout: layoutStrategy
+    };
+    return [
+      "Generate one premium B2B industrial PRODUCTS catalog section. Return only JSON: {\"html\":\"...\"}.",
+      "Speed mode: compact output. No explanations. No markdown.",
+      `Required root: <section id="${sectionId}" class="ai-section products-category-showcase">`,
+      "First child inside the section must be one scoped <style>. Every selector must start with #products.",
+      repairReason ? `Previous output failed validation: ${repairReason}` : "",
+      userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      "Layout must match this top-to-bottom order: Product Category heading, one explanation paragraph, category pill buttons, current category product catalog cards, left/right browsing arrows.",
+      "Cards: show 4 large product cards in the first view. Each card needs a square or near-square product image area, uppercase product name, and a small bottom-right inquiry arrow.",
+      "Interaction: no script. If browsing is interactive, use hidden radio inputs and label arrows to switch between two product pages. Keep category buttons as visible pills.",
+      "Images: use realistic product image URLs when safe, otherwise use placeholder URLs such as https://placehold.co/560x420/f8fafc/244aa5?text=Product. Do not use external page links.",
+      "Avoid: specification matrix, proof strip, generic 3-card layout, image-left text-right split, forms, testimonials, CRM/login/logout/app links.",
+      "CSS quality: 28-64 declarations, include @media(max-width:760px), use grid-template-columns, minmax() or clamp(), and avoid fixed widths over 420px.",
+      "Copy: English, concise, product-buyer focused. Use the product categories from the JSON as button labels and card naming anchors.",
+      "Brief JSON: " + JSON.stringify(productsBrief)
+    ].filter(Boolean).join("\n");
+  }
   return [
     "Generate one premium B2B industrial website section. Return only JSON: {\"html\":\"...\"}.",
     `Section: ${sectionKey} / ${aiSiteSectionLabels[sectionKey]}`,
     `Required section id: ${sectionId}`,
     `Plan: ${blueprint[sectionKey] || ""}`,
+    "Section-specific layout strategy JSON: " + JSON.stringify(layoutStrategy),
+    userInstruction ? `User directional instruction: ${userInstruction}` : "",
     repairReason ? `Previous output failed validation: ${repairReason}` : "",
     "Root: one fragment only. No doctype/html/head/body/script/on* handlers/CRM/login/logout/app links.",
-    `For business sections use exactly <section id="${sectionId}">. Put one compact <style> as the first child inside that section.`,
+    "Fixed framework: the page shell already provides Xinhai-style topbar/header/footer, inline SVG sprite, .container/.ai-wrap, .ai-section, .ai-section-head, .ai-grid, .ai-card, .ai-btn, navy/red/steel tokens, and responsive spacing.",
+    "Use the framework instead of inventing a separate design language. Reuse icons with <svg aria-hidden=\"true\"><use href=\"#icon-arrow-right\"></use></svg>, #icon-cube, #icon-globe, #icon-check, or #icon-send.",
+    `For business sections use exactly <section id="${sectionId}" class="ai-section ...">. Put one compact <style> as the first child inside that section.`,
     "CSS quality gate: include 24-64 CSS declarations, one @media rule for <=760px, and at least one of clamp(), minmax(), auto-fit, grid-template-columns, or flex-wrap.",
     `CSS scope gate: every selector must start with #${sectionId}. Do not style body/html/:root/global .container/header/footer.`,
+    "Preview ratio contract: the primary editor preview is a fixed 16:9 iframe. Compose the first visible screen for a 16:9 canvas, keep key headings/CTAs inside the safe central area, avoid content that depends on extra vertical height, and prevent large decorative elements from pushing text off-canvas.",
     "Responsive contract: mobile-first. Use an inner wrapper with width:min(1440px,calc(100vw - clamp(32px,6vw,120px))) and margin:auto. Avoid fixed pixel widths over 420px, nowrap rows, or 4+ equal columns on wide screens. At 1200px+ add whitespace, line-length caps, and balanced asymmetry.",
-    "WordPress block contract: this section will become one reusable WP block/template part. Keep markup semantic, shallow, self-contained, and easy to convert to block attributes. Prefix local classes with the section key.",
-    "Visual: bold industrial editorial, asymmetric but balanced layout, high contrast, technical pattern/detail, strong type hierarchy, proof metrics/specs/CTA. Avoid plain three-card grids unless transformed.",
+    "Layout contract: obey the section-specific layout strategy above. Each section must use its own composition family and should not look interchangeable with Hero, Products, Applications, Cases, About, Blog, or Contact. Do not use the common two-column split layout where text sits on the left and an image/card block sits on the right. Prefer a vertical homepage rhythm like the reference site: eyebrow/title/intro first, then a full-width visual/proof band, then stacked content groups. Product lists, specification cards, metrics, and case grids may use multi-column grids, but the whole section should read top-to-bottom.",
+    `Local class naming: include the strategy family as a scoped class or class prefix inside #${sectionId}, for example ${sectionId}-${layoutStrategy.family.replace(/_/g, "-")}.`,
+    "WordPress block contract: this section will become one reusable WP block/template part. Keep markup semantic, shallow, self-contained, and easy to convert to block attributes. Prefix local classes with the section key while keeping shared classes such as ai-section/ai-wrap/ai-card/ai-btn.",
+    "Visual: match the reference industrial homepage rhythm: dark navy or white bands, red micro-accent, large condensed headings, technical proof cards, image-like gradient panels, compact CTA rows, and generous whitespace at desktop widths.",
+    "Wide-screen fit: at 1440-1920px avoid crowded equal columns. Use max-width text blocks, minmax grids, asymmetry, row gaps, and internal spacing so elements breathe instead of squeezing together.",
     "Copy: English, concrete, buyer-facing, no filler. 120-220 words max. Use real product/category clues from JSON.",
+    userInstruction ? "Instruction priority: follow the user directional instruction when it does not violate safety, scoped CSS, responsive, fixed route, or WordPress block constraints." : "",
     "Design system JSON: " + JSON.stringify(designSystem),
     "Company form JSON: " + JSON.stringify(schema)
   ].filter(Boolean).join("\n");
@@ -3142,26 +3578,29 @@ function aiSiteGenerationFailure(error: unknown) {
   };
 }
 
-async function generateAiSiteSectionHtml(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey, user: SessionUser) {
+async function generateAiSiteSectionHtml(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey, user: SessionUser, userInstruction = "") {
   if (aiSiteLockedSections.has(sectionKey)) return defaultAiSectionHtml(sectionKey, project, true);
   if (process.env.NODE_ENV === "test") return defaultAiSectionHtml(sectionKey, project, true);
   const settings = getStore().aiSiteBuilderSettings.find((item) => item.ownerId === user.id);
   if (!aiSiteModelReady(settings)) throw new Error("AI site builder model settings are not ready. Please save and test the API settings first.");
   await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
   const config = aiSiteSettingsToModelConfig(settings!);
-  const generatedContent = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey), 9000);
+  const effectiveInstruction = sectionKey === "hero" && !userInstruction.trim()
+    ? "Refresh the Hero according to the current project theme colors. Use the current palette visibly in the overlay, badge, CTA, arrow controls, and micro accents while keeping the 72vh photo hero contract."
+    : userInstruction;
+  const generatedContent = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, "", effectiveInstruction), 9000);
   try {
     const html = aiSiteHtmlFromModelOutput(generatedContent, sectionKey);
     validateGeneratedAiSiteSectionHtml(html, sectionKey);
     return html;
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Generated HTML failed validation";
-    const repaired = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, reason), 9000);
+    const repaired = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, reason, effectiveInstruction), 9000);
     const html = aiSiteHtmlFromModelOutput(repaired, sectionKey);
     validateGeneratedAiSiteSectionHtml(html, sectionKey);
     return html;
   }
-  if (!aiSiteModelReady(settings)) throw new Error("请先在 ai建站 中完成接口设置与大模型检查");
+  if (!aiSiteModelReady(settings)) throw new Error("请先在 AI建站 中完成接口设置与大模型检查");
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
   const blueprint = cleanAiSiteBlueprint(project);
@@ -3201,8 +3640,9 @@ function maskedKey(value: string) {
 
 function publicAiSiteBuilderSettings(user: SessionUser) {
   const existing = getStore().aiSiteBuilderSettings.find((item) => item.ownerId === user.id);
+  const synced = existing || (getAiConfig(user) ? aiSiteSettingFromAiConfig(getAiConfig(user)!, user) : null);
   const preset = aiSiteModelPresets[0];
-  const settings = existing || {
+  const settings = synced || {
     ownerId: user.id,
     teamId: user.teamId,
     provider: preset.provider,
@@ -3230,7 +3670,7 @@ function publicAiSiteBuilderSettings(user: SessionUser) {
 app.get("/api/ai-site-builder/capabilities", requireAuth, (req, res) => {
   res.json({
     status: "reserved",
-    message: "ai建站接口已预留，当前仅创建草稿，不执行真实生成或发布。",
+    message: "AI建站接口已预留，当前仅创建草稿，不执行真实生成或发布。",
     scope: req.user?.role === "sales" ? "personal" : req.user?.role === "manager" ? "team" : "global",
     capabilities: ["需求结构化", "页面规划", "内容生成预留", "预览发布预留"],
     defaultPages: ["首页", "产品中心", "解决方案", "成功案例", "联系我们"],
@@ -3272,7 +3712,7 @@ app.post("/api/ai-site-builder/settings", requireAuth, asyncRoute(async (req, re
     provider: body.provider,
     model: body.model || preset?.model || "",
     baseUrl: body.baseUrl || preset?.baseUrl || "",
-    apiKey: body.apiKey || previous?.apiKey || "",
+    apiKey: body.apiKey && !body.apiKey.includes("****") ? body.apiKey : previous?.apiKey || "",
     enabled: body.enabled,
     lastTestStatus: previous?.lastTestStatus || "untested" as const,
     lastTestMessage: previous?.lastTestMessage || "未检查",
@@ -3280,6 +3720,7 @@ app.post("/api/ai-site-builder/settings", requireAuth, asyncRoute(async (req, re
   };
   if (index >= 0) store.aiSiteBuilderSettings[index] = next;
   else store.aiSiteBuilderSettings.push(next);
+  upsertAiConfigFromAiSiteSetting(next);
   await persistAiSiteSettingsLocal(store.aiSiteBuilderSettings);
   await store.persist();
   res.json({ settings: publicAiSiteBuilderSettings(req.user!) });
@@ -3324,6 +3765,11 @@ app.post("/api/ai-site-builder/settings/test", requireAuth, asyncRoute(async (re
   settings.lastTestStatus = result.ok ? "passed" : "failed";
   settings.lastTestMessage = result.message;
   settings.updatedAt = new Date().toISOString();
+  const mirrored = upsertAiConfigFromAiSiteSetting(settings);
+  mirrored.lastTestAt = new Date().toISOString();
+  mirrored.lastTestStatus = settings.lastTestStatus;
+  mirrored.lastTestMessage = settings.lastTestMessage;
+  mirrored.updatedAt = settings.updatedAt;
   await persistAiSiteSettingsLocal(store.aiSiteBuilderSettings);
   await store.persist();
   res.json({ ok: result.ok, message: settings.lastTestMessage, settings: publicAiSiteBuilderSettings(req.user!) });
@@ -3373,7 +3819,7 @@ app.patch("/api/ai-site-builder/projects/:id", requireAuth, asyncRoute(async (re
   project.pages = pages;
   project.taskName = body.taskName || project.taskName || `${company.legal_name || company.wordmark || "未命名网站"} 建站任务`;
   project.siteName = body.siteName || company.legal_name || company.wordmark || project.siteName || "未命名网站";
-  project.industry = body.industry || taxonomy.product_categories[0] || taxonomy.solutions[0] || project.industry || "未指定行业";
+  project.industry = body.industry || taxonomy.product_categories[0] || project.industry || "未指定行业";
   project.goal = body.goal || project.goal || "lead-generation";
   project.tone = body.tone || schemaData.style_requirements.preset || project.tone || "industrial-professional";
   project.agentPayload = normalizeAgentPayload(body.agentPayload, schemaData, pages);
@@ -3500,9 +3946,11 @@ app.post("/api/ai-site-builder/projects/:id/sections/:sectionKey/generate", requ
     res.status(404).json({ message: "区块不存在或无权访问" });
     return;
   }
+  const schema = z.object({ instruction: z.string().max(1200).optional().default("") });
+  const body = schema.parse(req.body || {});
   await ensureAiSiteSandbox(project);
   try {
-    const html = await generateAiSiteSectionHtml(project, sectionKey, req.user!);
+    const html = await generateAiSiteSectionHtml(project, sectionKey, req.user!, body.instruction.trim());
     await writeFile(aiSectionFile(project.id, sectionKey), html, "utf8");
   res.json({ sectionKey, html, generated: true, message: `${aiSiteSectionLabels[sectionKey]} 已由 Agent 生成并写入本地 HTML 片段` });
   } catch (error) {

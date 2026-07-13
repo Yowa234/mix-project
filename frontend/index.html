@@ -5153,6 +5153,36 @@
       grid-column: 1 / -1;
     }
 
+    .dynamic-input-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .dynamic-list-row {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dynamic-list-row span {
+      display: grid;
+      place-items: center;
+      height: 32px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      background: #f7f9fd;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .form-field small {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
     .site-task-list {
       display: grid;
       gap: 10px;
@@ -5261,10 +5291,58 @@
 
     .site-preview-frame {
       width: 100%;
-      height: calc(100vh - 342px);
+      aspect-ratio: 16 / 9;
+      height: auto;
       border: 1px solid var(--line-soft);
       border-radius: var(--radius);
       background: #fff;
+    }
+
+    .site-agent-requirements {
+      position: sticky;
+      bottom: 0;
+      z-index: 3;
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid rgba(49, 87, 213, .18);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, .94);
+      box-shadow: 0 -12px 32px rgba(15, 23, 42, .08);
+      backdrop-filter: blur(10px);
+    }
+
+    .site-agent-requirements label {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .site-agent-requirements label span {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .site-agent-requirements textarea {
+      width: 100%;
+      min-height: 62px;
+      resize: vertical;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.55;
+      outline: none;
+    }
+
+    .site-agent-requirements textarea:focus {
+      border-color: rgba(49, 87, 213, .5);
+      box-shadow: 0 0 0 3px rgba(49, 87, 213, .1);
     }
 
     .agent-progress {
@@ -8297,7 +8375,7 @@
       .site-builder-form-panel { height: auto; max-height: none; overflow: visible; padding-right: 0; }
       .site-editor-canvas { height: auto; }
       .site-editor-workflow-list,
-      .site-preview-frame { max-height: none; height: 520px; }
+      .site-preview-frame { max-height: none; height: auto; }
       .doc-preview-shell { max-height: none; }
       .doc-item-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .doc-item-grid label[data-doc-size="name"],
@@ -8447,8 +8525,8 @@
         <button data-view="ai-config" title="AI配置">
           <svg viewBox="0 0 24 24"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4"/></svg><span>AI配置</span><em>GPT</em>
         </button>
-        <button data-view="ai-site-builder" title="ai建站">
-          <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01"/><path d="M15 10h.01"/></svg><span>ai建站</span><em>预留</em>
+        <button data-view="ai-site-builder" title="AI建站">
+          <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01"/><path d="M15 10h.01"/></svg><span>AI建站</span><em>预留</em>
         </button>
         <button data-view="ai-site-detail" title="建站详细">
           <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg><span>建站详细</span><em>详情</em>
@@ -8519,7 +8597,7 @@
               <option value="客户"></option>
               <option value="搜客"></option>
               <option value="AI配置"></option>
-              <option value="ai建站"></option>
+              <option value="AI建站"></option>
               <option value="建站详细"></option>
               <option value="商机"></option>
               <option value="待办"></option>
@@ -9941,7 +10019,7 @@ https://www.ifm.com"></textarea>
 
         <div class="view" id="ai-site-builder">
           <div class="page-head">
-            <div><p class="eyebrow">智能建站工作台</p><h1>ai建站</h1><p class="sub">左侧管理项目任务，右侧按 data-schema.json 采集企业、联系方式、业务分类、社媒链接和风格要求，提交后创建建站项目任务。</p></div>
+            <div><p class="eyebrow">智能建站工作台</p><h1>AI建站</h1><p class="sub">左侧管理项目任务，右侧按 data-schema.json 采集企业、联系方式、业务分类、社媒链接和风格要求，提交后创建建站项目任务。</p></div>
             <div class="head-actions"><button class="btn" id="aiSiteBuilderRefreshButton">检查接口</button><button class="btn" id="aiSiteBuilderCancelEditButton" hidden>取消编辑</button><button class="btn primary" id="aiSiteBuilderCreateButton">创建项目任务</button></div>
           </div>
 
@@ -9962,7 +10040,7 @@ https://www.ifm.com"></textarea>
               </section>
 
               <section class="panel section">
-                <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="4"/></svg></span><div><h2>接口设置与大模型</h2><span>预留给 ai建站 与 建站详细 串联使用</span></div></div></div>
+                <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="4"/></svg></span><div><h2>接口设置与大模型</h2><span>预留给 AI建站 与 建站详细 串联使用</span></div></div></div>
                 <div class="schema-form-grid" style="grid-template-columns:1fr">
                   <div class="form-field"><label>大模型供应商</label><select id="aiSiteProviderSelect"><option value="openai">OpenAI 兼容接口</option><option value="deepseek">DeepSeek 深度求索</option><option value="qwen">通义千问</option><option value="doubao">豆包</option><option value="claude">Claude 模型</option><option value="gemini">Gemini 模型</option><option value="ollama">Ollama 本地模型</option><option value="custom">自定义模型</option></select></div>
                   <div class="form-field"><label>模型名称</label><input id="aiSiteModelInput" value="gpt-4o-mini" placeholder="例如 gpt-4o-mini / deepseek-chat"></div>
@@ -9983,7 +10061,6 @@ https://www.ifm.com"></textarea>
                 <div class="schema-form-grid">
                   <div class="form-field full"><label>legal_name</label><input id="schemaCompanyLegalName" placeholder="企业法定全称"></div>
                   <div class="form-field"><label>wordmark</label><input id="schemaCompanyWordmark" placeholder="品牌简称 / Logo 字标"></div>
-                  <div class="form-field"><label>established_year</label><input id="schemaCompanyEstablishedYear" placeholder="1997"></div>
                   <div class="form-field full"><label>tagline</label><input id="schemaCompanyTagline" placeholder="一句话定位"></div>
                   <div class="form-field full"><label>description</label><textarea id="schemaCompanyDescription" placeholder="公司一句话核心简介"></textarea></div>
                   <div class="form-field full"><label>logo_url</label><input id="schemaCompanyLogoUrl" placeholder="https://example.com/uploads/logo.jpg"></div>
@@ -10002,8 +10079,7 @@ https://www.ifm.com"></textarea>
               <div class="schema-section">
                 <h3>business_taxonomy</h3>
                 <div class="schema-form-grid">
-                  <div class="form-field full"><label>product_categories</label><textarea id="schemaProductCategories" placeholder="每行一个产品大类，也支持逗号分隔"></textarea></div>
-                  <div class="form-field full"><label>solutions</label><textarea id="schemaSolutions" placeholder="每行一个下游解决方案，也支持逗号分隔"></textarea></div>
+                  <div class="form-field full"><label>product_categories</label><div class="dynamic-input-list" id="schemaProductCategoriesList"></div><small>每个输入框填写一个产品类目；填完最后一项会自动新增，最多 10 个。</small></div>
                 </div>
               </div>
 
@@ -10032,10 +10108,10 @@ https://www.ifm.com"></textarea>
 
         <div class="view" id="ai-site-detail">
           <div class="page-head">
-            <div><p class="eyebrow">Website Project Detail</p><h1>建站详细</h1><p class="sub">作为 ai建站 的同级栏目展示已创建任务的结构化详情、数据快照和下一步动作。</p></div>
-            <div class="head-actions"><button class="btn" id="aiSiteDetailRefreshButton">刷新详情</button><button class="btn" id="aiSiteDetailBackButton">返回ai建站</button></div>
+            <div><p class="eyebrow">Website Project Detail</p><h1>建站详细</h1><p class="sub">作为 AI建站 的同级栏目展示已创建任务的结构化详情、数据快照和下一步动作。</p></div>
+            <div class="head-actions"><button class="btn" id="aiSiteDetailRefreshButton">刷新详情</button><button class="btn" id="aiSiteDetailBackButton">返回AI建站</button></div>
           </div>
-          <div id="aiSiteEditorCanvas" class="site-editor-canvas"><div class="empty-cell">请先在 ai建站 页面创建或选择项目任务。</div></div>
+          <div id="aiSiteEditorCanvas" class="site-editor-canvas"><div class="empty-cell">请先在 AI建站 页面创建或选择项目任务。</div></div>
         </div>
 
 	        <div class="view" id="settings">
@@ -10200,7 +10276,7 @@ https://www.ifm.com"></textarea>
       const viewMap = [
         ["客户", "customers"], ["customer", "customers"],
         ["搜客", "lead-finder"], ["获客", "lead-finder"], ["lead", "lead-finder"], ["prospect", "lead-finder"],
-        ["ai建站", "ai-site-builder"], ["建站详细", "ai-site-detail"], ["建站详情", "ai-site-detail"], ["建站", "ai-site-builder"], ["website builder", "ai-site-builder"],
+        ["AI建站", "ai-site-builder"], ["ai建站", "ai-site-builder"], ["建站详细", "ai-site-detail"], ["建站详情", "ai-site-detail"], ["建站", "ai-site-builder"], ["website builder", "ai-site-builder"],
         ["ai", "ai-config"], ["gpt", "ai-config"], ["模型", "ai-config"], ["apikey", "ai-config"], ["api key", "ai-config"],
         ["商机", "pipeline"], ["pipeline", "pipeline"],
         ["待办", "dashboard"], ["todo", "dashboard"], ["工作台", "dashboard"],
