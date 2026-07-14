@@ -1,6 +1,6 @@
 import cors from "cors";
 import express from "express";
-import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import nodemailer from "nodemailer";
 import { z } from "zod";
@@ -2507,21 +2507,21 @@ function normalizeAgentPayload(value, schemaData, pages) {
         }
     };
 }
-const aiSiteSectionKeys = ["header", "hero", "products", "applications", "project_cases", "about_us", "blog", "contact_us", "footer"];
+const aiSiteSectionKeys = ["header", "hero", "products", "applications", "about_us", "blog", "contact_us", "footer"];
 const aiSiteLockedSections = new Set(["header", "footer"]);
+const aiSiteCustomSectionKeyPattern = /^custom_[a-z0-9_]{6,48}$/i;
 const aiSiteSectionLabels = {
     header: "Header",
     hero: "Hero",
     products: "Products",
     applications: "Applications",
-    project_cases: "Project Cases",
     about_us: "About Us",
     blog: "Blog",
     contact_us: "Contact Us",
     footer: "Footer"
 };
 function isAiSiteSectionKey(value) {
-    return aiSiteSectionKeys.includes(value);
+    return aiSiteSectionKeys.includes(value) || aiSiteCustomSectionKeyPattern.test(value);
 }
 function htmlEscape(value) {
     return String(value ?? "")
@@ -2545,10 +2545,24 @@ function aiSiteDesignSystemFile(projectId) {
 function aiProjectMetaFile(projectId) {
     return path.join(aiProjectDir(projectId), "project.json");
 }
+function aiSiteCustomPagesFile(projectId) {
+    return path.join(aiProjectDir(projectId), "custom-pages.json");
+}
+function aiSiteWpMetadataFile(projectId) {
+    return path.join(aiProjectDir(projectId), "wp-metadata.json");
+}
+function aiSiteWpRebuildDir(projectId) {
+    return path.join(aiProjectDir(projectId), "wp-rebuild");
+}
+function aiSiteWpRebuildExportDir(projectId) {
+    return path.join(aiSiteWpRebuildDir(projectId), "export");
+}
 function aiExportDir(projectId) {
     return path.join(aiProjectDir(projectId), "dist");
 }
 function aiSectionFile(projectId, sectionKey) {
+    if (!isAiSiteSectionKey(sectionKey))
+        throw new Error("Invalid AI site section key");
     return path.join(aiProjectDir(projectId), "sections", `${sectionKey}.html`);
 }
 async function fileExists(file) {
@@ -2571,6 +2585,32 @@ async function readJsonFile(file, fallback) {
         return fallback;
     }
 }
+function cleanAiSiteCustomPageLabel(value, fallback = "New Page") {
+    const label = String(value ?? "").replace(/\s+/g, " ").trim();
+    return (label || fallback).slice(0, 80);
+}
+async function readAiSiteCustomPages(project) {
+    const pages = await readJsonFile(aiSiteCustomPagesFile(project.id), []);
+    return pages
+        .filter((item) => item && isAiSiteSectionKey(item.key) && !aiSiteSectionKeys.includes(item.key))
+        .map((item) => ({ key: item.key, label: cleanAiSiteCustomPageLabel(item.label, "Custom Page"), createdAt: item.createdAt || new Date().toISOString() }));
+}
+async function writeAiSiteCustomPages(project, pages) {
+    await mkdir(aiProjectDir(project.id), { recursive: true });
+    await writeFile(aiSiteCustomPagesFile(project.id), JSON.stringify(pages, null, 2), "utf8");
+}
+function aiSiteSectionLabel(sectionKey, customPages = []) {
+    return aiSiteSectionLabels[sectionKey] || customPages.find((item) => item.key === sectionKey)?.label || "Custom Page";
+}
+function aiSiteSectionBlueprint(sectionKey, blueprint, customPages = []) {
+    if (blueprint[sectionKey])
+        return blueprint[sectionKey];
+    const label = aiSiteSectionLabel(sectionKey, customPages);
+    if (!aiSiteSectionKeys.includes(sectionKey)) {
+        return `Custom page: ${label}. Use this page as a simple editable section that can later be generated or rewritten by the agent.`;
+    }
+    return sectionKey === "header" || sectionKey === "footer" ? "Fixed global component, generated automatically and locked." : "";
+}
 function aiSiteBlueprint(project) {
     const schema = normalizeAiSiteSchemaData(project.schemaData);
     const company = schema.company_profile;
@@ -2583,7 +2623,6 @@ function aiSiteBlueprint(project) {
         hero: `首屏突出 ${siteName} 的跨境工业品牌可信度，展示核心产品、交付能力和询盘入口，视觉风格：${styleWords}。`,
         products: `产品区块聚焦 ${categories.join("、") || "核心工业产品"}，用卡片展示类别、典型参数和快速询盘入口。`,
         applications: `应用区块围绕 ${categories.join("、") || "典型工业应用场景"} 展开，说明客户痛点、应用场景和适配产品。`,
-        project_cases: "项目案例区块展示跨境交付、行业场景、客户收益和可复用经验，增强采购信任。",
         about_us: `关于我们区块介绍 ${company.legal_name || siteName} 的成立背景、制造能力、质量体系和外贸服务能力。`,
         blog: "博客区块用于承接产品知识、选型指南、行业洞察和SEO长尾流量。",
         contact_us: "联系区块提供电话、邮箱、地址、社媒矩阵和询盘表单 CTA，降低询盘阻力。"
@@ -2602,7 +2641,6 @@ function cleanAiSiteBlueprint(project) {
         hero: `Open with a credible industrial B2B value proposition for ${siteName}. Show product strength, export readiness, delivery capability, and a clear inquiry CTA. Visual style: ${styleWords}.`,
         products: `Present ${categories.join(", ") || "core industrial product categories"} with category cards, practical specifications, buyer benefits, and inquiry entry points.`,
         applications: `Explain application scenarios for ${categories.join(", ") || "the core product categories"} by pairing buyer pain points, operating environments, and suitable products.`,
-        project_cases: "Show export project cases with industry context, delivered scope, measurable buyer value, and trust-building proof points.",
         about_us: `Introduce ${company.legal_name || siteName} with manufacturing capability, quality control, export service process, and long-term reliability.`,
         blog: "Provide SEO-ready article cards for product knowledge, selection guides, maintenance tips, and industrial market insights.",
         contact_us: "Provide phone, email, location, social links, and an inquiry CTA that makes it easy for international buyers to contact the supplier.",
@@ -2638,20 +2676,94 @@ function readableTextOn(color) {
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return luminance > 0.62 ? "#16202E" : "#FFFFFF";
 }
+function aiSiteStyleProfile(project, palette) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const style = schema.style_requirements;
+    const keywords = sectionArray(style.keywords);
+    const referenceSites = sectionArray(style.reference_sites);
+    const text = `${style.preset || project.tone || ""} ${keywords.join(" ")} ${style.custom_notes || ""}`.toLowerCase();
+    const isMinimal = /minimal|clean|simple|white|light|极简|简洁|留白/.test(text);
+    const isTech = /tech|future|cyber|digital|ai|automation|科技|未来|智能|数字/.test(text);
+    const isPremium = /premium|luxury|high-end|editorial|高端|奢华|质感|品牌/.test(text);
+    const isEco = /eco|green|sustain|environment|环保|绿色|可持续/.test(text);
+    const isBold = /bold|strong|aggressive|impact|激进|强烈|冲击|重工业/.test(text);
+    const isClassic = /classic|traditional|factory|industrial-professional|传统|工厂|稳重/.test(text);
+    const mood = isTech ? "technical futuristic" : isEco ? "clean sustainable" : isPremium ? "premium editorial" : isMinimal ? "minimal precision" : isBold ? "bold industrial" : "professional industrial";
+    const density = isMinimal || isPremium ? "spacious" : isTech || isBold ? "dense-but-layered" : "balanced";
+    const shape = isTech || isBold ? "sharp" : isMinimal || isEco ? "soft" : "industrial";
+    const background = isTech
+        ? "dark-to-light technical gradients, subtle grid lines, data-like accents"
+        : isEco
+            ? "light surfaces, green-tinted bands, natural whitespace, soft dividers"
+            : isPremium
+                ? "deep editorial contrast, large quiet whitespace, refined accent lines"
+                : isMinimal
+                    ? "white and near-white bands, thin rules, sparse cards"
+                    : isBold
+                        ? "high-contrast dark bands, strong diagonal or stepped panels"
+                        : "industrial navy/steel bands with controlled accent details";
+    const composition = isTech
+        ? "layered dashboards, timeline rails, spec chips, glow-free technical surfaces"
+        : isEco
+            ? "breathing vertical sections, soft proof bands, rounded product/category panels"
+            : isPremium
+                ? "editorial asymmetry, oversized type, restrained cards, magazine-like feature blocks"
+                : isMinimal
+                    ? "single-column clarity, whitespace-first layouts, thin dividers, compact proof rows"
+                    : isBold
+                        ? "large blocks, strong hierarchy, stepped grids, dark proof strips"
+                        : "B2B industrial rhythm with varied vertical sections and practical proof modules";
+    const ctaStyle = isMinimal || isEco ? "clean rounded" : isTech || isBold ? "sharp high-contrast" : isPremium ? "refined editorial" : "industrial rectangular";
+    const avoid = [
+        "do not force the old navy/red palette if form colors or style words point elsewhere",
+        "do not repeat the same heading plus 3-card grid in every section",
+        isMinimal ? "avoid heavy dark blocks and noisy technical decoration" : "",
+        isTech ? "avoid beige, soft corporate SaaS cards, and generic factory brochure layout" : "",
+        isPremium ? "avoid crowded grids and cheap badge-heavy styling" : "",
+        isEco ? "avoid harsh black/red aggression unless supplied by user colors" : "",
+        isBold ? "avoid pale low-contrast minimal pages" : ""
+    ].filter(Boolean);
+    return {
+        mood,
+        density,
+        shape,
+        background,
+        composition,
+        ctaStyle,
+        keywords,
+        customNotes: style.custom_notes || "",
+        referenceSites,
+        avoid,
+        palette,
+        summary: `${mood}; ${density}; ${shape} geometry; ${background}; ${composition}`
+    };
+}
 function aiSiteDesignSystem(project) {
     const schema = normalizeAiSiteSchemaData(project.schemaData);
     const style = schema.style_requirements;
     const colors = sectionArray(style.colors);
-    const preset = style.preset || project.tone || "industrial-professional";
-    const brand = cleanHexColor(colors[0] || "", preset.includes("clean") ? "#143A7B" : "#143A7B");
-    const accent = cleanHexColor(colors[1] || "", preset.includes("dark") ? "#C8161C" : "#C8161C");
-    const surface = cleanHexColor(colors[2] || "", "#F4F6FA");
+    const preset = (style.preset || project.tone || "industrial-professional").toLowerCase();
+    const styleText = `${preset} ${sectionArray(style.keywords).join(" ")} ${style.custom_notes || ""}`.toLowerCase();
+    const fallbackPalette = styleText.includes("minimal") || styleText.includes("clean")
+        ? ["#2563EB", "#0EA5E9", "#F8FAFC"]
+        : styleText.includes("tech") || styleText.includes("future") || styleText.includes("cyber")
+            ? ["#4F46E5", "#06B6D4", "#F5F3FF"]
+            : styleText.includes("eco") || styleText.includes("green") || styleText.includes("sustainable")
+                ? ["#0F766E", "#F97316", "#F0FDFA"]
+                : styleText.includes("luxury") || styleText.includes("premium")
+                    ? ["#111827", "#D97706", "#F8FAFC"]
+                    : ["#143A7B", "#C8161C", "#F4F6FA"];
+    const brand = cleanHexColor(colors[0] || "", fallbackPalette[0]);
+    const accent = cleanHexColor(colors[1] || "", fallbackPalette[1]);
+    const surface = cleanHexColor(colors[2] || "", fallbackPalette[2]);
     const brandDeep = cleanHexColor(colors[3] || "", mixHexColor(brand, "#000000", 0.54));
     const brandWide = mixHexColor(brand, "#FFFFFF", 0.14);
     const dark = cleanHexColor(colors[4] || "", mixHexColor(brandDeep, "#000000", 0.28));
+    const styleProfile = aiSiteStyleProfile(project, { brand, accent, surface, brandDeep, brandWide, dark });
     return {
         version: "ai-site-design-system.v2-xinhai-industrial",
-        preset,
+        preset: style.preset || project.tone || "industrial-professional",
+        styleProfile,
         palette: {
             brand,
             accent,
@@ -2685,11 +2797,11 @@ function aiSiteDesignSystem(project) {
             fixedModules: ["topbar", "sticky-header", "hero-slider-look", "hero-stats-strip", "section-head", "card-grid", "cta-band", "footer"]
         },
         components: {
-            cardRadius: "4px",
+            cardRadius: styleProfile.shape === "soft" ? "12px" : styleProfile.shape === "sharp" ? "2px" : "6px",
             cardBorder: "1px solid #E2E7EE",
             shadow: "0 24px 60px rgba(16,32,60,.16)",
-            buttonRadius: "4px",
-            primaryButton: "red uppercase rectangular CTA with arrow icon",
+            buttonRadius: styleProfile.shape === "soft" ? "999px" : styleProfile.shape === "sharp" ? "2px" : "6px",
+            primaryButton: `${styleProfile.ctaStyle} CTA with arrow icon`,
             secondaryButton: "transparent or white outlined rectangular CTA"
         },
         icons: {
@@ -2697,8 +2809,8 @@ function aiSiteDesignSystem(project) {
             allowedIds: ["icon-location", "icon-phone", "icon-mail", "icon-linkedin", "icon-youtube", "icon-facebook", "icon-arrow-right", "icon-cube", "icon-globe", "icon-expertise", "icon-building", "icon-check", "icon-send"]
         },
         rules: [
-            "Use the same navy/red/steel palette and spacing tokens in every section.",
-            "Follow the Xinhai-style structure: eyebrow, large condensed heading, technical proof cards, red CTA, small-radius industrial panels.",
+            "Use the same palette and spacing tokens in every section, but vary section composition according to the style profile.",
+            `Style profile: ${styleProfile.summary}`,
             "Every generated business section must include one scoped style tag as its first child.",
             "Selectors must be prefixed with the current section id.",
             "Use semantic section/article/list markup that can become a WordPress block.",
@@ -2706,6 +2818,34 @@ function aiSiteDesignSystem(project) {
             "Avoid unscoped .container, .grid, .card, body, html, :root, header, footer selectors."
         ]
     };
+}
+const aiSiteThemePalettes = [
+    ["#143A7B", "#C8161C", "#F4F6FA", "#0E2A5C", "#0C1B33"],
+    ["#0F766E", "#F97316", "#F0FDFA", "#064E3B", "#062D2A"],
+    ["#4F46E5", "#E11D48", "#F5F3FF", "#312E81", "#17113D"],
+    ["#1D4ED8", "#D97706", "#EFF6FF", "#1E3A8A", "#111827"],
+    ["#334155", "#DC2626", "#F8FAFC", "#0F172A", "#020617"]
+];
+function refreshAiSiteProjectThemePalette(project) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const current = sectionArray(schema.style_requirements.colors);
+    const currentKey = current.slice(0, 5).join("|").toUpperCase();
+    const currentIndex = aiSiteThemePalettes.findIndex((palette) => palette.join("|").toUpperCase() === currentKey);
+    const validCustom = current
+        .slice(0, 5)
+        .filter((color) => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color))
+        .map((color) => cleanHexColor(color, "#143A7B"));
+    if (validCustom.length >= 2 && currentIndex < 0) {
+        schema.style_requirements.colors = validCustom;
+        project.schemaData = schema;
+        project.tone = schema.style_requirements.preset || project.tone;
+        return validCustom;
+    }
+    const nextPalette = aiSiteThemePalettes[currentIndex >= 0 ? (currentIndex + 1) % aiSiteThemePalettes.length : 1];
+    schema.style_requirements.colors = nextPalette;
+    project.schemaData = schema;
+    project.tone = schema.style_requirements.preset || project.tone;
+    return nextPalette;
 }
 function looksCorruptAiSiteText(value) {
     return /�|銆|鐨|鍖|浣|涓|绔|绯|logoutButton|login-screen|GoodJob CRM/i.test(value);
@@ -2776,9 +2916,16 @@ function aiSiteChromeThemeCss(project) {
 .ai-footer,.footer{background:${footer};color:rgba(255,255,255,.76)}
 .ai-footer-brand span{color:${accent}}
 .ai-footer-bottom,.footer-bottom{border-top-color:rgba(255,255,255,.12)}
+#home.ai-photo-hero .hero-bg span::after{background:linear-gradient(90deg,${mixHexColor(deep, "#000000", 0.28)}E8,${mixHexColor(deep, "#000000", 0.12)}B8 48%,${brand}52),linear-gradient(180deg,transparent,${mixHexColor(deep, "#000000", 0.22)}A8)!important}
+#home.ai-photo-hero .ai-hero-tag{background:${mixHexColor(accent, "#000000", 0.1)}42!important;border-color:${accent}!important;color:${readableTextOn(accent)}!important}
+#home.ai-photo-hero .ai-hero-tag::before{background:${accent}!important;box-shadow:0 0 0 4px ${accent}55!important}
+#home.ai-photo-hero .ai-btn-primary{background:${accent}!important;border-color:${accent}!important;color:${readableTextOn(accent)}!important}
+#home.ai-photo-hero .ai-btn-ghost,#home.ai-photo-hero .ai-arrow{border-color:${mixHexColor(brand, "#FFFFFF", 0.42)}!important}
+#home.ai-photo-hero .ai-arrow:hover{background:${accent}!important;border-color:${accent}!important;color:${readableTextOn(accent)}!important}
+#home.ai-photo-hero .ai-hero-status span{color:${mixHexColor(brand, "#FFFFFF", 0.7)}!important}
 </style>`;
 }
-function defaultAiSectionHtml(sectionKey, project, generated = false) {
+function defaultAiSectionHtml(sectionKey, project, generated = false, customPages = []) {
     const schema = normalizeAiSiteSchemaData(project.schemaData);
     const company = schema.company_profile;
     const contact = schema.contact_info;
@@ -2788,7 +2935,8 @@ function defaultAiSectionHtml(sectionKey, project, generated = false) {
     const categories = sectionArray(taxonomy.product_categories);
     const solutions = sectionArray(taxonomy.solutions);
     const generatedBadge = generated ? "Generated" : "Blueprint";
-    const text = blueprint[sectionKey] || aiSiteSectionLabels[sectionKey];
+    const sectionLabel = aiSiteSectionLabel(sectionKey, customPages);
+    const text = blueprint[sectionKey] || sectionLabel;
     const frameworkCss = aiSiteFrameworkCss(project);
     const chromeThemeCss = aiSiteChromeThemeCss(project);
     const contactEmail = contact.email || "sales@example.com";
@@ -2796,7 +2944,7 @@ function defaultAiSectionHtml(sectionKey, project, generated = false) {
     const contactAddress = contact.address || "Shandong, China";
     if (sectionKey === "header") {
         const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<a href="#products">${htmlEscape(item)}</a>`).join("");
-        return `<!doctype html><html><head><meta charset="utf-8"><style>${frameworkCss}</style></head><body>${aiSiteIconSprite()}${chromeThemeCss}<div class="ai-topbar"><div class="container"><div class="ai-topbar-left"><span class="ai-contact-line">${svgUse("icon-location")}${htmlEscape(contactAddress)}</span><a class="ai-contact-line hide-md" href="tel:${htmlEscape(contactPhone)}">${svgUse("icon-phone")}24/7 Engineering Support</a><a class="ai-contact-line hide-md" href="mailto:${htmlEscape(contactEmail)}">${svgUse("icon-mail")}${htmlEscape(contactEmail)}</a></div><div class="ai-topbar-right"><span>EN</span><div class="ai-socials"><a href="#" aria-label="LinkedIn">${svgUse("icon-linkedin")}</a><a href="#" aria-label="YouTube">${svgUse("icon-youtube")}</a><a href="#" aria-label="Facebook">${svgUse("icon-facebook")}</a></div></div></div></div><header class="ai-header"><div class="container ai-nav"><a class="ai-brand" href="#home">${brandWithHighlight(brand)}<small>Industrial Website</small></a><ul class="ai-nav-menu"><li><a class="ai-nav-link is-active" href="#home">Home</a></li><li class="ai-nav-item"><a class="ai-nav-link" href="#products">Products ${svgUse("icon-caret-down")}</a><div class="ai-dropdown">${productItems}</div></li><li><a class="ai-nav-link" href="#applications">Applications</a></li><li><a class="ai-nav-link" href="#project-cases">Project Cases</a></li><li><a class="ai-nav-link" href="#about-us">About Us</a></li><li><a class="ai-nav-link" href="#blog">Blog</a></li><li><a class="ai-nav-link" href="#contact-us">Contact Us</a></li></ul><a class="ai-header-cta" href="#contact-us"><span class="ai-cta-icon">${svgUse("icon-phone")}</span><span>Get a Free Consultation<b>Contact Us</b></span></a><button class="ai-menu-button" type="button" aria-label="Menu"><i></i></button></div></header>`;
+        return `<!doctype html><html><head><meta charset="utf-8"><style>${frameworkCss}</style></head><body>${aiSiteIconSprite()}${chromeThemeCss}<div class="ai-topbar"><div class="container"><div class="ai-topbar-left"><span class="ai-contact-line">${svgUse("icon-location")}${htmlEscape(contactAddress)}</span><a class="ai-contact-line hide-md" href="tel:${htmlEscape(contactPhone)}">${svgUse("icon-phone")}24/7 Engineering Support</a><a class="ai-contact-line hide-md" href="mailto:${htmlEscape(contactEmail)}">${svgUse("icon-mail")}${htmlEscape(contactEmail)}</a></div><div class="ai-topbar-right"><span>EN</span><div class="ai-socials"><a href="#" aria-label="LinkedIn">${svgUse("icon-linkedin")}</a><a href="#" aria-label="YouTube">${svgUse("icon-youtube")}</a><a href="#" aria-label="Facebook">${svgUse("icon-facebook")}</a></div></div></div></div><header class="ai-header"><div class="container ai-nav"><a class="ai-brand" href="#home">${brandWithHighlight(brand)}<small>Industrial Website</small></a><ul class="ai-nav-menu"><li><a class="ai-nav-link is-active" href="#home">Home</a></li><li class="ai-nav-item"><a class="ai-nav-link" href="#products">Products ${svgUse("icon-caret-down")}</a><div class="ai-dropdown">${productItems}</div></li><li><a class="ai-nav-link" href="#applications">Applications</a></li><li><a class="ai-nav-link" href="#about-us">About Us</a></li><li><a class="ai-nav-link" href="#blog">Blog</a></li><li><a class="ai-nav-link" href="#contact-us">Contact Us</a></li></ul><a class="ai-header-cta" href="#contact-us"><span class="ai-cta-icon">${svgUse("icon-phone")}</span><span>Get a Free Consultation<b>Contact Us</b></span></a><button class="ai-menu-button" type="button" aria-label="Menu"><i></i></button></div></header>`;
     }
     if (sectionKey === "footer") {
         const serviceItems = ["Application Matching", "Export Documentation", "Distributor Support"].map((item) => `<li>${htmlEscape(item)}</li>`).join("");
@@ -2807,7 +2955,7 @@ function defaultAiSectionHtml(sectionKey, project, generated = false) {
         const category = categories[0] || "Industrial Systems";
         const title = company.tagline || `${brand} ${category} Solutions for Global Buyers`;
         const eyebrow = brand.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim().slice(0, 28) || "B2B INDUSTRIAL";
-        return `<section class="ai-hero ai-photo-hero ${generated ? "" : "placeholder"}" id="home" data-hero-image-api="/api/ai-site-builder/projects/{projectId}/hero-backgrounds"><style>#home.ai-photo-hero{position:relative;min-height:72vh;color:#fff;background:#091526;overflow:hidden}#home .hero-radio{position:absolute;opacity:0;pointer-events:none}#home .hero-bg{position:absolute;inset:0;z-index:0;background:#091526}#home .hero-bg span{position:absolute;inset:0;background-position:center;background-size:cover;opacity:0;animation:heroAutoFade 18s infinite}#home .hero-bg span::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,17,32,.92),rgba(7,17,32,.66) 48%,rgba(7,17,32,.32)),linear-gradient(180deg,rgba(7,17,32,.12),rgba(7,17,32,.42))}#home .hero-bg-1{background-image:url("https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=1800&q=80");animation-delay:0s}#home .hero-bg-2{background-image:url("https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1800&q=80");animation-delay:6s}#home .hero-bg-3{background-image:url("https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=1800&q=80");animation-delay:12s}#home #hero-slide-1:checked~.hero-bg span,#home #hero-slide-2:checked~.hero-bg span,#home #hero-slide-3:checked~.hero-bg span{animation:none;opacity:0}#home #hero-slide-1:checked~.hero-bg .hero-bg-1,#home #hero-slide-2:checked~.hero-bg .hero-bg-2,#home #hero-slide-3:checked~.hero-bg .hero-bg-3{opacity:1}#home .ai-hero-inner{position:relative;z-index:2;min-height:72vh}#home .ai-hero-card{max-width:min(760px,72vw)}#home .ai-hero-tag{background:rgba(200,22,28,.22);border-color:rgba(200,22,28,.72);color:#ffd7d9}#home h1{max-width:820px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:balance}#home .ai-hero-nav{left:auto;right:clamp(24px,6vw,92px);bottom:clamp(22px,4vw,48px);width:auto;z-index:4}#home .ai-hero-nav .container{width:auto;display:flex;align-items:center;gap:14px}#home .ai-hero-status span{display:none;color:#fff;font-weight:900;letter-spacing:.16em}#home .ai-hero-status .auto{display:inline-block;opacity:0;animation:heroStatusFade 18s infinite}#home .ai-hero-status .auto-2{animation-delay:6s}#home .ai-hero-status .auto-3{animation-delay:12s}#home #hero-slide-1:checked~.ai-hero-nav .s1,#home #hero-slide-2:checked~.ai-hero-nav .s2,#home #hero-slide-3:checked~.ai-hero-nav .s3{display:inline}#home #hero-slide-1:checked~.ai-hero-nav .auto,#home #hero-slide-2:checked~.ai-hero-nav .auto,#home #hero-slide-3:checked~.ai-hero-nav .auto{display:none}#home .ai-hero-arrows{display:grid;grid-template-columns:52px 52px;gap:10px}#home .ai-arrow{display:none;width:52px;height:52px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.08);color:#fff;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}#home .hero-prev-auto,#home .hero-next-auto{display:grid}#home #hero-slide-1:checked~.ai-hero-nav .ai-arrow,#home #hero-slide-2:checked~.ai-hero-nav .ai-arrow,#home #hero-slide-3:checked~.ai-hero-nav .ai-arrow{display:none}#home #hero-slide-1:checked~.ai-hero-nav .hero-prev-1,#home #hero-slide-1:checked~.ai-hero-nav .hero-next-1,#home #hero-slide-2:checked~.ai-hero-nav .hero-prev-2,#home #hero-slide-2:checked~.ai-hero-nav .hero-next-2,#home #hero-slide-3:checked~.ai-hero-nav .hero-prev-3,#home #hero-slide-3:checked~.ai-hero-nav .hero-next-3{display:grid}@keyframes heroAutoFade{0%,30%{opacity:1}33%,100%{opacity:0}}@keyframes heroStatusFade{0%,30%{opacity:1}33%,100%{opacity:0}}@media(max-width:760px){#home.ai-photo-hero,#home .ai-hero-inner{min-height:72vh}#home .ai-hero-card{max-width:100%}#home .ai-hero-nav{right:20px;bottom:18px}#home .ai-hero-arrows{grid-template-columns:44px 44px}#home .ai-arrow{width:44px;height:44px}}</style><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-1"><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-2"><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-3"><div class="hero-bg"><span class="hero-bg-1" data-upload-slot="hero-background-1"></span><span class="hero-bg-2" data-upload-slot="hero-background-2"></span><span class="hero-bg-3" data-upload-slot="hero-background-3"></span></div><div class="container ai-hero-inner"><div class="ai-hero-card"><span class="ai-hero-tag">${htmlEscape(eyebrow)}</span><h1>${htmlEscape(title)}</h1><p>${htmlEscape(company.description || text)}</p><div class="ai-actions"><a class="ai-btn ai-btn-primary" href="#contact-us">Request a Proposal ${svgUse("icon-arrow-right")}</a><a class="ai-btn ai-btn-ghost" href="#products">Learn More</a></div></div></div><div class="ai-hero-nav"><div class="container"><div class="ai-hero-status"><span class="auto auto-1">01 / 03</span><span class="auto auto-2">02 / 03</span><span class="auto auto-3">03 / 03</span><span class="s1">01 / 03</span><span class="s2">02 / 03</span><span class="s3">03 / 03</span></div><div class="ai-hero-arrows"><label class="ai-arrow hero-prev-auto" for="hero-slide-3">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-auto" for="hero-slide-2">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-1" for="hero-slide-3">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-1" for="hero-slide-2">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-2" for="hero-slide-1">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-2" for="hero-slide-3">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-3" for="hero-slide-2">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-3" for="hero-slide-1">${svgUse("icon-arrow-next")}</label></div></div></div></section>`;
+        return `${chromeThemeCss}<section class="ai-hero ai-photo-hero ${generated ? "" : "placeholder"}" id="home" data-hero-image-api="/api/ai-site-builder/projects/{projectId}/hero-backgrounds"><style>#home.ai-photo-hero{position:relative;min-height:72vh;color:#fff;background:#091526;overflow:hidden}#home .hero-radio{position:absolute;opacity:0;pointer-events:none}#home .hero-bg{position:absolute;inset:0;z-index:0;background:#091526}#home .hero-bg span{position:absolute;inset:0;background-position:center;background-size:cover;opacity:0;animation:heroAutoFade 18s infinite}#home .hero-bg span::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,17,32,.92),rgba(7,17,32,.66) 48%,rgba(7,17,32,.32)),linear-gradient(180deg,rgba(7,17,32,.12),rgba(7,17,32,.42))}#home .hero-bg-1{background-image:url("https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=1800&q=80");animation-delay:0s}#home .hero-bg-2{background-image:url("https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1800&q=80");animation-delay:6s}#home .hero-bg-3{background-image:url("https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=1800&q=80");animation-delay:12s}#home #hero-slide-1:checked~.hero-bg span,#home #hero-slide-2:checked~.hero-bg span,#home #hero-slide-3:checked~.hero-bg span{animation:none;opacity:0}#home #hero-slide-1:checked~.hero-bg .hero-bg-1,#home #hero-slide-2:checked~.hero-bg .hero-bg-2,#home #hero-slide-3:checked~.hero-bg .hero-bg-3{opacity:1}#home .ai-hero-inner{position:relative;z-index:2;min-height:72vh}#home .ai-hero-card{max-width:min(760px,72vw)}#home .ai-hero-tag{background:rgba(200,22,28,.22);border-color:rgba(200,22,28,.72);color:#ffd7d9}#home h1{max-width:820px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:balance}#home .ai-hero-nav{left:auto;right:clamp(24px,6vw,92px);bottom:clamp(22px,4vw,48px);width:auto;z-index:4}#home .ai-hero-nav .container{width:auto;display:flex;align-items:center;gap:14px}#home .ai-hero-status span{display:none;color:#fff;font-weight:900;letter-spacing:.16em}#home .ai-hero-status .auto{display:inline-block;opacity:0;animation:heroStatusFade 18s infinite}#home .ai-hero-status .auto-2{animation-delay:6s}#home .ai-hero-status .auto-3{animation-delay:12s}#home #hero-slide-1:checked~.ai-hero-nav .s1,#home #hero-slide-2:checked~.ai-hero-nav .s2,#home #hero-slide-3:checked~.ai-hero-nav .s3{display:inline}#home #hero-slide-1:checked~.ai-hero-nav .auto,#home #hero-slide-2:checked~.ai-hero-nav .auto,#home #hero-slide-3:checked~.ai-hero-nav .auto{display:none}#home .ai-hero-arrows{display:grid;grid-template-columns:52px 52px;gap:10px}#home .ai-arrow{display:none;width:52px;height:52px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.08);color:#fff;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}#home .hero-prev-auto,#home .hero-next-auto{display:grid}#home #hero-slide-1:checked~.ai-hero-nav .ai-arrow,#home #hero-slide-2:checked~.ai-hero-nav .ai-arrow,#home #hero-slide-3:checked~.ai-hero-nav .ai-arrow{display:none}#home #hero-slide-1:checked~.ai-hero-nav .hero-prev-1,#home #hero-slide-1:checked~.ai-hero-nav .hero-next-1,#home #hero-slide-2:checked~.ai-hero-nav .hero-prev-2,#home #hero-slide-2:checked~.ai-hero-nav .hero-next-2,#home #hero-slide-3:checked~.ai-hero-nav .hero-prev-3,#home #hero-slide-3:checked~.ai-hero-nav .hero-next-3{display:grid}@keyframes heroAutoFade{0%,30%{opacity:1}33%,100%{opacity:0}}@keyframes heroStatusFade{0%,30%{opacity:1}33%,100%{opacity:0}}@media(max-width:760px){#home.ai-photo-hero,#home .ai-hero-inner{min-height:72vh}#home .ai-hero-card{max-width:100%}#home .ai-hero-nav{right:20px;bottom:18px}#home .ai-hero-arrows{grid-template-columns:44px 44px}#home .ai-arrow{width:44px;height:44px}}</style><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-1"><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-2"><input class="hero-radio" type="radio" name="hero-bg" id="hero-slide-3"><div class="hero-bg"><span class="hero-bg-1" data-upload-slot="hero-background-1"></span><span class="hero-bg-2" data-upload-slot="hero-background-2"></span><span class="hero-bg-3" data-upload-slot="hero-background-3"></span></div><div class="container ai-hero-inner"><div class="ai-hero-card"><span class="ai-hero-tag">${htmlEscape(eyebrow)}</span><h1>${htmlEscape(title)}</h1><p>${htmlEscape(company.description || text)}</p><div class="ai-actions"><a class="ai-btn ai-btn-primary" href="#contact-us">Request a Proposal ${svgUse("icon-arrow-right")}</a><a class="ai-btn ai-btn-ghost" href="#products">Learn More</a></div></div></div><div class="ai-hero-nav"><div class="container"><div class="ai-hero-status"><span class="auto auto-1">01 / 03</span><span class="auto auto-2">02 / 03</span><span class="auto auto-3">03 / 03</span><span class="s1">01 / 03</span><span class="s2">02 / 03</span><span class="s3">03 / 03</span></div><div class="ai-hero-arrows"><label class="ai-arrow hero-prev-auto" for="hero-slide-3">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-auto" for="hero-slide-2">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-1" for="hero-slide-3">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-1" for="hero-slide-2">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-2" for="hero-slide-1">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-2" for="hero-slide-3">${svgUse("icon-arrow-next")}</label><label class="ai-arrow hero-prev-3" for="hero-slide-2">${svgUse("icon-arrow-left")}</label><label class="ai-arrow hero-next-3" for="hero-slide-1">${svgUse("icon-arrow-next")}</label></div></div></div></section>`;
     }
     if (sectionKey === "products") {
         const productCategories = (categories.length ? categories : ["Gate Valve", "Butterfly Valve", "Check Valve & Strainer", "Ball Valve", "Globe Valve", "Control Valve", "Other Valve And Fittings"]).slice(0, 8);
@@ -2827,26 +2975,44 @@ function defaultAiSectionHtml(sectionKey, project, generated = false) {
         const cardMarkup = (items) => items.map((name) => `<article class="products-card"><div class="products-image"><img src="https://placehold.co/560x420/f8fafc/244aa5?text=${encodeURIComponent(name).replace(/%20/g, "+")}" alt="${htmlEscape(name)}"></div><h3>${htmlEscape(name)}</h3><a href="#contact-us" aria-label="Request ${htmlEscape(name)}">${svgUse("icon-arrow-right")}</a></article>`).join("");
         return `<section class="ai-section products-category-showcase ${generated ? "" : "placeholder"}" id="products"><style>#products{background:#fff;padding:clamp(54px,6vw,92px) 0;overflow:hidden}#products .products-wrap{width:min(1560px,calc(100vw - clamp(34px,6vw,120px)));margin:auto}#products .products-head{text-align:center;max-width:980px;margin:0 auto clamp(28px,4vw,52px)}#products .products-head h2{font-size:clamp(36px,4.2vw,58px);line-height:1.04;margin:0 0 14px;color:#050b18}#products .products-head p{margin:0;color:#586171;font-size:clamp(15px,1.15vw,18px);line-height:1.7}#products .products-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(10px,1.4vw,18px);margin-bottom:clamp(34px,4.4vw,58px)}#products .products-tab{min-width:min(184px,100%);border:1px solid #a7acb8;border-radius:999px;background:#fff;color:#868b95;padding:12px 22px;font-weight:800;cursor:pointer}#products .products-tab.is-active{border-color:#244aa5;background:#244aa5;color:#fff}#products .products-radio{position:absolute;opacity:0;pointer-events:none}#products .products-stage{position:relative}#products .products-track{display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(22px,2.8vw,38px);padding:0 clamp(34px,5vw,70px)}#products #products-page-1:checked~.products-stage .page-1,#products #products-page-2:checked~.products-stage .page-2{display:grid}#products .products-card{position:relative;background:#f5f5f6;min-width:0;padding:14px 14px 0;text-align:center;overflow:hidden}#products .products-image{background:#fff;aspect-ratio:1/1;display:grid;place-items:center;margin-bottom:22px}#products .products-image img{width:100%;height:100%;object-fit:contain;display:block}#products .products-card h3{min-height:64px;margin:0;padding:0 6px 26px;color:#111827;font-size:clamp(15px,1.1vw,18px);line-height:1.45;text-transform:uppercase;letter-spacing:.02em}#products .products-card a{position:absolute;right:0;bottom:0;width:52px;height:52px;display:grid;place-items:end;background:linear-gradient(135deg,transparent 0 49%,#244aa5 50%);color:#fff;padding:0 7px 7px 0}#products .products-card svg{width:18px;height:18px}#products .products-arrow{position:absolute;top:50%;transform:translateY(-50%);width:54px;height:74px;color:#244aa5;display:grid;place-items:center;cursor:pointer}#products .products-arrow svg{width:46px;height:46px;stroke-width:3}#products .products-arrow.prev{left:0}#products .products-arrow.next{right:0}#products .prev-1,#products .next-1,#products .prev-2,#products .next-2{display:none}#products #products-page-1:checked~.products-stage .prev-1,#products #products-page-1:checked~.products-stage .next-1,#products #products-page-2:checked~.products-stage .prev-2,#products #products-page-2:checked~.products-stage .next-2{display:grid}@media(max-width:1080px){#products .products-track{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 58px}#products .products-tab{min-width:150px}}@media(max-width:760px){#products{padding:44px 0}#products .products-wrap{width:min(100% - 32px,680px)}#products .products-track{grid-template-columns:1fr;padding:0}#products .products-arrow{display:none}#products .products-tab{min-width:0;flex:1 1 150px}}</style><div class="products-wrap"><div class="products-head"><h2>Product Category</h2><p>${htmlEscape(text || `We provide ${productCategories.slice(0, 4).join(", ")} and related industrial products manufactured for global B2B purchasing standards.`)}</p></div><div class="products-tabs">${categoryButtons}</div><input class="products-radio" type="radio" name="products-page" id="products-page-1" checked><input class="products-radio" type="radio" name="products-page" id="products-page-2"><div class="products-stage"><label class="products-arrow prev prev-1" for="products-page-2" aria-label="Previous products">${svgUse("icon-arrow-left")}</label><label class="products-arrow next next-1" for="products-page-2" aria-label="Next products">${svgUse("icon-arrow-next")}</label><label class="products-arrow prev prev-2" for="products-page-1" aria-label="Previous products">${svgUse("icon-arrow-left")}</label><label class="products-arrow next next-2" for="products-page-1" aria-label="Next products">${svgUse("icon-arrow-next")}</label><div class="products-track page-1">${cardMarkup(products.slice(0, 4))}</div><div class="products-track page-2">${cardMarkup(products.slice(4, 8))}</div></div></div></section>`;
     }
-    const panelCards = [1, 2, 3].map((index) => `<article class="ai-card"><h3>${htmlEscape(aiSiteSectionLabels[sectionKey])} ${index}</h3><p>${htmlEscape(text)}</p></article>`).join("");
-    return `<section class="ai-section ${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="ai-wrap"><div class="ai-section-head"><span class="ai-eyebrow">${generatedBadge}</span><h2 class="ai-section-title">${htmlEscape(aiSiteSectionLabels[sectionKey])}</h2><p class="ai-section-sub">${htmlEscape(text)}</p></div><div class="ai-grid">${panelCards}</div></div></section>`;
+    if (sectionKey === "contact_us") {
+        const contactMethods = [
+            ["icon-phone", "Phone", contactPhone],
+            ["icon-mail", "Email", contactEmail],
+            ["icon-location", "Location", contactAddress]
+        ].map(([icon, label, value]) => `<li>${svgUse(icon)}<span>${htmlEscape(label)}</span><b>${htmlEscape(value)}</b></li>`).join("");
+        const proofItems = [
+            "Response within 24 hours",
+            "Free technical review before quotation",
+            "Export-ready documentation and delivery support",
+            "Project details routed to the engineering team"
+        ].map((item) => `<li>${svgUse("icon-check")}<span>${htmlEscape(item)}</span></li>`).join("");
+        return `<section class="ai-section contact-inquiry-section ${generated ? "" : "placeholder"}" id="contact-us"><style>#contact-us{background:linear-gradient(135deg,#0b1f35 0%,#102f4f 48%,#f4f8fb 48%,#fff 100%);padding:clamp(56px,7vw,100px) 0;color:#fff;overflow:hidden}#contact-us .contact-wrap{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:auto;display:grid;grid-template-columns:minmax(0,.92fr) minmax(360px,520px);gap:clamp(28px,5vw,72px);align-items:center}#contact-us .contact-copy{min-width:0;max-width:720px}#contact-us .contact-eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;color:#fbbf24;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}#contact-us h2{margin:0 0 18px;font-size:clamp(34px,4.4vw,62px);line-height:1.03;letter-spacing:0;color:#fff}#contact-us .contact-intro{margin:0 0 28px;max-width:650px;color:rgba(255,255,255,.78);font-size:clamp(15px,1.2vw,18px);line-height:1.72}#contact-us .contact-methods{list-style:none;padding:0;margin:0 0 24px;display:grid;gap:10px}#contact-us .contact-methods li{display:grid;grid-template-columns:30px 78px minmax(0,1fr);gap:10px;align-items:center;min-height:46px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);padding:10px 14px}#contact-us .contact-methods svg{width:20px;height:20px;color:#fbbf24}#contact-us .contact-methods span{color:rgba(255,255,255,.62);font-size:12px;text-transform:uppercase;font-weight:800}#contact-us .contact-methods b{min-width:0;color:#fff;font-size:14px;overflow-wrap:anywhere}#contact-us .contact-proof{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#contact-us .contact-proof li{display:flex;gap:10px;align-items:flex-start;color:rgba(255,255,255,.84);font-weight:700;line-height:1.45}#contact-us .contact-proof svg{flex:0 0 18px;width:18px;height:18px;color:#fbbf24;margin-top:2px}#contact-us .contact-form-panel{background:#fff;color:#101828;box-shadow:0 28px 80px rgba(4,12,24,.22);padding:clamp(24px,3vw,38px);border-top:5px solid #f97316}#contact-us .contact-form-panel h3{margin:0 0 8px;font-size:clamp(24px,2.4vw,34px);line-height:1.15;color:#0b1f35}#contact-us .contact-form-panel p{margin:0 0 22px;color:#667085;line-height:1.6}#contact-us .contact-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}#contact-us .contact-field{display:grid;gap:7px;min-width:0}#contact-us .contact-field span{font-size:12px;font-weight:900;color:#344054;text-transform:uppercase;letter-spacing:.04em}#contact-us input,#contact-us textarea{width:100%;border:1px solid #d7dee8;background:#f8fafc;color:#101828;padding:13px 14px;font:inherit;outline:none;border-radius:0}#contact-us input:focus,#contact-us textarea:focus{border-color:#f97316;background:#fff;box-shadow:0 0 0 3px rgba(249,115,22,.14)}#contact-us .contact-field-wide{grid-column:1/-1}#contact-us textarea{min-height:128px;resize:vertical}#contact-us .contact-submit{grid-column:1/-1;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;border:0;background:#f97316;color:#fff;font-weight:900;letter-spacing:.04em;cursor:pointer}#contact-us .contact-submit svg{width:18px;height:18px}#contact-us .contact-note{grid-column:1/-1;margin:0;color:#667085;font-size:13px;line-height:1.55}@media(max-width:980px){#contact-us{background:#0b1f35}#contact-us .contact-wrap{grid-template-columns:1fr;align-items:start}#contact-us .contact-form-panel{max-width:680px;width:100%;justify-self:start}#contact-us .contact-proof{grid-template-columns:1fr}}@media(max-width:640px){#contact-us{padding:46px 0}#contact-us .contact-wrap{width:min(100% - 32px,680px);gap:24px}#contact-us h2{font-size:34px}#contact-us .contact-methods li{grid-template-columns:26px 1fr;gap:8px}#contact-us .contact-methods b{grid-column:2}#contact-us .contact-form{grid-template-columns:1fr}#contact-us .contact-form-panel{padding:22px}}</style><div class="contact-wrap"><div class="contact-copy"><span class="contact-eyebrow">Start Your Project</span><h2>Tell Us About Your Project Requirements</h2><p class="contact-intro">${htmlEscape(text || company.description || "Share your product needs, target market, and delivery expectations. Our team will review the details and prepare a practical proposal for your next B2B website or sourcing project.")}</p><ul class="contact-methods">${contactMethods}</ul><ul class="contact-proof">${proofItems}</ul></div><div class="contact-form-panel"><h3>Request a Free Proposal</h3><p>Your details go straight to our engineering and sales team.</p><form class="contact-form" action="#contact-us" method="post"><label class="contact-field"><span>Your name*</span><input name="name" type="text" autocomplete="name" required placeholder="Your name"></label><label class="contact-field"><span>Country</span><input name="country" type="text" autocomplete="country-name" placeholder="Your country"></label><label class="contact-field"><span>Email*</span><input name="email" type="email" autocomplete="email" required placeholder="name@company.com"></label><label class="contact-field"><span>Product / project type</span><input name="product_type" type="text" placeholder="${htmlEscape(categories[0] || "Industrial products")}"></label><label class="contact-field contact-field-wide"><span>Target capacity / quantity</span><input name="target_capacity" type="text" placeholder="e.g. 500 units per month"></label><label class="contact-field contact-field-wide"><span>Project details</span><textarea name="message" placeholder="Tell us about your project, required products, delivery schedule, and technical notes."></textarea></label><button class="contact-submit" type="submit">SEND INQUIRY ${svgUse("icon-send")}</button><p class="contact-note">This fixed inquiry form is reserved for future CRM/agent integration and can be connected to the lead pipeline later.</p></form></div></div></section>`;
+    }
+    if (!aiSiteSectionLabel(sectionKey)) {
+        const sectionId = sectionKey.replace(/_/g, "-");
+        return `<section class="ai-section custom-page-basic ${generated ? "" : "placeholder"}" id="${sectionId}"><style>#${sectionId}{background:#fff;padding:clamp(56px,7vw,96px) 0;color:#16202e}#${sectionId} .custom-page-wrap{width:min(1120px,calc(100vw - clamp(32px,6vw,120px)));margin:auto}#${sectionId} .custom-page-shell{border:1px solid #e2e7ee;background:#f8fafc;padding:clamp(28px,4vw,54px)}#${sectionId} .custom-page-eyebrow{display:inline-flex;color:#c8161c;font-weight:900;letter-spacing:.14em;text-transform:uppercase;font-size:12px;margin-bottom:12px}#${sectionId} h2{margin:0 0 16px;font-size:clamp(30px,4vw,48px);line-height:1.08;color:#0c1b33}#${sectionId} p{max-width:760px;margin:0;color:#5f6b7a;font-size:clamp(15px,1.3vw,18px);line-height:1.75}#${sectionId} .custom-page-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}#${sectionId} a{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 18px;border-radius:4px;background:#143a7b;color:#fff;font-weight:800;text-decoration:none}#${sectionId} a.secondary{background:#fff;color:#143a7b;border:1px solid #cfd8e6}@media(max-width:760px){#${sectionId}{padding:48px 0}#${sectionId} .custom-page-wrap{width:min(100% - 32px,680px)}#${sectionId} .custom-page-actions a{width:100%}}</style><div class="custom-page-wrap"><div class="custom-page-shell"><span class="custom-page-eyebrow">${htmlEscape(generatedBadge)}</span><h2>${htmlEscape(sectionLabel)}</h2><p>${htmlEscape(text)}</p><div class="custom-page-actions"><a href="#contact-us">Request a Proposal</a><a class="secondary" href="#products">View Products</a></div></div></div></section>`;
+    }
+    const panelCards = [1, 2, 3].map((index) => `<article class="ai-card"><h3>${htmlEscape(sectionLabel)} ${index}</h3><p>${htmlEscape(text)}</p></article>`).join("");
+    return `<section class="ai-section ${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="ai-wrap"><div class="ai-section-head"><span class="ai-eyebrow">${generatedBadge}</span><h2 class="ai-section-title">${htmlEscape(sectionLabel)}</h2><p class="ai-section-sub">${htmlEscape(text)}</p></div><div class="ai-grid">${panelCards}</div></div></section>`;
     if (sectionKey === "header") {
         const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<a href="#products">${htmlEscape(item)}</a>`).join("");
         return `<!doctype html><html><head><meta charset="utf-8"><style>
 :root{--ink:#101828;--muted:#667085;--line:#e5e7eb;--brand:#3157d5;--accent:#16a34a;--bg:#ffffff}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}.container{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.topbar{background:#0f172a;color:#e2e8f0;font-size:13px}.topbar .container{min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.socials{display:flex;gap:12px;color:#93c5fd;flex-wrap:wrap}.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}.header .container{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:clamp(20px,1.8vw,26px);font-weight:850;white-space:nowrap}.brand span{color:var(--brand)}.nav{display:flex;align-items:center;gap:clamp(14px,1.6vw,28px);font-size:14px;flex-wrap:wrap}.nav-item{position:relative}.dropdown{display:none;position:absolute;top:28px;left:0;width:min(300px,80vw);padding:12px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 45px rgba(15,23,42,.12)}.nav-item:hover .dropdown{display:grid;gap:8px}.header-cta{display:flex;align-items:center;gap:10px;white-space:nowrap}.phone{font-weight:800;color:var(--brand)}.send-inquiry{display:none;padding:10px 14px;border-radius:4px;background:var(--brand);color:#fff;font-weight:800}section{padding:clamp(56px,7vw,112px) 0;border-bottom:1px solid #eef2f7;overflow:hidden}.eyebrow{color:var(--brand);font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hero{background:linear-gradient(135deg,#f8fafc,#eef6ff)}.hero h1{font-size:clamp(36px,4.4vw,68px);line-height:1.05;margin:12px 0 18px;max-width:880px}.hero p{font-size:clamp(16px,1.4vw,19px);color:var(--muted);max-width:760px;line-height:1.75}.btn-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}.primary-btn,.ghost-btn{padding:13px 18px;border-radius:4px;font-weight:800}.primary-btn{background:var(--brand);color:white}.ghost-btn{border:1px solid var(--line);background:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:clamp(16px,2vw,30px)}.card{border:1px solid var(--line);padding:clamp(18px,2vw,28px);border-radius:6px;background:white;min-width:0}.card h3{margin:0 0 8px}.card p{color:var(--muted);line-height:1.7}.footer{background:#101828;color:#d0d5dd}.footer-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:clamp(22px,3vw,44px);padding:clamp(46px,6vw,72px) 0}.footer h3,.footer h4{color:#fff}.footer a,.footer p{color:#d0d5dd}.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98a2b3}.to-top{float:right;color:#fff}.placeholder{background:#f8fafc}.placeholder .card{border-style:dashed}@media(max-width:900px){.nav{display:none}.send-inquiry{display:inline-flex}.phone{display:none}}@media(max-width:760px){.container{width:min(100% - 36px,680px)}.topbar .container,.header .container{align-items:flex-start;justify-content:flex-start;padding:10px 0}.hero h1{font-size:36px}}
-</style></head><body><div class="topbar"><div class="container"><span>Port: Qingdao / Shanghai · Global B2B Industrial Supply</span><span class="socials">LinkedIn · YouTube · Facebook</span></div></div><header class="header"><div class="container"><a class="brand" href="#home">${brandWithHighlight(brand)}</a><nav class="nav"><a href="#home">Home</a><div class="nav-item"><a href="#products">Products</a><div class="dropdown">${productItems}</div></div><a href="#applications">Applications</a><a href="#project-cases">Project Cases</a><a href="#about-us">About Us</a><a href="#blog">Blog</a><a href="#contact-us">Contact Us</a></nav><div class="header-cta"><span class="phone">${htmlEscape(contact.phone || "+86-0000-0000")}</span><a class="send-inquiry" href="#contact-us">SEND INQUIRY</a></div></div></header>`;
+</style></head><body><div class="topbar"><div class="container"><span>Port: Qingdao / Shanghai · Global B2B Industrial Supply</span><span class="socials">LinkedIn · YouTube · Facebook</span></div></div><header class="header"><div class="container"><a class="brand" href="#home">${brandWithHighlight(brand)}</a><nav class="nav"><a href="#home">Home</a><div class="nav-item"><a href="#products">Products</a><div class="dropdown">${productItems}</div></div><a href="#applications">Applications</a><a href="#about-us">About Us</a><a href="#blog">Blog</a><a href="#contact-us">Contact Us</a></nav><div class="header-cta"><span class="phone">${htmlEscape(contact.phone || "+86-0000-0000")}</span><a class="send-inquiry" href="#contact-us">SEND INQUIRY</a></div></div></header>`;
     }
     if (sectionKey === "footer") {
         const solutionItems = (solutions.length ? solutions : ["OEM supply", "Process automation", "Distributor support"]).map((item) => `<li>${htmlEscape(item)}</li>`).join("");
         const productItems = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).map((item) => `<li>${htmlEscape(item)}</li>`).join("");
         return `<footer class="footer"><div class="container footer-top"><div><h3 class="brand">${brandWithHighlight(brand)}</h3><p>${htmlEscape(company.tagline || "Reliable industrial supply for global B2B buyers.")}</p><p>${htmlEscape(company.description || "We help overseas buyers source stable industrial products with responsive service and clear documentation.")}</p></div><div><h4>Solutions</h4><ul>${solutionItems}</ul></div><div><h4>Products</h4><ul>${productItems}</ul></div><div><h4>Contact</h4><p>${htmlEscape(contact.email || "sales@example.com")}</p><p>${htmlEscape(contact.phone || "+86-0000-0000")}</p><p>${htmlEscape(contact.address || "China")}</p></div></div><div class="container footer-bottom">© ${new Date().getFullYear()} ${htmlEscape(brand)}. All rights reserved. <a href="#home" id="toTop" class="to-top">Back to top</a></div></footer></body></html>`;
     }
-    const legacyText = blueprint[sectionKey] || aiSiteSectionLabels[sectionKey];
+    const legacyText = blueprint[sectionKey] || aiSiteSectionLabel(sectionKey);
     if (sectionKey === "hero") {
         return `<section class="hero ${generated ? "" : "placeholder"}" id="home"><div class="container"><span class="eyebrow">${generatedBadge}</span><h1>${htmlEscape(company.tagline || `${brand} Industrial Solutions`)}</h1><p>${htmlEscape(legacyText)}</p><div class="btn-row"><a class="primary-btn" href="#contact-us">Send Inquiry</a><a class="ghost-btn" href="#products">View Products</a></div></div></section>`;
     }
-    const cards = [1, 2, 3].map((index) => `<article class="card"><h3>${htmlEscape(aiSiteSectionLabels[sectionKey])} ${index}</h3><p>${htmlEscape(legacyText)}</p></article>`).join("");
-    return `<section class="${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="container"><span class="eyebrow">${generatedBadge}</span><h2>${htmlEscape(aiSiteSectionLabels[sectionKey])}</h2><div class="grid">${cards}</div></div></section>`;
+    const cards = [1, 2, 3].map((index) => `<article class="card"><h3>${htmlEscape(aiSiteSectionLabel(sectionKey))} ${index}</h3><p>${htmlEscape(legacyText)}</p></article>`).join("");
+    return `<section class="${generated ? "" : "placeholder"}" id="${sectionKey.replace(/_/g, "-")}"><div class="container"><span class="eyebrow">${generatedBadge}</span><h2>${htmlEscape(aiSiteSectionLabel(sectionKey))}</h2><div class="grid">${cards}</div></div></section>`;
 }
 async function ensureAiSiteSandbox(project) {
     const root = aiProjectDir(project.id);
@@ -2998,15 +3164,844 @@ async function exportAiSiteProject(project, orderInput) {
     const indexPath = path.join(distDir, "index.html");
     const exportedAt = new Date().toISOString();
     await writeFile(indexPath, html, "utf8");
+    const customPages = await readAiSiteCustomPages(project);
+    const wpMetadata = await readAiSiteWpMetadata(project, order, customPages);
     const manifest = {
         projectId: project.id,
         siteName: project.siteName,
         exportedAt,
         order,
-        indexPath
+        indexPath,
+        wpMetadata
     };
     await writeFile(path.join(distDir, "export.json"), JSON.stringify(manifest, null, 2), "utf8");
     return manifest;
+}
+function cleanAiSiteWpThemeSlug(value, fallback = "goodjob-ai-site") {
+    const slug = String(value ?? "")
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 64);
+    return slug || fallback;
+}
+function cleanAiSiteWpHeaderValue(value, fallback) {
+    const text = String(value ?? fallback)
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/\*\//g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 140);
+    return text || fallback;
+}
+function aiSiteWpBlockSlug(sectionKey) {
+    return cleanAiSiteWpThemeSlug(sectionKey.replace(/_/g, "-"), "section");
+}
+function aiSitePhpString(value) {
+    return JSON.stringify(String(value ?? ""));
+}
+function aiSitePhpNowdoc(identifier, value) {
+    const safeIdentifier = identifier.replace(/[^A-Z0-9_]/gi, "_").toUpperCase() || "GOODJOB_HTML";
+    return `<<<'${safeIdentifier}'\n${value.replace(/\r\n/g, "\n").replace(/\r/g, "\n")}\n${safeIdentifier}`;
+}
+function aiSiteWpFieldKey(sectionKey, fieldName) {
+    return `field_goodjob_${sectionKey.replace(/[^a-z0-9_]/gi, "_")}_${fieldName}`;
+}
+function aiSiteWpTextFromHtml(html, selector) {
+    const source = selector === "title"
+        ? html.match(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/i)?.[1]
+        : html.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1];
+    return cleanHtml((source || "").replace(/<[^>]+>/g, " ")).slice(0, selector === "title" ? 90 : 260);
+}
+function buildAiSiteWpAcfFieldGroup(section, fragment) {
+    const sectionKey = section.section_key;
+    const blockSlug = aiSiteWpBlockSlug(sectionKey);
+    const title = aiSiteWpTextFromHtml(fragment, "title") || section.label;
+    const intro = aiSiteWpTextFromHtml(fragment, "body") || `${section.label} section content generated by GoodJob AI Website Factory.`;
+    return {
+        key: `group_goodjob_block_${blockSlug}`,
+        title: `GoodJob Block - ${section.label}`,
+        fields: [
+            {
+                key: aiSiteWpFieldKey(sectionKey, "eyebrow"),
+                label: "Eyebrow",
+                name: "eyebrow",
+                type: "text",
+                default_value: section.label,
+                wrapper: { width: "33" }
+            },
+            {
+                key: aiSiteWpFieldKey(sectionKey, "title"),
+                label: "Title",
+                name: "title",
+                type: "text",
+                default_value: title,
+                wrapper: { width: "67" }
+            },
+            {
+                key: aiSiteWpFieldKey(sectionKey, "intro"),
+                label: "Intro",
+                name: "intro",
+                type: "textarea",
+                rows: 3,
+                default_value: intro
+            },
+            {
+                key: aiSiteWpFieldKey(sectionKey, "primary_label"),
+                label: "Primary Button Label",
+                name: "primary_label",
+                type: "text",
+                default_value: "Request a Proposal",
+                wrapper: { width: "50" }
+            },
+            {
+                key: aiSiteWpFieldKey(sectionKey, "primary_url"),
+                label: "Primary Button URL",
+                name: "primary_url",
+                type: "url",
+                default_value: "#contact-us",
+                wrapper: { width: "50" }
+            },
+            {
+                key: aiSiteWpFieldKey(sectionKey, "image"),
+                label: "Image",
+                name: "image",
+                type: "image",
+                return_format: "array",
+                preview_size: "medium",
+                instructions: "Recommended upload size depends on the block: hero 1920x780, product 800x700, blog/case 800x600."
+            },
+            {
+                key: aiSiteWpFieldKey(sectionKey, "html_source"),
+                label: "Advanced HTML Source",
+                name: "html_source",
+                type: "textarea",
+                rows: 12,
+                instructions: "Optional. Leave empty to use structured fields or theme fallback. Use only when the exact generated section needs manual HTML editing."
+            }
+        ],
+        location: [[{ param: "block", operator: "==", value: `acf/${blockSlug}` }]],
+        menu_order: section.order_index,
+        position: "normal",
+        style: "default",
+        label_placement: "top",
+        instruction_placement: "label",
+        active: true
+    };
+}
+function buildAiSiteWpBlockJson(section) {
+    const blockSlug = aiSiteWpBlockSlug(section.section_key);
+    return {
+        apiVersion: 2,
+        name: `acf/${blockSlug}`,
+        title: section.label,
+        category: "goodjob-ai-site",
+        icon: section.section_key === "hero" ? "cover-image" : section.section_key === "products" ? "products" : "layout",
+        description: `${section.label} block generated by GoodJob AI Website Factory.`,
+        keywords: ["goodjob", "ai-site", blockSlug],
+        acf: {
+            mode: "preview",
+            renderTemplate: "render.php"
+        },
+        render: "file:./render.php",
+        style: `file:./style.css`,
+        attributes: {
+            data: {
+                type: "object",
+                default: {}
+            },
+            mode: {
+                type: "string",
+                default: "preview"
+            }
+        },
+        supports: {
+            align: ["wide", "full"],
+            mode: false,
+            jsx: true
+        }
+    };
+}
+function buildAiSiteWpBlockRender(section, fragment) {
+    const blockSlug = aiSiteWpBlockSlug(section.section_key);
+    const sectionId = section.section_key === "hero" ? "home" : section.section_key.replace(/_/g, "-");
+    const fallbackTitle = aiSiteWpTextFromHtml(fragment, "title") || section.label;
+    const fallbackIntro = aiSiteWpTextFromHtml(fragment, "body") || `${section.label} section content generated by GoodJob AI Website Factory.`;
+    const defaultHtml = aiSitePhpNowdoc(`GOODJOB_${blockSlug}_HTML`, fragment);
+    return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$default_html = ${defaultHtml};
+$html_source = function_exists('get_field') ? get_field('html_source') : '';
+if (is_string($html_source) && trim($html_source) !== '') {
+    echo $html_source; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    return;
+}
+
+$eyebrow = function_exists('get_field') ? (get_field('eyebrow') ?: ${aiSitePhpString(section.label)}) : ${aiSitePhpString(section.label)};
+$title = function_exists('get_field') ? (get_field('title') ?: ${aiSitePhpString(fallbackTitle)}) : ${aiSitePhpString(fallbackTitle)};
+$intro = function_exists('get_field') ? (get_field('intro') ?: ${aiSitePhpString(fallbackIntro)}) : ${aiSitePhpString(fallbackIntro)};
+$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: 'Request a Proposal') : 'Request a Proposal';
+$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: '#contact-us') : '#contact-us';
+$image = function_exists('get_field') ? get_field('image') : null;
+$image_url = is_array($image) && !empty($image['url']) ? $image['url'] : '';
+if (!$image_url) {
+    echo $default_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    return;
+}
+?>
+<section class="ai-section goodjob-acf-block goodjob-acf-block-<?php echo esc_attr('${blockSlug}'); ?>" id="<?php echo esc_attr('${sectionId}'); ?>">
+  <div class="ai-wrap goodjob-acf-block__inner">
+    <div class="goodjob-acf-block__media"><img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy" decoding="async"></div>
+    <div class="goodjob-acf-block__content">
+      <span class="ai-eyebrow"><?php echo esc_html($eyebrow); ?></span>
+      <h2><?php echo esc_html($title); ?></h2>
+      <p><?php echo esc_html($intro); ?></p>
+      <a class="ai-btn ai-btn-primary" href="<?php echo esc_url($primary_url); ?>"><?php echo esc_html($primary_label); ?></a>
+    </div>
+  </div>
+</section>
+`;
+}
+function buildAiSiteWpBlockStyle(section) {
+    const blockSlug = aiSiteWpBlockSlug(section.section_key);
+    return `.goodjob-acf-block-${blockSlug}{background:var(--bg,#fff);padding:clamp(58px,7vw,104px) 0}
+.goodjob-acf-block-${blockSlug} .goodjob-acf-block__inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.72fr);gap:clamp(26px,4vw,64px);align-items:center}
+.goodjob-acf-block-${blockSlug} .goodjob-acf-block__media{aspect-ratio:16/10;background:#eef2f7;overflow:hidden}
+.goodjob-acf-block-${blockSlug} .goodjob-acf-block__media img{width:100%;height:100%;object-fit:cover;display:block}
+.goodjob-acf-block-${blockSlug} h2{margin:0 0 16px;color:var(--ink,#16202e);font-size:clamp(32px,4vw,52px);line-height:1.06}
+.goodjob-acf-block-${blockSlug} p{color:var(--body,#3c4858);font-size:clamp(16px,1.3vw,19px);line-height:1.76;margin:0 0 24px}
+@media(max-width:900px){.goodjob-acf-block-${blockSlug} .goodjob-acf-block__inner{grid-template-columns:1fr}.goodjob-acf-block-${blockSlug} .goodjob-acf-block__content{order:-1}}`;
+}
+function buildAiSiteWpPageBlock(section, fragment) {
+    const blockSlug = aiSiteWpBlockSlug(section.section_key);
+    const fallbackTitle = aiSiteWpTextFromHtml(fragment, "title") || section.label;
+    const fallbackIntro = aiSiteWpTextFromHtml(fragment, "body") || `${section.label} section content generated by GoodJob AI Website Factory.`;
+    const attrs = {
+        name: `acf/${blockSlug}`,
+        data: {
+            eyebrow: section.label,
+            _eyebrow: aiSiteWpFieldKey(section.section_key, "eyebrow"),
+            title: fallbackTitle,
+            _title: aiSiteWpFieldKey(section.section_key, "title"),
+            intro: fallbackIntro,
+            _intro: aiSiteWpFieldKey(section.section_key, "intro"),
+            primary_label: section.section_key === "contact_us" ? "Send Inquiry" : "Request a Proposal",
+            _primary_label: aiSiteWpFieldKey(section.section_key, "primary_label"),
+            primary_url: section.section_key === "contact_us" ? "#contact-us" : "#contact-us",
+            _primary_url: aiSiteWpFieldKey(section.section_key, "primary_url"),
+            html_source: "",
+            _html_source: aiSiteWpFieldKey(section.section_key, "html_source")
+        },
+        mode: "preview"
+    };
+    return `<!-- wp:acf/${blockSlug} ${JSON.stringify(attrs)} -->\n${fragment}\n<!-- /wp:acf/${blockSlug} -->`;
+}
+function buildAiSiteWpCollections(project) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const categories = sectionArray(schema.business_taxonomy.product_categories);
+    const productCategories = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).slice(0, 10);
+    const makeItems = (prefix, count) => Array.from({ length: count }, (_, index) => {
+        const category = productCategories[index % productCategories.length] || "Industrial Products";
+        return {
+            title: `${category} ${prefix} ${index + 1}`,
+            desc: `${category} solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.`,
+            category,
+            image: ""
+        };
+    });
+    return {
+        product: {
+            label: "Products",
+            taxonomy: "Product Categories",
+            items: makeItems("Model", Math.max(6, productCategories.length * 2))
+        },
+        service: {
+            label: "Services",
+            taxonomy: "Service Categories",
+            items: [
+                { title: "Application Matching", desc: "Match products to operating conditions, buyer requirements, and target markets.", category: "Pre-sales", image: "" },
+                { title: "Export Documentation", desc: "Support datasheets, certificates, packing details, and shipment documents.", category: "Export", image: "" },
+                { title: "Distributor Support", desc: "Prepare catalogs, technical content, and inquiry follow-up materials for channel partners.", category: "Channel", image: "" }
+            ]
+        },
+        case: {
+            label: "Cases",
+            taxonomy: "Case Categories",
+            items: productCategories.slice(0, 4).map((category, index) => ({
+                title: `${category} Export Project ${index + 1}`,
+                desc: `Delivered ${category.toLowerCase()} support for an overseas industrial customer with stable quality and responsive communication.`,
+                category,
+                image: ""
+            }))
+        },
+        news: {
+            label: "News",
+            taxonomy: "News Categories",
+            items: productCategories.slice(0, 4).map((category, index) => ({
+                title: `${category} Selection Guide ${index + 1}`,
+                desc: `Practical notes for sourcing ${category.toLowerCase()} in international industrial procurement.`,
+                category: "Guides",
+                image: "",
+                date: new Date(Date.now() - index * 86400000).toISOString().slice(0, 10)
+            }))
+        }
+    };
+}
+function buildAiSiteWpSiteOptions(project) {
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    return {
+        site_name: project.siteName,
+        company: schema.company_profile,
+        contact: schema.contact_info,
+        social_links: schema.social_links,
+        style_requirements: schema.style_requirements
+    };
+}
+function aiSiteWpRebuildSummary(checks) {
+    return checks.reduce((summary, check) => {
+        summary[check.status] += 1;
+        return summary;
+    }, { pass: 0, warning: 0, error: 0 });
+}
+async function inspectAiSiteWpRebuild(project) {
+    await ensureAiSiteSandbox(project);
+    const order = await readAiSiteOrder(project);
+    const customPages = await readAiSiteCustomPages(project);
+    const wpMetadata = await readAiSiteWpMetadata(project, order, customPages);
+    const sectionMap = new Map(wpMetadata.sections.map((section) => [section.section_key, section]));
+    const checks = [];
+    for (const sectionKey of order) {
+        const section = sectionMap.get(sectionKey);
+        const label = aiSiteSectionLabel(sectionKey, customPages);
+        const file = aiSectionFile(project.id, sectionKey);
+        if (!(await fileExists(file))) {
+            checks.push({
+                key: sectionKey,
+                label,
+                status: aiSiteLockedSections.has(sectionKey) ? "warning" : "error",
+                message: aiSiteLockedSections.has(sectionKey) ? "Locked component will use the default fragment." : "HTML source file is missing.",
+                target: section?.wp_target
+            });
+            continue;
+        }
+        const html = await readFile(file, "utf8").catch(() => "");
+        if (/logoutButton|login-screen|GoodJob CRM|data-view="dashboard"|id="appModal"/i.test(html)) {
+            checks.push({ key: sectionKey, label, status: "error", message: "Fragment appears to contain CRM shell content.", target: section?.wp_target });
+            continue;
+        }
+        if (!/<(section|header|footer|main|article)\b/i.test(html)) {
+            checks.push({ key: sectionKey, label, status: "warning", message: "Fragment has no semantic wrapper; it can export but needs WP review.", target: section?.wp_target });
+            continue;
+        }
+        checks.push({ key: sectionKey, label, status: "pass", message: "HTML source and WP metadata are ready.", target: section?.wp_target });
+    }
+    return { project, order, customPages, wpMetadata, checks, summary: aiSiteWpRebuildSummary(checks) };
+}
+async function exportAiSiteWpRebuildPackage(project) {
+    const state = await inspectAiSiteWpRebuild(project);
+    const exportDir = aiSiteWpRebuildExportDir(project.id);
+    const themeSlug = cleanAiSiteWpThemeSlug(project.siteName || project.taskName || project.id);
+    const themeDir = path.join(exportDir, "theme");
+    const sectionsDir = path.join(exportDir, "sections");
+    const patternsDir = path.join(themeDir, "patterns");
+    const partsDir = path.join(themeDir, "parts");
+    const templatesDir = path.join(themeDir, "templates");
+    const blocksDir = path.join(themeDir, "blocks");
+    const acfJsonDir = path.join(themeDir, "acf-json");
+    const dataDir = path.join(themeDir, "_data");
+    const incDir = path.join(themeDir, "inc");
+    const exportedAt = new Date().toISOString();
+    const files = [];
+    await rm(exportDir, { recursive: true, force: true });
+    await mkdir(sectionsDir, { recursive: true });
+    await mkdir(patternsDir, { recursive: true });
+    await mkdir(partsDir, { recursive: true });
+    await mkdir(templatesDir, { recursive: true });
+    await mkdir(blocksDir, { recursive: true });
+    await mkdir(acfJsonDir, { recursive: true });
+    await mkdir(dataDir, { recursive: true });
+    await mkdir(incDir, { recursive: true });
+    const schema = normalizeAiSiteSchemaData(project.schemaData);
+    const title = cleanAiSiteWpHeaderValue(schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName, "GoodJob AI Site");
+    const description = cleanAiSiteWpHeaderValue(schema.company_profile.description || schema.company_profile.tagline, "Block theme starter exported from GoodJob AI Website Factory.");
+    const pageBlockLines = [];
+    for (const section of state.wpMetadata.sections) {
+        const raw = await readFile(aiSectionFile(project.id, section.section_key), "utf8").catch(() => defaultAiSectionHtml(section.section_key, project, false, state.customPages));
+        const fragment = sanitizeAiSiteExportFragment(raw);
+        const sourceName = `${section.section_key}.html`;
+        await writeFile(path.join(sectionsDir, sourceName), fragment, "utf8");
+        files.push(`sections/${sourceName}`);
+        if (section.section_key === "header" || section.section_key === "footer") {
+            const partName = `${section.section_key}.html`;
+            const partFragment = section.section_key === "header" ? `${aiSiteIconSprite()}\n${fragment}` : fragment;
+            await writeFile(path.join(partsDir, partName), partFragment, "utf8");
+            files.push(`theme/parts/${partName}`);
+            continue;
+        }
+        const patternSlug = cleanAiSiteWpThemeSlug(section.section_key, "section");
+        const patternFile = `${patternSlug}.php`;
+        const pattern = `<?php
+/**
+ * Title: ${section.label}
+ * Slug: ${themeSlug}/${patternSlug}
+ * Categories: goodjob-ai-site
+ */
+?>
+${fragment}
+`;
+        await writeFile(path.join(patternsDir, patternFile), pattern, "utf8");
+        files.push(`theme/patterns/${patternFile}`);
+        const blockSlug = aiSiteWpBlockSlug(section.section_key);
+        const blockDir = path.join(blocksDir, blockSlug);
+        await mkdir(blockDir, { recursive: true });
+        await writeFile(path.join(blockDir, "block.json"), JSON.stringify(buildAiSiteWpBlockJson(section), null, 2), "utf8");
+        await writeFile(path.join(blockDir, "render.php"), buildAiSiteWpBlockRender(section, fragment), "utf8");
+        await writeFile(path.join(blockDir, "style.css"), buildAiSiteWpBlockStyle(section), "utf8");
+        await writeFile(path.join(acfJsonDir, `group_block_${blockSlug}.json`), JSON.stringify(buildAiSiteWpAcfFieldGroup(section, fragment), null, 2), "utf8");
+        files.push(`theme/blocks/${blockSlug}/block.json`, `theme/blocks/${blockSlug}/render.php`, `theme/blocks/${blockSlug}/style.css`, `theme/acf-json/group_block_${blockSlug}.json`);
+        pageBlockLines.push(buildAiSiteWpPageBlock(section, fragment));
+    }
+    const styleCss = `/*
+Theme Name: ${title}
+Theme URI: https://goodjob.local/ai-site
+Author: GoodJob AI Website Factory
+Description: ${description}
+Version: 0.1.0
+Requires at least: 6.4
+Tested up to: 6.6
+Requires PHP: 8.0
+Text Domain: ${themeSlug}
+*/
+
+${aiSiteFrameworkCss(project)}
+`;
+    const themeJson = {
+        version: 3,
+        settings: {
+            appearanceTools: true,
+            layout: { contentSize: "1180px", wideSize: "1440px" }
+        },
+        styles: {
+            color: { background: "#ffffff", text: "#101828" },
+            typography: { fontFamily: "Inter, Arial, sans-serif" }
+        },
+        templateParts: [
+            { name: "header", title: "Header", area: "header" },
+            { name: "footer", title: "Footer", area: "footer" }
+        ]
+    };
+    const siteOptions = buildAiSiteWpSiteOptions(project);
+    const collections = buildAiSiteWpCollections(project);
+    const pageContent = pageBlockLines.join("\n\n");
+    const frontPageTemplate = `<!-- wp:template-part {"slug":"header"} /-->
+<!-- wp:group {"tagName":"main","layout":{"type":"default"}} -->
+<main class="wp-block-group">
+<!-- wp:post-content {"layout":{"type":"default"}} /-->
+</main>
+<!-- /wp:group -->
+<!-- wp:template-part {"slug":"footer"} /-->`;
+    const pages = {
+        home: {
+            title: "Home",
+            slug: "home",
+            template: "front-page",
+            status: "publish",
+            post_content: pageContent
+        }
+    };
+    const readme = `# ${title}
+
+This is a WordPress ACF block theme package exported by GoodJob AI Website Factory.
+
+- Review \`conversion-report.json\` before installation.
+- Source fragments are stored in \`sections/\`.
+- Editable ACF blocks are stored in \`theme/blocks/\`.
+- ACF Local JSON field groups are stored in \`theme/acf-json/\`.
+- Seed data is stored in \`theme/_data/\`.
+- Activating the theme registers CPTs, ACF blocks, admin tools, and seeds the home page/content once.
+`;
+    const cptPhp = `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+function goodjob_ai_site_collection_types() {
+    return array(
+        'product' => array('label' => 'Products', 'singular' => 'Product', 'taxonomy' => 'product_cat'),
+        'service' => array('label' => 'Services', 'singular' => 'Service', 'taxonomy' => 'service_cat'),
+        'case' => array('label' => 'Cases', 'singular' => 'Case', 'taxonomy' => 'case_cat'),
+        'news' => array('label' => 'News', 'singular' => 'News', 'taxonomy' => 'news_cat'),
+    );
+}
+
+function goodjob_ai_site_register_cpts() {
+    foreach (goodjob_ai_site_collection_types() as $post_type => $config) {
+        register_post_type($post_type, array(
+            'labels' => array(
+                'name' => $config['label'],
+                'singular_name' => $config['singular'],
+                'add_new_item' => 'Add New ' . $config['singular'],
+                'edit_item' => 'Edit ' . $config['singular'],
+            ),
+            'public' => true,
+            'show_in_rest' => true,
+            'has_archive' => true,
+            'menu_icon' => $post_type === 'product' ? 'dashicons-products' : 'dashicons-screenoptions',
+            'supports' => array('title', 'editor', 'excerpt', 'thumbnail', 'custom-fields'),
+            'rewrite' => array('slug' => $post_type === 'news' ? 'blog' : $post_type . 's'),
+        ));
+        register_taxonomy($config['taxonomy'], array($post_type), array(
+            'labels' => array('name' => $config['label'] . ' Categories'),
+            'public' => true,
+            'hierarchical' => true,
+            'show_in_rest' => true,
+            'rewrite' => array('slug' => $config['taxonomy']),
+        ));
+    }
+}
+add_action('init', 'goodjob_ai_site_register_cpts');
+`;
+    const acfPhp = `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+function goodjob_ai_site_acf_json_load_paths($paths) {
+    $paths[] = get_stylesheet_directory() . '/acf-json';
+    return $paths;
+}
+add_filter('acf/settings/load_json', 'goodjob_ai_site_acf_json_load_paths');
+
+function goodjob_ai_site_register_acf_field_groups() {
+    if (!function_exists('acf_add_local_field_group')) {
+        return;
+    }
+    foreach (glob(get_stylesheet_directory() . '/acf-json/group_*.json') as $file) {
+        $group = json_decode(file_get_contents($file), true);
+        if (is_array($group) && !empty($group['key'])) {
+            acf_add_local_field_group($group);
+        }
+    }
+}
+add_action('acf/init', 'goodjob_ai_site_register_acf_field_groups', 5);
+
+function goodjob_ai_site_block_categories($categories) {
+    foreach ($categories as $category) {
+        if (isset($category['slug']) && $category['slug'] === 'goodjob-ai-site') {
+            return $categories;
+        }
+    }
+    $categories[] = array(
+        'slug' => 'goodjob-ai-site',
+        'title' => 'GoodJob AI Site',
+        'icon' => null,
+    );
+    return $categories;
+}
+add_filter('block_categories_all', 'goodjob_ai_site_block_categories', 10, 1);
+
+function goodjob_ai_site_register_acf_blocks() {
+    foreach (glob(get_stylesheet_directory() . '/blocks/*/block.json') as $file) {
+        $dir = dirname($file);
+        $metadata = json_decode(file_get_contents($file), true);
+        if (!is_array($metadata) || empty($metadata['name'])) {
+            continue;
+        }
+        $full_name = (string) $metadata['name'];
+        $acf_name = preg_replace('#^acf/#', '', $full_name);
+        if (!$acf_name) {
+            continue;
+        }
+        if (class_exists('WP_Block_Type_Registry') && WP_Block_Type_Registry::get_instance()->is_registered($full_name)) {
+            continue;
+        }
+        if (function_exists('acf_register_block_type')) {
+            acf_register_block_type(array(
+                'name' => $acf_name,
+                'title' => $metadata['title'] ?? ucwords(str_replace('-', ' ', $acf_name)),
+                'description' => $metadata['description'] ?? '',
+                'category' => $metadata['category'] ?? 'goodjob-ai-site',
+                'icon' => $metadata['icon'] ?? 'layout',
+                'keywords' => $metadata['keywords'] ?? array('goodjob'),
+                'mode' => $metadata['acf']['mode'] ?? 'preview',
+                'render_template' => $dir . '/' . ($metadata['acf']['renderTemplate'] ?? 'render.php'),
+                'supports' => $metadata['supports'] ?? array(),
+            ));
+            continue;
+        }
+        register_block_type($dir);
+    }
+}
+
+function goodjob_ai_site_register_native_blocks() {
+    foreach (glob(get_stylesheet_directory() . '/blocks/*/block.json') as $file) {
+        $metadata = json_decode(file_get_contents($file), true);
+        $full_name = is_array($metadata) && !empty($metadata['name']) ? (string) $metadata['name'] : '';
+        if (!$full_name) {
+            continue;
+        }
+        if (class_exists('WP_Block_Type_Registry') && WP_Block_Type_Registry::get_instance()->is_registered($full_name)) {
+            continue;
+        }
+        register_block_type(dirname($file));
+    }
+}
+add_action('acf/init', 'goodjob_ai_site_register_acf_blocks', 20);
+add_action('init', 'goodjob_ai_site_register_native_blocks', 30);
+
+function goodjob_ai_site_enqueue_block_styles() {
+    foreach (glob(get_stylesheet_directory() . '/blocks/*/style.css') as $file) {
+        $slug = basename(dirname($file));
+        wp_enqueue_style(
+            'goodjob-ai-site-block-' . $slug,
+            get_stylesheet_directory_uri() . '/blocks/' . $slug . '/style.css',
+            array('goodjob-ai-site-style'),
+            filemtime($file)
+        );
+    }
+}
+add_action('enqueue_block_assets', 'goodjob_ai_site_enqueue_block_styles');
+`;
+    const installerPhp = `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+function goodjob_ai_site_read_json($relative) {
+    $file = get_stylesheet_directory() . '/' . ltrim($relative, '/');
+    if (!file_exists($file)) {
+        return array();
+    }
+    $data = json_decode(file_get_contents($file), true);
+    return is_array($data) ? $data : array();
+}
+
+function goodjob_ai_site_data_signature() {
+    $files = array('_data/pages.json', '_data/collections.json', '_data/site-options.json');
+    $hashes = array();
+    foreach ($files as $relative) {
+        $file = get_stylesheet_directory() . '/' . $relative;
+        $hashes[] = file_exists($file) ? md5_file($file) : '';
+    }
+    return md5(implode('|', $hashes));
+}
+
+function goodjob_ai_site_seed_pages($force = false) {
+    $pages = goodjob_ai_site_read_json('_data/pages.json');
+    foreach ($pages as $page) {
+        $slug = sanitize_title($page['slug'] ?? $page['title'] ?? 'home');
+        $existing = get_page_by_path($slug);
+        $existing_content = $existing ? trim((string) $existing->post_content) : '';
+        $is_legacy_generated_shell = $existing_content && strpos($existing_content, 'wp:template-part') !== false && strpos($existing_content, 'wp:acf/') !== false;
+        if ($existing && !$force && $existing_content !== '' && !$is_legacy_generated_shell) {
+            continue;
+        }
+        $postarr = array(
+            'post_title' => sanitize_text_field($page['title'] ?? 'Home'),
+            'post_name' => $slug,
+            'post_status' => sanitize_key($page['status'] ?? 'publish'),
+            'post_type' => 'page',
+            'post_content' => $page['post_content'] ?? '',
+        );
+        $page_id = $existing ? wp_update_post(array_merge($postarr, array('ID' => $existing->ID))) : wp_insert_post($postarr);
+        if (!is_wp_error($page_id) && $slug === 'home') {
+            update_option('show_on_front', 'page');
+            update_option('page_on_front', (int) $page_id);
+        }
+    }
+}
+
+function goodjob_ai_site_seed_collections($force = false) {
+    $collections = goodjob_ai_site_read_json('_data/collections.json');
+    foreach ($collections as $post_type => $collection) {
+        if (!post_type_exists($post_type)) {
+            continue;
+        }
+        $items = isset($collection['items']) && is_array($collection['items']) ? $collection['items'] : array();
+        $taxonomy = '';
+        $types = goodjob_ai_site_collection_types();
+        if (isset($types[$post_type]['taxonomy'])) {
+            $taxonomy = $types[$post_type]['taxonomy'];
+        }
+        foreach ($items as $item) {
+            $title = sanitize_text_field($item['title'] ?? '');
+            if (!$title) {
+                continue;
+            }
+            $existing = get_page_by_title($title, OBJECT, $post_type);
+            if ($existing && !$force) {
+                continue;
+            }
+            $postarr = array(
+                'post_title' => $title,
+                'post_type' => $post_type,
+                'post_status' => 'publish',
+                'post_excerpt' => sanitize_textarea_field($item['desc'] ?? ''),
+                'post_content' => wp_kses_post($item['desc'] ?? ''),
+                'post_date' => sanitize_text_field($item['date'] ?? current_time('mysql')),
+            );
+            $post_id = $existing ? wp_update_post(array_merge($postarr, array('ID' => $existing->ID))) : wp_insert_post($postarr);
+            if (!is_wp_error($post_id) && $taxonomy && !empty($item['category'])) {
+                $term = term_exists($item['category'], $taxonomy);
+                if (!$term) {
+                    $term = wp_insert_term($item['category'], $taxonomy);
+                }
+                if (!is_wp_error($term)) {
+                    wp_set_object_terms($post_id, array((int) $term['term_id']), $taxonomy);
+                }
+            }
+        }
+    }
+}
+
+function goodjob_ai_site_seed_all($force = false) {
+    goodjob_ai_site_register_cpts();
+    goodjob_ai_site_seed_pages($force);
+    goodjob_ai_site_seed_collections($force);
+    update_option('goodjob_ai_site_options', goodjob_ai_site_read_json('_data/site-options.json'));
+    update_option('goodjob_ai_site_seeded_at', current_time('mysql'));
+    update_option('goodjob_ai_site_data_signature', goodjob_ai_site_data_signature());
+    flush_rewrite_rules();
+}
+add_action('after_switch_theme', function () {
+    if (!get_option('goodjob_ai_site_seeded_at') || get_option('goodjob_ai_site_data_signature') !== goodjob_ai_site_data_signature()) {
+        goodjob_ai_site_seed_all(false);
+    }
+});
+add_action('admin_init', function () {
+    if (current_user_can('manage_options') && get_option('goodjob_ai_site_data_signature') !== goodjob_ai_site_data_signature()) {
+        goodjob_ai_site_seed_all(false);
+    }
+});
+`;
+    const adminPhp = `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+function goodjob_ai_site_admin_menu() {
+    add_menu_page(
+        'GoodJob AI Site',
+        'GoodJob AI Site',
+        'manage_options',
+        'goodjob-ai-site',
+        'goodjob_ai_site_admin_page',
+        'dashicons-admin-site-alt3',
+        58
+    );
+}
+add_action('admin_menu', 'goodjob_ai_site_admin_menu');
+
+function goodjob_ai_site_admin_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    $options = goodjob_ai_site_read_json('_data/site-options.json');
+    $collections = goodjob_ai_site_read_json('_data/collections.json');
+    echo '<div class="wrap"><h1>GoodJob AI Site</h1>';
+    echo '<p>This page is generated by GoodJob. It shows the imported site options, seed collections, and install status.</p>';
+    echo '<p><strong>Last seeded:</strong> ' . esc_html(get_option('goodjob_ai_site_seeded_at', 'Not seeded yet')) . '</p>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    wp_nonce_field('goodjob_ai_site_reseed');
+    echo '<input type="hidden" name="action" value="goodjob_ai_site_reseed">';
+    submit_button('Rebuild Pages and Seed Data');
+    echo '</form>';
+    echo '<h2>Site Options</h2><pre style="max-height:280px;overflow:auto;background:#fff;padding:16px;border:1px solid #ccd0d4;">' . esc_html(wp_json_encode($options, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    echo '<h2>Collections</h2><pre style="max-height:360px;overflow:auto;background:#fff;padding:16px;border:1px solid #ccd0d4;">' . esc_html(wp_json_encode($collections, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    echo '</div>';
+}
+
+function goodjob_ai_site_handle_reseed() {
+    if (!current_user_can('manage_options')) {
+        wp_die('Permission denied');
+    }
+    check_admin_referer('goodjob_ai_site_reseed');
+    goodjob_ai_site_seed_all(true);
+    wp_safe_redirect(admin_url('admin.php?page=goodjob-ai-site&seeded=1'));
+    exit;
+}
+add_action('admin_post_goodjob_ai_site_reseed', 'goodjob_ai_site_handle_reseed');
+`;
+    await writeFile(path.join(themeDir, "style.css"), styleCss, "utf8");
+    await writeFile(path.join(themeDir, "theme.json"), JSON.stringify(themeJson, null, 2), "utf8");
+    await writeFile(path.join(dataDir, "site-options.json"), JSON.stringify(siteOptions, null, 2), "utf8");
+    await writeFile(path.join(dataDir, "collections.json"), JSON.stringify(collections, null, 2), "utf8");
+    await writeFile(path.join(dataDir, "pages.json"), JSON.stringify(pages, null, 2), "utf8");
+    await writeFile(path.join(incDir, "cpt.php"), cptPhp, "utf8");
+    await writeFile(path.join(incDir, "acf.php"), acfPhp, "utf8");
+    await writeFile(path.join(incDir, "installer.php"), installerPhp, "utf8");
+    await writeFile(path.join(incDir, "admin.php"), adminPhp, "utf8");
+    await writeFile(path.join(templatesDir, "index.html"), frontPageTemplate, "utf8");
+    await writeFile(path.join(templatesDir, "front-page.html"), frontPageTemplate, "utf8");
+    const functionsPhp = `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+require_once get_stylesheet_directory() . '/inc/cpt.php';
+require_once get_stylesheet_directory() . '/inc/acf.php';
+require_once get_stylesheet_directory() . '/inc/installer.php';
+require_once get_stylesheet_directory() . '/inc/admin.php';
+
+function goodjob_ai_site_enqueue_assets() {
+    $theme = wp_get_theme();
+    wp_enqueue_style(
+        'goodjob-ai-site-style',
+        get_stylesheet_uri(),
+        array(),
+        $theme->get('Version')
+    );
+}
+add_action('wp_enqueue_scripts', 'goodjob_ai_site_enqueue_assets');
+
+function goodjob_ai_site_enqueue_editor_assets() {
+    $theme = wp_get_theme();
+    wp_enqueue_style(
+        'goodjob-ai-site-editor-style',
+        get_stylesheet_uri(),
+        array(),
+        $theme->get('Version')
+    );
+}
+add_action('enqueue_block_editor_assets', 'goodjob_ai_site_enqueue_editor_assets');
+
+function goodjob_ai_site_theme_setup() {
+    add_theme_support('post-thumbnails');
+    add_theme_support('title-tag');
+    add_theme_support('wp-block-styles');
+    add_theme_support('align-wide');
+}
+add_action('after_setup_theme', 'goodjob_ai_site_theme_setup');
+`;
+    await writeFile(path.join(themeDir, "functions.php"), functionsPhp, "utf8");
+    await writeFile(path.join(exportDir, "README.md"), readme, "utf8");
+    await writeFile(path.join(exportDir, "wp-metadata.json"), JSON.stringify(state.wpMetadata, null, 2), "utf8");
+    await writeFile(path.join(exportDir, "conversion-report.json"), JSON.stringify({ exportedAt, projectId: project.id, themeSlug, summary: state.summary, checks: state.checks }, null, 2), "utf8");
+    files.push("theme/style.css", "theme/theme.json", "theme/templates/index.html", "theme/templates/front-page.html", "theme/functions.php", "theme/inc/cpt.php", "theme/inc/acf.php", "theme/inc/installer.php", "theme/inc/admin.php", "theme/_data/site-options.json", "theme/_data/collections.json", "theme/_data/pages.json", "README.md", "wp-metadata.json", "conversion-report.json");
+    return { ...state, export: { exportDir, themeDir, themeSlug, exportedAt, files } };
+}
+async function installAiSiteWpRebuildPackage(project, wordpressRoot, themeSlugInput, overwrite = false) {
+    const root = path.resolve(String(wordpressRoot || ""));
+    if (!root || !(await fileExists(root)))
+        throw new Error("WordPress root does not exist.");
+    if (!(await fileExists(path.join(root, "wp-config.php"))) && !(await fileExists(path.join(root, "wp-content", "themes")))) {
+        throw new Error("WordPress root must contain wp-config.php or wp-content/themes.");
+    }
+    const exported = await exportAiSiteWpRebuildPackage(project);
+    const themeSlug = cleanAiSiteWpThemeSlug(themeSlugInput, exported.export.themeSlug);
+    const themesDir = path.join(root, "wp-content", "themes");
+    await mkdir(themesDir, { recursive: true });
+    const targetDir = path.join(themesDir, themeSlug);
+    if (await fileExists(targetDir)) {
+        if (!overwrite)
+            throw new Error("Target WordPress theme already exists. Rename the theme slug or enable overwrite after backup.");
+        await rm(targetDir, { recursive: true, force: true });
+    }
+    await cp(exported.export.themeDir, targetDir, { recursive: true });
+    return { ...exported, install: { wordpressRoot: root, themeSlug, targetDir, installedAt: new Date().toISOString() } };
 }
 function canSeeAiSiteProject(user, project) {
     return user.role === "admin" || user.role === "super_admin" || user.id === project.ownerId || (user.role === "manager" && user.teamId === project.teamId);
@@ -3215,6 +4210,17 @@ function validateGeneratedAiSiteSectionHtml(html, sectionKey) {
     if (sectionKey !== "hero" && !/class=["'][^"']*\bai-section\b/i.test(html)) {
         throw new Error(`Generated ${sectionId}.html must use the shared ai-section framework class`);
     }
+    if (sectionKey === "contact_us") {
+        const inputCount = (html.match(/<input\b/gi) || []).length;
+        if (!/<form\b/i.test(html))
+            throw new Error("Generated contact-us.html must include a real inquiry <form>");
+        if (inputCount < 5)
+            throw new Error("Generated contact-us.html must include name, country, email, product/project type, and target capacity inputs");
+        if (!/<textarea\b/i.test(html))
+            throw new Error("Generated contact-us.html must include a project details textarea");
+        if (!/SEND\s+INQUIRY|Request\s+a\s+Free\s+Proposal/i.test(html))
+            throw new Error("Generated contact-us.html must include the fixed inquiry form CTA");
+    }
     if (!/@media/i.test(css))
         throw new Error(`Generated ${sectionId}.html CSS is missing responsive @media rules`);
     if (!/(clamp\(|minmax\(|auto-fit|grid-template-columns|flex-wrap)/i.test(css)) {
@@ -3247,8 +4253,15 @@ function aiSiteSectionLayoutStrategy(project, sectionKey) {
     const schema = normalizeAiSiteSchemaData(project.schemaData);
     const blueprint = cleanAiSiteBlueprint(project);
     const plan = blueprint[sectionKey] || "";
+    const styleProfile = aiSiteDesignSystem(project).styleProfile;
     const categories = sectionArray(schema.business_taxonomy.product_categories);
-    const signals = aiSiteBlueprintSignals(plan, schema);
+    const signals = [
+        `style mood: ${styleProfile.mood}`,
+        `style density: ${styleProfile.density}`,
+        `style geometry: ${styleProfile.shape}`,
+        `style composition: ${styleProfile.composition}`,
+        ...aiSiteBlueprintSignals(plan, schema)
+    ];
     const categoryInstruction = categories.length
         ? `Use these category labels as real content anchors: ${categories.slice(0, 10).join(", ")}.`
         : "Create realistic industrial category labels from the company description.";
@@ -3299,18 +4312,6 @@ function aiSiteSectionLayoutStrategy(project, sectionKey) {
             requiredElements: ["3-5 application lanes", "pain point labels", "matching product chips", "outcome notes"],
             avoid: ["same product card layout", "generic features grid", "two-column split", "decorative cards without scenario logic"]
         },
-        project_cases: {
-            family: "proof_timeline_and_result_board",
-            blueprintSignals: signals,
-            composition: [
-                "Use a case timeline, milestone board, or stacked proof ledger.",
-                "For each case, show industry context, delivered scope, measurable value, and repeatable proof.",
-                "Add a result board or metrics row that visually differs from Products and Applications.",
-                "Use vertical storytelling with strong dividers and red proof accents."
-            ],
-            requiredElements: ["3 project case entries", "scope/value/proof fields", "result metrics", "trust-building CTA"],
-            avoid: ["simple three case cards only", "same category tiles as Products", "hero-style banner", "fake testimonials"]
-        },
         about_us: {
             family: "capability_stack_and_quality_process",
             blueprintSignals: signals,
@@ -3339,13 +4340,14 @@ function aiSiteSectionLayoutStrategy(project, sectionKey) {
             family: "inquiry_command_center",
             blueprintSignals: signals,
             composition: [
-                "Build a contact command center with a strong CTA band first.",
-                "Use compact contact method strips, inquiry checklist, and response promise.",
+                "Build a fixed inquiry section with a left trust/CTA column and a right buyer inquiry form panel.",
+                "The form panel is mandatory and must stay visible as the primary conversion element.",
+                "Use compact contact method strips, inquiry checklist, and response promise inside or below the left column.",
                 "Place phone/email/location/social data as operational channels, not oversized cards.",
-                "End with a buyer-ready next-step checklist for RFQ details."
+                "On mobile, stack the trust column before the inquiry form while preserving all form fields."
             ],
-            requiredElements: ["CTA band", "phone/email/location channels when available", "RFQ checklist", "response promise"],
-            avoid: ["large generic contact cards", "map placeholder", "same grid as Footer", "unusable form controls"]
+            requiredElements: ["left trust/CTA column", "right white inquiry form panel", "real form element", "name input", "country input", "email input", "product/project type input", "target capacity input", "project details textarea", "SEND INQUIRY submit button", "phone/email/location channels when available", "RFQ checklist", "response promise"],
+            avoid: ["contact-only cards without form", "map placeholder", "same grid as Footer", "unusable form controls", "form hidden below decorative content"]
         },
         footer: {
             family: "locked_fixed_footer",
@@ -3355,14 +4357,99 @@ function aiSiteSectionLayoutStrategy(project, sectionKey) {
             avoid: []
         }
     };
-    return strategies[sectionKey];
+    return strategies[sectionKey] || {
+        family: "custom_simple_page",
+        blueprintSignals: signals,
+        composition: [
+            "Build one simple standalone custom page section.",
+            "Use a clear heading, concise explanatory copy, one practical content band, and a small CTA row.",
+            "Keep the layout easy to edit and suitable for later conversion into a WordPress block."
+        ],
+        requiredElements: ["custom page heading", "intro copy", "one content band", "CTA row", "responsive single-column mobile layout"],
+        avoid: ["full homepage shell", "header/footer duplication", "CRM links", "login/logout controls", "complex multi-section page"]
+    };
+}
+function aiSiteWpRole(sectionKey) {
+    if (sectionKey === "header" || sectionKey === "footer")
+        return "template-part";
+    if (!aiSiteSectionLabel(sectionKey))
+        return "custom-page-section";
+    return "block";
+}
+function aiSiteWpTarget(sectionKey, layoutVariant) {
+    if (sectionKey === "header")
+        return "template-parts/header.html";
+    if (sectionKey === "footer")
+        return "template-parts/footer.html";
+    const targets = {
+        hero: "blocks/hero-photo-slider",
+        products: "blocks/products-category-catalog",
+        applications: "blocks/applications-scenario-map",
+        about_us: "blocks/about-capability-stack",
+        blog: "blocks/recent-blogs-split",
+        contact_us: "blocks/contact-inquiry-form"
+    };
+    if (targets[sectionKey])
+        return targets[sectionKey];
+    return `patterns/${layoutVariant.replace(/_/g, "-")}`;
+}
+function aiSiteWpSectionType(sectionKey) {
+    if (sectionKey === "header" || sectionKey === "footer")
+        return "template_part";
+    if (!aiSiteSectionLabel(sectionKey))
+        return "custom_page";
+    return sectionKey;
+}
+function buildAiSiteWpSectionMeta(project, sectionKey, orderIndex, customPages, existing) {
+    const label = aiSiteSectionLabel(sectionKey, customPages);
+    const layoutVariant = existing?.layout_variant || aiSiteSectionLayoutStrategy(project, sectionKey).family;
+    const locked = aiSiteLockedSections.has(sectionKey);
+    return {
+        section_key: sectionKey,
+        label,
+        section_type: aiSiteWpSectionType(sectionKey),
+        layout_variant: layoutVariant,
+        source_file: `sections/${sectionKey}.html`,
+        wp_role: existing?.wp_role || aiSiteWpRole(sectionKey),
+        wp_target: existing?.wp_target || aiSiteWpTarget(sectionKey, layoutVariant),
+        status: existing?.status || (locked ? "locked" : "blueprint"),
+        locked,
+        order_index: orderIndex,
+        updated_at: new Date().toISOString()
+    };
+}
+async function readAiSiteWpMetadata(project, order, customPages) {
+    const existing = await readJsonFile(aiSiteWpMetadataFile(project.id), null);
+    const existingSections = new Map((existing?.sections || []).map((item) => [item.section_key, item]));
+    const sections = order.map((sectionKey, index) => buildAiSiteWpSectionMeta(project, sectionKey, index, customPages, existingSections.get(sectionKey)));
+    const metadata = {
+        version: "1.0",
+        project_id: project.id,
+        site_name: project.siteName,
+        site_template: existing?.site_template || "b2b_industrial",
+        wp_mode: "block-theme",
+        updated_at: new Date().toISOString(),
+        sections,
+        next_stage: {
+            page: "WordPress重构",
+            purpose: "Convert checked HTML sections into WordPress block theme parts, patterns, export package, and optional local install.",
+            status: "metadata_ready"
+        }
+    };
+    await writeFile(aiSiteWpMetadataFile(project.id), JSON.stringify(metadata, null, 2), "utf8");
+    return metadata;
+}
+async function writeAiSiteWpMetadata(metadata) {
+    await writeFile(aiSiteWpMetadataFile(metadata.project_id), JSON.stringify(metadata, null, 2), "utf8");
 }
 function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "", userInstruction = "") {
     const schema = normalizeAiSiteSchemaData(project.schemaData);
     const blueprint = cleanAiSiteBlueprint(project);
     const designSystem = aiSiteDesignSystem(project);
+    const styleProfile = designSystem.styleProfile;
     const layoutStrategy = aiSiteSectionLayoutStrategy(project, sectionKey);
     const sectionId = sectionKey.replace(/_/g, "-");
+    const sectionLabel = aiSiteSectionLabel(sectionKey);
     if (sectionKey === "hero") {
         const company = schema.company_profile;
         const heroBrief = {
@@ -3371,6 +4458,7 @@ function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "", userIn
             description: company.description,
             plan: blueprint.hero,
             palette: designSystem.palette,
+            style_profile: styleProfile,
             layout: layoutStrategy
         };
         return [
@@ -3381,6 +4469,8 @@ function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "", userIn
             repairReason ? `Previous output failed validation: ${repairReason}` : "",
             userInstruction ? `User directional instruction: ${userInstruction}` : "",
             "Hero composition: 3 external industrial photo backgrounds; height about 72vh; dark overlay so white text is clearly readable.",
+            "Theme color rule: use the palette from Brief JSON as literal hex colors inside the scoped CSS. The overlay gradient, eyebrow badge, primary CTA, arrow hover/focus state, and status indicator must visibly reflect brand/accent/brandDeep. Do not rely only on CSS variables and do not fall back to the old navy/red palette unless the palette actually matches it.",
+            "Style rule: follow Brief JSON style_profile for mood, density, geometry, CTA style, and background treatment while keeping the required hero contract.",
             "Content only: eyebrow badge, H1, one subtitle paragraph, two buttons named exactly Request a Proposal and Learn More.",
             "Headline rule: create a suitable company-specific headline from the form data. Do not force the generic 'Industrial ...' wording. CSS must visually limit H1 to 2 lines with max-width and line clamp or balanced wrapping.",
             "Bottom-right only: working previous/next arrow controls and slide status text like 01 / 03.",
@@ -3399,6 +4489,7 @@ function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "", userIn
             brand: schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName,
             plan: blueprint.products,
             palette: designSystem.palette,
+            style_profile: styleProfile,
             layout: layoutStrategy
         };
         return [
@@ -3409,6 +4500,7 @@ function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "", userIn
             repairReason ? `Previous output failed validation: ${repairReason}` : "",
             userInstruction ? `User directional instruction: ${userInstruction}` : "",
             "Layout must match this top-to-bottom order: Product Category heading, one explanation paragraph, category pill buttons, current category product catalog cards, left/right browsing arrows.",
+            "Style rule: follow Brief JSON style_profile for mood, density, geometry, card treatment, CTA shape, and background treatment. Keep global consistency but avoid copying the same visual formula as Hero or other sections.",
             "Cards: show 4 large product cards in the first view. Each card needs a square or near-square product image area, uppercase product name, and a small bottom-right inquiry arrow.",
             "Interaction: no script. If browsing is interactive, use hidden radio inputs and label arrows to switch between two product pages. Keep category buttons as visible pills.",
             "Images: use realistic product image URLs when safe, otherwise use placeholder URLs such as https://placehold.co/560x420/f8fafc/244aa5?text=Product. Do not use external page links.",
@@ -3418,26 +4510,60 @@ function buildAiSiteSectionPrompt(project, sectionKey, repairReason = "", userIn
             "Brief JSON: " + JSON.stringify(productsBrief)
         ].filter(Boolean).join("\n");
     }
+    if (sectionKey === "contact_us") {
+        const contactBrief = {
+            brand: schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName,
+            company: schema.company_profile,
+            contact: schema.contact_info,
+            categories: sectionArray(schema.business_taxonomy.product_categories),
+            plan: blueprint.contact_us,
+            palette: designSystem.palette,
+            style_profile: styleProfile,
+            layout: layoutStrategy
+        };
+        return [
+            "Generate one premium B2B industrial CONTACT US inquiry section. Return only JSON: {\"html\":\"...\"}.",
+            "Speed mode: compact output. No explanations. No markdown.",
+            `Required root: <section id="${sectionId}" class="ai-section contact-inquiry-section">`,
+            "First child inside the section must be one scoped <style>. Every selector must start with #contact-us.",
+            repairReason ? `Previous output failed validation: ${repairReason}` : "",
+            userInstruction ? `User directional instruction: ${userInstruction}` : "",
+            "Non-negotiable conversion contract: this section must contain a real visible <form> inquiry panel. Do not replace it with cards, checklist, email links, or CTA-only content.",
+            "Fixed desktop layout: left trust/CTA column, right white inquiry form panel. Mobile layout: stack left content first, form second.",
+            "Left column must include: START YOUR PROJECT eyebrow, one strong heading, one concise paragraph, phone/email/location channels when available, and a short RFQ/response promise checklist.",
+            "Form panel must include heading exactly Request a Free Proposal and a short subtitle.",
+            "Form fields required: Your name* text input, Country text input, Email* email input, Product / project type text input, Target capacity / quantity text input, Project details textarea.",
+            "Submit button text exactly SEND INQUIRY. Use #icon-send on the button when useful. Use #icon-check, #icon-phone, #icon-mail, #icon-location for support details.",
+            "Style rule: follow Brief JSON style_profile for mood, density, geometry, background treatment, CTA style, and palette. The form structure is fixed, but colors, surfaces, borders, spacing, and proof-strip treatment may adapt to the style.",
+            "CSS quality: 32-72 declarations, include @media(max-width:980px) and @media(max-width:640px), use clamp(), grid-template-columns, minmax(), or flex-wrap, and avoid fixed widths over 520px.",
+            "Preview ratio contract: keep heading, key contact methods, and the top of the form visible in a 16:9 preview. Avoid oversized decorative graphics and avoid pushing the form below the fold on desktop.",
+            "Links/forms: form action may be #contact-us and method post. No script, no external links, no CRM/login/logout/app links.",
+            "Copy: English, buyer-facing, concrete, 90-170 words outside field labels. Use real company/category/contact clues from the JSON.",
+            "Brief JSON: " + JSON.stringify(contactBrief)
+        ].filter(Boolean).join("\n");
+    }
     return [
         "Generate one premium B2B industrial website section. Return only JSON: {\"html\":\"...\"}.",
-        `Section: ${sectionKey} / ${aiSiteSectionLabels[sectionKey]}`,
+        `Section: ${sectionKey} / ${sectionLabel}`,
         `Required section id: ${sectionId}`,
         `Plan: ${blueprint[sectionKey] || ""}`,
         "Section-specific layout strategy JSON: " + JSON.stringify(layoutStrategy),
         userInstruction ? `User directional instruction: ${userInstruction}` : "",
         repairReason ? `Previous output failed validation: ${repairReason}` : "",
         "Root: one fragment only. No doctype/html/head/body/script/on* handlers/CRM/login/logout/app links.",
-        "Fixed framework: the page shell already provides Xinhai-style topbar/header/footer, inline SVG sprite, .container/.ai-wrap, .ai-section, .ai-section-head, .ai-grid, .ai-card, .ai-btn, navy/red/steel tokens, and responsive spacing.",
-        "Use the framework instead of inventing a separate design language. Reuse icons with <svg aria-hidden=\"true\"><use href=\"#icon-arrow-right\"></use></svg>, #icon-cube, #icon-globe, #icon-check, or #icon-send.",
+        "Fixed framework: the page shell already provides topbar/header/footer, inline SVG sprite, .container/.ai-wrap, .ai-section, .ai-section-head, .ai-grid, .ai-card, .ai-btn, and responsive spacing. Keep those contracts but vary the section's visual language through scoped CSS.",
+        "Style preference contract: treat the form style_requirements and Design system styleProfile as first-class instructions. Use its palette, mood, density, geometry, background treatment, CTA style, custom notes, keywords, and avoid list. Do not force the old navy/red industrial look unless the styleProfile actually asks for it.",
+        "Use the framework as a compatibility layer, not as a visual template. Reuse icons with <svg aria-hidden=\"true\"><use href=\"#icon-arrow-right\"></use></svg>, #icon-cube, #icon-globe, #icon-check, or #icon-send.",
         `For business sections use exactly <section id="${sectionId}" class="ai-section ...">. Put one compact <style> as the first child inside that section.`,
         "CSS quality gate: include 24-64 CSS declarations, one @media rule for <=760px, and at least one of clamp(), minmax(), auto-fit, grid-template-columns, or flex-wrap.",
         `CSS scope gate: every selector must start with #${sectionId}. Do not style body/html/:root/global .container/header/footer.`,
         "Preview ratio contract: the primary editor preview is a fixed 16:9 iframe. Compose the first visible screen for a 16:9 canvas, keep key headings/CTAs inside the safe central area, avoid content that depends on extra vertical height, and prevent large decorative elements from pushing text off-canvas.",
         "Responsive contract: mobile-first. Use an inner wrapper with width:min(1440px,calc(100vw - clamp(32px,6vw,120px))) and margin:auto. Avoid fixed pixel widths over 420px, nowrap rows, or 4+ equal columns on wide screens. At 1200px+ add whitespace, line-length caps, and balanced asymmetry.",
-        "Layout contract: obey the section-specific layout strategy above. Each section must use its own composition family and should not look interchangeable with Hero, Products, Applications, Cases, About, Blog, or Contact. Do not use the common two-column split layout where text sits on the left and an image/card block sits on the right. Prefer a vertical homepage rhythm like the reference site: eyebrow/title/intro first, then a full-width visual/proof band, then stacked content groups. Product lists, specification cards, metrics, and case grids may use multi-column grids, but the whole section should read top-to-bottom.",
+        "Layout contract: obey the section-specific layout strategy above. Each section must use its own composition family and should not look interchangeable with Hero, Products, Applications, About, Blog, Contact, or custom pages. Do not use the common two-column split layout where text sits on the left and an image/card block sits on the right. Prefer a vertical homepage rhythm like the reference site: eyebrow/title/intro first, then a full-width visual/proof band, then stacked content groups. Product lists, specification cards, metrics, and content grids may use multi-column grids, but the whole section should read top-to-bottom.",
         `Local class naming: include the strategy family as a scoped class or class prefix inside #${sectionId}, for example ${sectionId}-${layoutStrategy.family.replace(/_/g, "-")}.`,
         "WordPress block contract: this section will become one reusable WP block/template part. Keep markup semantic, shallow, self-contained, and easy to convert to block attributes. Prefix local classes with the section key while keeping shared classes such as ai-section/ai-wrap/ai-card/ai-btn.",
-        "Visual: match the reference industrial homepage rhythm: dark navy or white bands, red micro-accent, large condensed headings, technical proof cards, image-like gradient panels, compact CTA rows, and generous whitespace at desktop widths.",
+        `Visual: follow this style profile summary: ${styleProfile.summary}. Keep all sections globally consistent through the same palette and typography scale, but each section must use a different composition family and surface treatment.`,
+        styleProfile.avoid.length ? `Avoid from style profile: ${styleProfile.avoid.join("; ")}.` : "",
         "Wide-screen fit: at 1440-1920px avoid crowded equal columns. Use max-width text blocks, minmax grids, asymmetry, row gaps, and internal spacing so elements breathe instead of squeezing together.",
         "Copy: English, concrete, buyer-facing, no filler. 120-220 words max. Use real product/category clues from JSON.",
         userInstruction ? "Instruction priority: follow the user directional instruction when it does not violate safety, scoped CSS, responsive, fixed route, or WordPress block constraints." : "",
@@ -3468,7 +4594,10 @@ async function generateAiSiteSectionHtml(project, sectionKey, user, userInstruct
         throw new Error("AI site builder model settings are not ready. Please save and test the API settings first.");
     await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
     const config = aiSiteSettingsToModelConfig(settings);
-    const generatedContent = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, "", userInstruction), 9000);
+    const effectiveInstruction = sectionKey === "hero" && !userInstruction.trim()
+        ? "Refresh the Hero according to the current project theme colors. Use the current palette visibly in the overlay, badge, CTA, arrow controls, and micro accents while keeping the 72vh photo hero contract."
+        : userInstruction;
+    const generatedContent = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, "", effectiveInstruction), 9000);
     try {
         const html = aiSiteHtmlFromModelOutput(generatedContent, sectionKey);
         validateGeneratedAiSiteSectionHtml(html, sectionKey);
@@ -3476,7 +4605,7 @@ async function generateAiSiteSectionHtml(project, sectionKey, user, userInstruct
     }
     catch (error) {
         const reason = error instanceof Error ? error.message : "Generated HTML failed validation";
-        const repaired = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, reason, userInstruction), 9000);
+        const repaired = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, reason, effectiveInstruction), 9000);
         const html = aiSiteHtmlFromModelOutput(repaired, sectionKey);
         validateGeneratedAiSiteSectionHtml(html, sectionKey);
         return html;
@@ -3491,7 +4620,7 @@ async function generateAiSiteSectionHtml(project, sectionKey, user, userInstruct
         "只输出一个可被 JSON.parse 解析的 JSON 对象，格式：{\"html\":\"...\"}。",
         "html 字段必须是单个 HTML 片段，禁止 <!doctype>、<html>、<head>、<body>、<script>、内联事件、CRM 系统内容。",
         `当前区块 key：${sectionKey}`,
-        `当前区块名称：${aiSiteSectionLabels[sectionKey]}`,
+        `当前区块名称：${aiSiteSectionLabel(sectionKey)}`,
         `区块蓝图：${blueprint[sectionKey] || ""}`,
         "固定 CSS 类可使用：container, eyebrow, hero, grid, card, primary-btn, ghost-btn, placeholder。",
         "要求：英文站点文案，面向跨境 B2B 工业采购商；内容具体、可信、可转化；不要写中文解释。",
@@ -3500,7 +4629,7 @@ async function generateAiSiteSectionHtml(project, sectionKey, user, userInstruct
     void prompt;
     const generationPrompt = [
         "Generate one premium B2B industrial website section. Return only JSON: {\"html\":\"...\"}.",
-        `Section: ${sectionKey} / ${aiSiteSectionLabels[sectionKey]}`,
+        `Section: ${sectionKey} / ${aiSiteSectionLabel(sectionKey)}`,
         `Plan: ${blueprint[sectionKey] || ""}`,
         "Root: one fragment only. No doctype/html/head/body/script/on* handlers/CRM/login/logout/app links.",
         "For business sections use <section id=\"kebab-section-key\">. Put one compact <style> as the first child.",
@@ -3724,6 +4853,7 @@ app.get("/api/ai-site-builder/projects/:id/editor", requireAuth, asyncRoute(asyn
     }
     await ensureAiSiteSandbox(project);
     const order = await readAiSiteOrder(project);
+    const customPages = await readAiSiteCustomPages(project);
     const blueprintRaw = await readFile(path.join(aiProjectDir(project.id), "blueprint.json"), "utf8").catch(() => "{}");
     const blueprint = JSON.parse(blueprintRaw || "{}");
     const sections = await Promise.all(order.map(async (key) => {
@@ -3740,13 +4870,22 @@ app.get("/api/ai-site-builder/projects/:id/editor", requireAuth, asyncRoute(asyn
         }
         return {
             key,
-            label: aiSiteSectionLabels[key],
+            label: aiSiteSectionLabel(key, customPages),
             locked: aiSiteLockedSections.has(key),
             generated,
-            blueprint: blueprint[key] || (key === "header" || key === "footer" ? "固定全站组件，自动生成并锁定。" : "")
+            blueprint: aiSiteSectionBlueprint(key, blueprint, customPages)
         };
     }));
-    res.json({ project, order, sections, blueprint });
+    const wpMetadata = await readAiSiteWpMetadata(project, order, customPages);
+    const sectionStatus = new Map(sections.map((section) => [section.key, section.locked ? "locked" : section.generated ? "html_ready" : "blueprint"]));
+    wpMetadata.sections = wpMetadata.sections.map((section) => ({
+        ...section,
+        status: sectionStatus.get(section.section_key) || section.status
+    }));
+    wpMetadata.updated_at = new Date().toISOString();
+    await writeAiSiteWpMetadata(wpMetadata);
+    const wpSectionMap = new Map(wpMetadata.sections.map((section) => [section.section_key, section]));
+    res.json({ project, order, sections: sections.map((section) => ({ ...section, wp: wpSectionMap.get(section.key) })), blueprint, wpMetadata });
 }));
 app.patch("/api/ai-site-builder/projects/:id/editor/order", requireAuth, asyncRoute(async (req, res) => {
     await hydrateAiSiteLocalState(req.user);
@@ -3758,7 +4897,85 @@ app.patch("/api/ai-site-builder/projects/:id/editor/order", requireAuth, asyncRo
     const schema = z.object({ order: z.array(z.string()).default([]) });
     const body = schema.parse(req.body || {});
     const order = await writeAiSiteOrder(project, body.order);
+    const customPages = await readAiSiteCustomPages(project);
+    await readAiSiteWpMetadata(project, order, customPages);
     res.json({ order });
+}));
+app.post("/api/ai-site-builder/projects/:id/editor/pages", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "建站项目任务不存在或无权访问" });
+        return;
+    }
+    const schema = z.object({ title: z.string().max(80).optional().default("") });
+    const body = schema.parse(req.body || {});
+    await ensureAiSiteSandbox(project);
+    const customPages = await readAiSiteCustomPages(project);
+    const label = cleanAiSiteCustomPageLabel(body.title, `New Page ${customPages.length + 1}`);
+    let key = `custom_${Date.now().toString(36)}`;
+    while (customPages.some((item) => item.key === key) || (await fileExists(aiSectionFile(project.id, key)))) {
+        key = `custom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+    const nextCustomPages = [...customPages, { key, label, createdAt: new Date().toISOString() }];
+    await writeAiSiteCustomPages(project, nextCustomPages);
+    const blueprintPath = path.join(aiProjectDir(project.id), "blueprint.json");
+    const blueprint = await readJsonFile(blueprintPath, cleanAiSiteBlueprint(project));
+    blueprint[key] = `Custom page: ${label}. Start from a simple editable page section, then let the agent rewrite it with page-specific B2B industrial content when needed.`;
+    delete blueprint.project_cases;
+    await writeFile(blueprintPath, JSON.stringify(blueprint, null, 2), "utf8");
+    const currentOrder = await readAiSiteOrder(project);
+    const insertAt = Math.max(1, currentOrder.length - 1);
+    const nextOrder = await writeAiSiteOrder(project, [...currentOrder.slice(0, insertAt), key, ...currentOrder.slice(insertAt)]);
+    await writeFile(aiSectionFile(project.id, key), defaultAiSectionHtml(key, project, false, nextCustomPages), "utf8");
+    const wpMetadata = await readAiSiteWpMetadata(project, nextOrder, nextCustomPages);
+    res.json({ key, label, order: nextOrder, wpMetadata, message: `${label} page added` });
+}));
+app.get("/api/ai-site-builder/projects/:id/wp-rebuild", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "AI site project was not found or is not accessible." });
+        return;
+    }
+    const result = await inspectAiSiteWpRebuild(project);
+    res.json(result);
+}));
+app.post("/api/ai-site-builder/projects/:id/wp-rebuild/check", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "AI site project was not found or is not accessible." });
+        return;
+    }
+    const result = await inspectAiSiteWpRebuild(project);
+    res.json(result);
+}));
+app.post("/api/ai-site-builder/projects/:id/wp-rebuild/export", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "AI site project was not found or is not accessible." });
+        return;
+    }
+    const result = await exportAiSiteWpRebuildPackage(project);
+    res.json(result);
+}));
+app.post("/api/ai-site-builder/projects/:id/wp-rebuild/install", requireAuth, asyncRoute(async (req, res) => {
+    await hydrateAiSiteLocalState(req.user);
+    const project = getStore().aiSiteBuilderProjects.find((item) => item.id === req.params.id && canSeeAiSiteProject(req.user, item));
+    if (!project) {
+        res.status(404).json({ message: "AI site project was not found or is not accessible." });
+        return;
+    }
+    const schema = z.object({
+        wordpressRoot: z.string().min(1).max(500),
+        themeSlug: z.string().max(80).optional(),
+        overwrite: z.boolean().optional().default(false)
+    });
+    const body = schema.parse(req.body || {});
+    const result = await installAiSiteWpRebuildPackage(project, body.wordpressRoot, body.themeSlug, body.overwrite);
+    res.json(result);
 }));
 app.get("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, asyncRoute(async (req, res) => {
     await hydrateAiSiteLocalState(req.user);
@@ -3769,9 +4986,10 @@ app.get("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, a
         return;
     }
     await ensureAiSiteSandbox(project);
+    const customPages = await readAiSiteCustomPages(project);
     const file = aiSectionFile(project.id, sectionKey);
     if (!(await fileExists(file)) && !aiSiteLockedSections.has(sectionKey)) {
-        res.json({ sectionKey, html: defaultAiSectionHtml(sectionKey, project, false), generated: false });
+        res.json({ sectionKey, html: defaultAiSectionHtml(sectionKey, project, false, customPages), generated: false });
         return;
     }
     const html = await readFile(file, "utf8");
@@ -3820,10 +5038,31 @@ app.post("/api/ai-site-builder/projects/:id/sections/:sectionKey/generate", requ
     const schema = z.object({ instruction: z.string().max(1200).optional().default("") });
     const body = schema.parse(req.body || {});
     await ensureAiSiteSandbox(project);
+    if (aiSiteLockedSections.has(sectionKey)) {
+        const palette = refreshAiSiteProjectThemePalette(project);
+        const headerHtml = defaultAiSectionHtml("header", project, true);
+        const footerHtml = defaultAiSectionHtml("footer", project, true);
+        await writeFile(aiSectionFile(project.id, "header"), headerHtml, "utf8");
+        await writeFile(aiSectionFile(project.id, "footer"), footerHtml, "utf8");
+        await writeFile(aiProjectMetaFile(project.id), JSON.stringify(project, null, 2), "utf8");
+        await writeFile(path.join(aiProjectDir(project.id), "form.json"), JSON.stringify(project.schemaData || {}, null, 2), "utf8");
+        await writeFile(aiSiteDesignSystemFile(project.id), JSON.stringify(aiSiteDesignSystem(project), null, 2), "utf8");
+        await getStore().persist();
+        const html = sectionKey === "header" ? headerHtml : footerHtml;
+        res.json({
+            sectionKey,
+            html,
+            generated: true,
+            changed: true,
+            palette,
+            message: `${aiSiteSectionLabel(sectionKey)} theme colors refreshed`
+        });
+        return;
+    }
     try {
         const html = await generateAiSiteSectionHtml(project, sectionKey, req.user, body.instruction.trim());
         await writeFile(aiSectionFile(project.id, sectionKey), html, "utf8");
-        res.json({ sectionKey, html, generated: true, message: `${aiSiteSectionLabels[sectionKey]} 已由 Agent 生成并写入本地 HTML 片段` });
+        res.json({ sectionKey, html, generated: true, message: `${aiSiteSectionLabel(sectionKey)} generated and written to local HTML fragment` });
     }
     catch (error) {
         const failure = aiSiteGenerationFailure(error);
@@ -3832,7 +5071,7 @@ app.post("/api/ai-site-builder/projects/:id/sections/:sectionKey/generate", requ
             sectionKey,
             generated: false,
             message: failure.message,
-            progress: [`${aiSiteSectionLabels[sectionKey]} generation failed`, failure.message]
+            progress: [`${aiSiteSectionLabel(sectionKey)} generation failed`, failure.message]
         });
     }
 }));
@@ -3853,12 +5092,12 @@ app.post("/api/ai-site-builder/projects/:id/sections/generate-batch", requireAut
         try {
             const html = await generateAiSiteSectionHtml(project, sectionKey, req.user);
             await writeFile(aiSectionFile(project.id, sectionKey), html, "utf8");
-            results.push({ sectionKey, label: aiSiteSectionLabels[sectionKey], ok: true, message: "已生成" });
+            results.push({ sectionKey, label: aiSiteSectionLabel(sectionKey), ok: true, message: "已生成" });
         }
         catch (error) {
             results.push({
                 sectionKey,
-                label: aiSiteSectionLabels[sectionKey],
+                label: aiSiteSectionLabel(sectionKey),
                 ok: false,
                 message: error instanceof Error ? error.message : "生成失败，已保留旧片段"
             });

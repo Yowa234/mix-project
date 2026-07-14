@@ -1,0 +1,96 @@
+{
+  "id": "site_1784010681868",
+  "taskName": "神州离心机 建站任务",
+  "siteName": "神州离心机",
+  "industry": "未指定行业",
+  "goal": "lead-generation",
+  "tone": "industrial-professional",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "神州离心机",
+      "wordmark": "",
+      "tagline": "",
+      "description": "",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "industrial-professional",
+      "colors": [],
+      "keywords": [],
+      "reference_sites": [],
+      "custom_notes": ""
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "神州离心机",
+        "wordmark": "",
+        "tagline": "",
+        "description": "",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "industrial-professional",
+      "colors": [],
+      "keywords": [],
+      "reference_sites": [],
+      "custom_notes": ""
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_sales_shirley",
+  "teamId": "europe",
+  "createdAt": "2026-07-14T06:31:21.868Z"
+}

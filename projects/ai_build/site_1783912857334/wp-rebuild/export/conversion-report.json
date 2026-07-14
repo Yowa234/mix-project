@@ -1,0 +1,68 @@
+{
+  "exportedAt": "2026-07-13T09:48:16.133Z",
+  "projectId": "site_1783912857334",
+  "themeSlug": "goodjob-ai-site",
+  "summary": {
+    "pass": 8,
+    "warning": 0,
+    "error": 0
+  },
+  "checks": [
+    {
+      "key": "header",
+      "label": "Header",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "template-parts/header.html"
+    },
+    {
+      "key": "hero",
+      "label": "Hero",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/hero-photo-slider"
+    },
+    {
+      "key": "products",
+      "label": "Products",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/products-category-catalog"
+    },
+    {
+      "key": "applications",
+      "label": "Applications",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/applications-scenario-map"
+    },
+    {
+      "key": "about_us",
+      "label": "About Us",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/about-capability-stack"
+    },
+    {
+      "key": "blog",
+      "label": "Blog",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/recent-blogs-split"
+    },
+    {
+      "key": "contact_us",
+      "label": "Contact Us",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/contact-inquiry-form"
+    },
+    {
+      "key": "footer",
+      "label": "Footer",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "template-parts/footer.html"
+    }
+  ]
+}

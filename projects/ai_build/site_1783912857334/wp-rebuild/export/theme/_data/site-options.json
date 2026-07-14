@@ -1,0 +1,27 @@
+{
+  "site_name": "询盘云",
+  "company": {
+    "legal_name": "询盘云",
+    "wordmark": "询盘云",
+    "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
+    "description": "面向外贸公司进行网站优化",
+    "logo_url": ""
+  },
+  "contact": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "industrial-professional",
+    "colors": [],
+    "keywords": [],
+    "reference_sites": [],
+    "custom_notes": ""
+  }
+}

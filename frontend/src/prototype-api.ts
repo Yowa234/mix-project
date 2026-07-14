@@ -314,12 +314,66 @@ interface AiSiteBuilderSettings {
   lastTestMessage: string;
 }
 
+interface AiSiteWpSectionMeta {
+  section_key: string;
+  label: string;
+  section_type: string;
+  layout_variant: string;
+  source_file: string;
+  wp_role: "template-part" | "block" | "pattern" | "custom-page-section";
+  wp_target: string;
+  status: "locked" | "blueprint" | "html_ready";
+  locked: boolean;
+  order_index: number;
+  updated_at: string;
+}
+
+interface AiSiteWpMetadata {
+  version: string;
+  project_id: string;
+  site_name: string;
+  site_template: string;
+  wp_mode: "block-theme";
+  updated_at: string;
+  sections: AiSiteWpSectionMeta[];
+}
+
+interface AiSiteWpRebuildCheck {
+  key: string;
+  label: string;
+  status: "pass" | "warning" | "error";
+  message: string;
+  target?: string;
+}
+
+interface AiSiteWpRebuildState {
+  project: AiSiteProject;
+  order: string[];
+  wpMetadata: AiSiteWpMetadata;
+  checks: AiSiteWpRebuildCheck[];
+  summary: { pass: number; warning: number; error: number };
+  export?: {
+    exportDir: string;
+    themeDir: string;
+    themeSlug: string;
+    exportedAt: string;
+    files: string[];
+  };
+  install?: {
+    wordpressRoot: string;
+    themeSlug: string;
+    targetDir: string;
+    installedAt: string;
+  };
+}
+
 interface AiSiteEditorSection {
   key: string;
   label: string;
   locked: boolean;
   generated: boolean;
   blueprint: string;
+  wp?: AiSiteWpSectionMeta;
 }
 
 interface AiSiteEditorManifest {
@@ -327,6 +381,7 @@ interface AiSiteEditorManifest {
   order: string[];
   sections: AiSiteEditorSection[];
   blueprint: Record<string, string>;
+  wpMetadata?: AiSiteWpMetadata;
 }
 
 interface AiModelConfig {
@@ -901,6 +956,13 @@ function syncSchemaProductCategoryInputs() {
   }
 }
 
+function syncSchemaProductCategoryInputsOnCommit(event?: Event) {
+  const target = event?.target instanceof HTMLInputElement ? event.target : null;
+  const inputs = qsa<HTMLInputElement>("#schemaProductCategoriesList input");
+  if (target && target !== inputs[inputs.length - 1]) return;
+  syncSchemaProductCategoryInputs();
+}
+
 function collectAiSiteSchemaData() {
   return {
     company_profile: {
@@ -1090,6 +1152,7 @@ async function refreshAiSiteProjects() {
   if (!state.selectedAiSiteProjectId && state.aiSiteProjects[0]) state.selectedAiSiteProjectId = state.aiSiteProjects[0].id;
   renderAiSiteProjectList();
   renderAiSiteDetail();
+  renderAiSiteWordPress();
 }
 
 function renderAiSiteDetail() {
@@ -1103,6 +1166,161 @@ function renderAiSiteDetail() {
   void loadAiSiteEditor(project.id);
 }
 
+function aiSiteWpStatusLabel(status: AiSiteWpRebuildCheck["status"]) {
+  if (status === "pass") return "通过";
+  if (status === "warning") return "需复核";
+  return "阻断";
+}
+
+function aiSiteWpStatusTone(status: AiSiteWpRebuildCheck["status"]) {
+  if (status === "pass") return "green";
+  if (status === "warning") return "amber";
+  return "red";
+}
+
+function renderAiSiteWordPress() {
+  const project = state.aiSiteProjects.find((item) => item.id === state.selectedAiSiteProjectId) || state.aiSiteProjects[0];
+  const canvas = qs<HTMLElement>("#aiSiteWordPressCanvas");
+  if (!canvas) return;
+  if (!project) {
+    canvas.innerHTML = `<div class="empty-cell">请先在 AI建站 页面创建或选择项目任务。</div>`;
+    return;
+  }
+  state.selectedAiSiteProjectId = project.id;
+  canvas.innerHTML = `<section class="panel section"><div class="empty-cell">正在读取 WordPress 元数据与区块检查结果...</div></section>`;
+  void loadAiSiteWordPress(project.id);
+}
+
+async function loadAiSiteWordPress(projectId: string) {
+  const canvas = qs<HTMLElement>("#aiSiteWordPressCanvas");
+  try {
+    const result = await api<AiSiteWpRebuildState>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/wp-rebuild`);
+    state.selectedAiSiteProjectId = projectId;
+    renderAiSiteWordPressPanel(result);
+  } catch (error) {
+    if (canvas) canvas.innerHTML = `<div class="empty-cell">${escapeHtml(error instanceof Error ? error.message : "WordPress 重构数据加载失败")}</div>`;
+  }
+}
+
+function renderAiSiteWordPressPanel(data: AiSiteWpRebuildState) {
+  const canvas = qs<HTMLElement>("#aiSiteWordPressCanvas");
+  if (!canvas) return;
+  const wpRootValue = qs<HTMLInputElement>("#aiSiteWpRootInput")?.value || "";
+  const themeSlugValue = qs<HTMLInputElement>("#aiSiteWpThemeSlugInput")?.value || data.export?.themeSlug || "";
+  canvas.innerHTML = `
+    <section class="panel section site-editor-workflow">
+      <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg></span><div><h2>转换控制台</h2><span>${escapeHtml(data.project.siteName)} · ${escapeHtml(data.wpMetadata.wp_mode)} · ${escapeHtml(data.wpMetadata.site_template)}</span></div></div></div>
+      <div class="dense-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px">
+        <div class="dense-card"><span>通过</span><b>${data.summary.pass}</b><small>可直接转换</small></div>
+        <div class="dense-card"><span>需复核</span><b>${data.summary.warning}</b><small>可导出但建议人工确认</small></div>
+        <div class="dense-card"><span>阻断</span><b>${data.summary.error}</b><small>需先修复 HTML 源码</small></div>
+      </div>
+      <div class="schema-form-grid" style="grid-template-columns:1fr">
+        <div class="form-field"><label>本地 WordPress 根目录</label><input id="aiSiteWpRootInput" value="${escapeHtml(wpRootValue)}" placeholder="例如 D:/Code/wordpress"></div>
+        <div class="form-field"><label>主题目录名</label><input id="aiSiteWpThemeSlugInput" value="${escapeHtml(themeSlugValue)}" placeholder="例如 industrial-demo"></div>
+      </div>
+      <div class="head-actions" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn" id="aiSiteWpCheckButton">重新检查</button>
+        <button class="btn primary" id="aiSiteWpExportButton">导出转换包</button>
+        <button class="btn" id="aiSiteWpInstallButton">安装到本地WP</button>
+        <button class="btn" id="aiSiteWpDetailButton">返回建站详细</button>
+      </div>
+      <div class="empty-cell" style="padding:10px 12px;margin-top:12px;text-align:left">
+        ${data.export ? `已导出：${escapeHtml(data.export.exportDir)} · ${data.export.files.length} files` : "尚未导出。导出会生成 block theme starter，并保留后续 ACF Block 转换空间。"}
+        ${data.install ? `<br>已安装：${escapeHtml(data.install.targetDir)}` : ""}
+      </div>
+    </section>
+    <section class="panel section site-editor-preview">
+      <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7H5V5h11"/></svg></span><div><h2>区块转换检查</h2><span>Header/Footer 转为 template part，其余页面区块先导出为 pattern。</span></div></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>区块</th><th>WP目标</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>
+            ${data.checks.map((check) => `
+              <tr>
+                <td><b>${escapeHtml(check.label)}</b><br><small>${escapeHtml(check.key)}</small></td>
+                <td>${escapeHtml(check.target || "-")}</td>
+                <td><span class="badge ${aiSiteWpStatusTone(check.status)}">${aiSiteWpStatusLabel(check.status)}</span></td>
+                <td>${escapeHtml(check.message)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="section-head" style="margin-top:16px"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg></span><div><h2>WP 元数据</h2><span>下一阶段 WordPress 重构页会继续消费这些结构化信息。</span></div></div></div>
+      <div class="category-list">
+        ${data.wpMetadata.sections.map((section) => `
+          <div class="category-item"><div><b>${escapeHtml(section.label)}</b><span>${escapeHtml(section.section_type)} · ${escapeHtml(section.layout_variant)} · ${escapeHtml(section.source_file)}</span></div><span class="badge">${escapeHtml(section.wp_role)}</span></div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+  qs<HTMLButtonElement>("#aiSiteWpCheckButton", canvas)?.addEventListener("click", (event) => void checkAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteWpExportButton", canvas)?.addEventListener("click", (event) => void exportAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteWpInstallButton", canvas)?.addEventListener("click", (event) => void installAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteWpDetailButton", canvas)?.addEventListener("click", () => activateNavView("ai-site-detail", renderAiSiteDetail));
+}
+
+async function checkAiSiteWordPress(projectId: string, button?: HTMLButtonElement) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "检查中";
+  }
+  try {
+    const result = await api<AiSiteWpRebuildState>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/wp-rebuild/check`, { method: "POST" });
+    renderAiSiteWordPressPanel(result);
+    toast("WordPress 转换检查已完成");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "重新检查";
+    }
+  }
+}
+
+async function exportAiSiteWordPress(projectId: string, button?: HTMLButtonElement) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "导出中";
+  }
+  try {
+    const result = await api<AiSiteWpRebuildState>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/wp-rebuild/export`, { method: "POST" });
+    renderAiSiteWordPressPanel(result);
+    toast(`已导出 WordPress 转换包：${result.export?.exportDir || ""}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "导出转换包";
+    }
+  }
+}
+
+async function installAiSiteWordPress(projectId: string, button?: HTMLButtonElement) {
+  const wordpressRoot = qs<HTMLInputElement>("#aiSiteWpRootInput")?.value.trim() || "";
+  const themeSlug = qs<HTMLInputElement>("#aiSiteWpThemeSlugInput")?.value.trim() || "";
+  if (!wordpressRoot) {
+    toast("请先填写本地 WordPress 根目录", "error");
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = "安装中";
+  }
+  try {
+    const result = await api<AiSiteWpRebuildState>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/wp-rebuild/install`, {
+      method: "POST",
+      body: JSON.stringify({ wordpressRoot, themeSlug })
+    });
+    renderAiSiteWordPressPanel(result);
+    toast(`已安装到：${result.install?.targetDir || ""}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "安装到本地WP";
+    }
+  }
+}
+
 function renderAiSiteEditor(manifest: AiSiteEditorManifest) {
   const canvas = qs<HTMLElement>("#aiSiteEditorCanvas");
   if (!canvas) return;
@@ -1113,10 +1331,17 @@ function renderAiSiteEditor(manifest: AiSiteEditorManifest) {
   canvas.innerHTML = `
     <section class="panel section site-editor-workflow">
       <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></span><div><h2>区块工作流</h2><span>${escapeHtml(manifest.project.siteName)} · Header/Footer 已锁定</span></div></div></div>
+      <div class="head-actions" style="justify-content:flex-start;margin-bottom:12px">
+        <button class="btn primary" id="aiSiteAddPageButton">新增页面</button>
+      </div>
+      <div class="empty-cell" style="padding:10px 12px;margin-bottom:12px;text-align:left">
+        WP metadata: ${escapeHtml(manifest.wpMetadata?.site_template || "b2b_industrial")} / ${escapeHtml(manifest.wpMetadata?.wp_mode || "block-theme")} · ${manifest.wpMetadata?.sections.length || manifest.sections.length} sections ready for next-stage conversion.
+      </div>
       <div class="site-editor-workflow-list" id="aiSiteWorkflowList">
         ${manifest.sections.map((section) => `
           <article class="site-section-card ${section.locked ? "is-locked" : ""} ${section.generated ? "" : "is-placeholder"}" data-section-key="${escapeHtml(section.key)}" draggable="${section.locked ? "false" : "true"}">
             <div class="setting-row"><b>${escapeHtml(section.label)}</b><span class="badge ${section.generated ? "green" : "amber"}">${section.locked ? "锁定" : section.generated ? "已生成" : "蓝图占位"}</span></div>
+            <div class="setting-row" style="gap:8px;align-items:flex-start"><span class="badge">WP</span><span>${escapeHtml(section.wp?.layout_variant || "pending-layout")} -> ${escapeHtml(section.wp?.wp_target || "pending-target")}</span></div>
             <p>${escapeHtml(section.blueprint || "固定组件")}</p>
             <div class="head-actions" style="justify-content:flex-start">
               <button class="btn" data-ai-section-source="${escapeHtml(section.key)}">查看源码</button>
@@ -1183,6 +1408,18 @@ async function saveAiSiteSectionOrder(projectId: string) {
   return result.order;
 }
 
+async function addAiSiteCustomPage(projectId: string) {
+  const title = window.prompt("请输入新页面名称", "New Page");
+  if (title === null) return;
+  const result = await api<{ key: string; label: string; order: string[]; message?: string }>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/editor/pages`, {
+    method: "POST",
+    body: JSON.stringify({ title })
+  });
+  state.selectedAiSiteSectionKey = result.key;
+  await loadAiSiteEditor(projectId);
+  toast(result.message || `已新增页面：${result.label}`);
+}
+
 function setAiSiteAgentProgress(lines: string[], tone: "idle" | "running" | "ok" | "error" = "idle") {
   const panel = qs<HTMLElement>("#aiSiteAgentProgress");
   if (!panel) return;
@@ -1199,6 +1436,20 @@ function setAiSiteActiveSection(sectionKey: string) {
   if (meta) meta.textContent = `读取 ${sectionKey}.html，iframe srcdoc 隔离渲染`;
   const instructionSection = qs<HTMLElement>("#aiSiteAgentInstructionSection");
   if (instructionSection) instructionSection.textContent = `${sectionKey}.html`;
+}
+
+function markAiSiteSectionGenerated(sectionKey: string) {
+  const card = qsa<HTMLElement>("#aiSiteWorkflowList [data-section-key]").find((item) => item.dataset.sectionKey === sectionKey);
+  if (!card) return;
+  card.classList.remove("is-placeholder");
+  const badgeEl = qs<HTMLElement>(".setting-row .badge", card);
+  if (badgeEl && !card.classList.contains("is-locked")) {
+    badgeEl.classList.remove("amber");
+    badgeEl.classList.add("green");
+    badgeEl.textContent = "已生成";
+  }
+  const generateButton = qs<HTMLButtonElement>("[data-ai-section-generate]", card);
+  if (generateButton && !card.classList.contains("is-locked")) generateButton.textContent = "重新生成";
 }
 
 async function refreshAiSitePreview(projectId: string, sectionKeyInput?: string) {
@@ -1381,9 +1632,10 @@ function wireAiSiteEditorInteractions(projectId: string) {
   qsa<HTMLButtonElement>("[data-ai-section-source]", list).forEach((button) => {
     button.addEventListener("click", () => void openAiSiteSectionSource(projectId, button.dataset.aiSectionSource || ""));
   });
+  qs<HTMLButtonElement>("#aiSiteAddPageButton")?.addEventListener("click", () => void addAiSiteCustomPage(projectId));
   qs<HTMLButtonElement>("#aiSitePreviewRefreshButton")?.addEventListener("click", () => void refreshAiSitePreview(projectId, state.selectedAiSiteSectionKey || undefined));
   qs<HTMLButtonElement>("#aiSiteBatchGenerateButton")?.addEventListener("click", () => setAiSiteAgentProgress(["批量生成队列已启动", "将按左侧工作流顺序逐个生成非锁定区块。"], "running"), true);
-  qs<HTMLButtonElement>("#aiSiteBatchGenerateButton")?.addEventListener("click", (event) => void batchGenerateAiSiteSections(projectId, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteBatchGenerateButton")?.addEventListener("click", (event) => void batchGenerateAiSiteSectionsRealtime(projectId, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteExportButton")?.addEventListener("click", (event) => void exportAiSiteProject(projectId, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteAgentInstructionClearButton")?.addEventListener("click", () => {
     const input = qs<HTMLTextAreaElement>("#aiSiteAgentInstructionInput");
@@ -1407,6 +1659,60 @@ async function batchGenerateAiSiteSections(projectId: string, button: HTMLButton
     });
     await loadAiSiteEditor(projectId);
     toast(result.message || `批量生成完成：${result.generatedCount} 个成功，${result.failedCount} 个失败`, result.failedCount ? "error" : "ok");
+  } finally {
+    button.disabled = false;
+    button.textContent = previous;
+  }
+}
+
+async function batchGenerateAiSiteSectionsRealtime(projectId: string, button: HTMLButtonElement) {
+  const previous = button.textContent || "批量生成";
+  button.textContent = "队列生成中...";
+  button.disabled = true;
+  const order = currentAiSiteSectionOrder();
+  const targets = order.filter((key) => {
+    const card = qsa<HTMLElement>("#aiSiteWorkflowList [data-section-key]").find((item) => item.dataset.sectionKey === key);
+    return Boolean(key) && !card?.classList.contains("is-locked");
+  });
+  let generatedCount = 0;
+  let failedCount = 0;
+  try {
+    if (!targets.length) {
+      setAiSiteAgentProgress(["没有可生成的非锁定区块。"], "idle");
+      return;
+    }
+    await saveAiSiteSectionOrder(projectId);
+    for (const sectionKey of targets) {
+      setAiSiteActiveSection(sectionKey);
+      setAiSiteAgentProgress([
+        `正在生成 ${sectionKey}.html`,
+        `队列进度 ${generatedCount + failedCount + 1} / ${targets.length}`,
+        "该区块完成后会立即更新左侧状态。"
+      ], "running");
+      try {
+        const result = await api<{ message?: string; generated?: boolean }>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/sections/${encodeURIComponent(sectionKey)}/generate`, {
+          method: "POST",
+          body: JSON.stringify({ instruction: aiSiteSectionGenerateInstruction(sectionKey, "") })
+        });
+        generatedCount += 1;
+        markAiSiteSectionGenerated(sectionKey);
+        setAiSiteAgentProgress([
+          result.message || `${sectionKey}.html 已生成`,
+          `队列进度 ${generatedCount + failedCount} / ${targets.length}`,
+          `成功 ${generatedCount} 个，失败 ${failedCount} 个。`
+        ], "ok");
+        await refreshAiSitePreview(projectId, sectionKey);
+      } catch (error) {
+        failedCount += 1;
+        const message = error instanceof Error ? error.message : `${sectionKey}.html 生成失败`;
+        setAiSiteAgentProgress([
+          message,
+          `队列进度 ${generatedCount + failedCount} / ${targets.length}`,
+          `成功 ${generatedCount} 个，失败 ${failedCount} 个。`
+        ], "error");
+      }
+    }
+    toast(`批量生成完成：${generatedCount} 个成功，${failedCount} 个失败`, failedCount ? "error" : "ok");
   } finally {
     button.disabled = false;
     button.textContent = previous;
@@ -1957,6 +2263,7 @@ async function refreshAll(user: User) {
   renderAiConfig(state.aiConfig);
   renderAiSiteProjectList();
   renderAiSiteDetail();
+  renderAiSiteWordPress();
   renderWebsiteOpportunities(state.websiteOpportunities);
   renderLeadFinder(state.websiteOpportunities);
   renderProspectList();
@@ -7765,10 +8072,19 @@ function installEvents() {
   qs<HTMLButtonElement>("#aiSiteBuilderDetailButton")?.addEventListener("click", () => activateNavView("ai-site-detail", renderAiSiteDetail));
   qs<HTMLButtonElement>("#aiSiteDetailRefreshButton")?.addEventListener("click", () => void refreshAiSiteProjects());
   qs<HTMLButtonElement>("#aiSiteDetailBackButton")?.addEventListener("click", () => activateNavView("ai-site-builder", renderAiSiteProjectList));
+  qs<HTMLButtonElement>("#aiSiteWordPressRefreshButton")?.addEventListener("click", () => renderAiSiteWordPress());
+  qs<HTMLButtonElement>("#aiSiteWordPressBackButton")?.addEventListener("click", () => activateNavView("ai-site-detail", renderAiSiteDetail));
   qs<HTMLButtonElement>("#aiSiteApiLoadButton")?.addEventListener("click", (event) => void loadAiSiteBuilderSettings(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteApiSaveButton")?.addEventListener("click", (event) => void saveAiSiteBuilderSettings(event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteApiTestButton")?.addEventListener("click", (event) => void testAiSiteBuilderSettings(event.currentTarget as HTMLButtonElement));
-  qs<HTMLElement>("#schemaProductCategoriesList")?.addEventListener("input", syncSchemaProductCategoryInputs);
+  qs<HTMLElement>("#schemaProductCategoriesList")?.addEventListener("keydown", (event) => {
+    if (!(event instanceof KeyboardEvent) || event.key !== "Enter") return;
+    const target = event.target instanceof HTMLInputElement ? event.target : null;
+    if (!target?.classList.contains("schema-product-category-input")) return;
+    event.preventDefault();
+    syncSchemaProductCategoryInputsOnCommit(event);
+  });
+  qs<HTMLElement>("#schemaProductCategoriesList")?.addEventListener("focusout", syncSchemaProductCategoryInputsOnCommit);
   renderSchemaProductCategoryInputs();
   qs<HTMLSelectElement>("#aiSiteProviderSelect")?.addEventListener("change", (event) => {
     const preset = aiSiteProviderPresets[(event.currentTarget as HTMLSelectElement).value] || aiSiteProviderPresets.custom;
@@ -7871,6 +8187,8 @@ function activateNavView(view: string, after?: () => void) {
   qsa<HTMLElement>(".view").forEach((node) => node.classList.toggle("active", node.id === view));
   renderTopbarForView(view);
   if (view === "ai-site-builder") void loadAiSiteBuilderSettings(undefined, true);
+  if (view === "ai-site-detail") renderAiSiteDetail();
+  if (view === "ai-site-wordpress") renderAiSiteWordPress();
   window.scrollTo({ top: 0, behavior: "smooth" });
   after?.();
 }
@@ -7928,6 +8246,9 @@ function resolveTopbarSearchView(rawValue: string) {
     ["ai建站", "ai-site-builder"],
     ["建站详细", "ai-site-detail"],
     ["建站详情", "ai-site-detail"],
+    ["WordPress重构", "ai-site-wordpress"],
+    ["WP重构", "ai-site-wordpress"],
+    ["wordpress", "ai-site-wordpress"],
     ["建站", "ai-site-builder"],
     ["website builder", "ai-site-builder"],
     ["ai", "ai-config"],

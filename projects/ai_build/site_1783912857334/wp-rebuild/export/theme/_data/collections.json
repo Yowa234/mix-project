@@ -1,0 +1,119 @@
+{
+  "product": {
+    "label": "Products",
+    "taxonomy": "Product Categories",
+    "items": [
+      {
+        "title": "Pressure Instruments Model 1",
+        "desc": "Pressure Instruments solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.",
+        "category": "Pressure Instruments",
+        "image": ""
+      },
+      {
+        "title": "Temperature Instruments Model 2",
+        "desc": "Temperature Instruments solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.",
+        "category": "Temperature Instruments",
+        "image": ""
+      },
+      {
+        "title": "Flow Meters Model 3",
+        "desc": "Flow Meters solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.",
+        "category": "Flow Meters",
+        "image": ""
+      },
+      {
+        "title": "Pressure Instruments Model 4",
+        "desc": "Pressure Instruments solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.",
+        "category": "Pressure Instruments",
+        "image": ""
+      },
+      {
+        "title": "Temperature Instruments Model 5",
+        "desc": "Temperature Instruments solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.",
+        "category": "Temperature Instruments",
+        "image": ""
+      },
+      {
+        "title": "Flow Meters Model 6",
+        "desc": "Flow Meters solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.",
+        "category": "Flow Meters",
+        "image": ""
+      }
+    ]
+  },
+  "service": {
+    "label": "Services",
+    "taxonomy": "Service Categories",
+    "items": [
+      {
+        "title": "Application Matching",
+        "desc": "Match products to operating conditions, buyer requirements, and target markets.",
+        "category": "Pre-sales",
+        "image": ""
+      },
+      {
+        "title": "Export Documentation",
+        "desc": "Support datasheets, certificates, packing details, and shipment documents.",
+        "category": "Export",
+        "image": ""
+      },
+      {
+        "title": "Distributor Support",
+        "desc": "Prepare catalogs, technical content, and inquiry follow-up materials for channel partners.",
+        "category": "Channel",
+        "image": ""
+      }
+    ]
+  },
+  "case": {
+    "label": "Cases",
+    "taxonomy": "Case Categories",
+    "items": [
+      {
+        "title": "Pressure Instruments Export Project 1",
+        "desc": "Delivered pressure instruments support for an overseas industrial customer with stable quality and responsive communication.",
+        "category": "Pressure Instruments",
+        "image": ""
+      },
+      {
+        "title": "Temperature Instruments Export Project 2",
+        "desc": "Delivered temperature instruments support for an overseas industrial customer with stable quality and responsive communication.",
+        "category": "Temperature Instruments",
+        "image": ""
+      },
+      {
+        "title": "Flow Meters Export Project 3",
+        "desc": "Delivered flow meters support for an overseas industrial customer with stable quality and responsive communication.",
+        "category": "Flow Meters",
+        "image": ""
+      }
+    ]
+  },
+  "news": {
+    "label": "News",
+    "taxonomy": "News Categories",
+    "items": [
+      {
+        "title": "Pressure Instruments Selection Guide 1",
+        "desc": "Practical notes for sourcing pressure instruments in international industrial procurement.",
+        "category": "Guides",
+        "image": "",
+        "date": "2026-07-13"
+      },
+      {
+        "title": "Temperature Instruments Selection Guide 2",
+        "desc": "Practical notes for sourcing temperature instruments in international industrial procurement.",
+        "category": "Guides",
+        "image": "",
+        "date": "2026-07-12"
+      },
+      {
+        "title": "Flow Meters Selection Guide 3",
+        "desc": "Practical notes for sourcing flow meters in international industrial procurement.",
+        "category": "Guides",
+        "image": "",
+        "date": "2026-07-11"
+      }
+    ]
+  }
+}

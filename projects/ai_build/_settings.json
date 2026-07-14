@@ -6,9 +6,9 @@
     "model": "gpt-5.4",
     "baseUrl": "https://www.packyapi.com/v1",
     "apiKey": "sk-SkeWcmJpY7He6Aj1c8VyZOHl8DhIh9cIc4VKF18RxMpVxvyl",
-    "enabled": true,
-    "lastTestStatus": "passed",
-    "lastTestMessage": "OpenAI 连接测试通过",
-    "updatedAt": "2026-07-13T03:41:44.252Z"
+    "enabled": false,
+    "lastTestStatus": "untested",
+    "lastTestMessage": "",
+    "updatedAt": "2026-07-14T01:51:16.897Z"
   }
 ]

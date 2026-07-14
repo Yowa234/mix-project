@@ -1,0 +1,30 @@
+{
+  "company_profile": {
+    "legal_name": "神州离心机",
+    "wordmark": "",
+    "tagline": "",
+    "description": "",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "industrial-professional",
+    "colors": [],
+    "keywords": [],
+    "reference_sites": [],
+    "custom_notes": ""
+  }
+}

@@ -8531,6 +8531,9 @@
         <button data-view="ai-site-detail" title="建站详细">
           <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg><span>建站详细</span><em>详情</em>
         </button>
+        <button data-view="ai-site-wordpress" title="WordPress重构">
+          <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/><path d="M16 4v16"/></svg><span>WordPress重构</span><em>WP</em>
+        </button>
         <button data-view="instrument-growth" title="计划任务">
           <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>计划任务</span><em>执行</em>
         </button>
@@ -8599,6 +8602,7 @@
               <option value="AI配置"></option>
               <option value="AI建站"></option>
               <option value="建站详细"></option>
+              <option value="WordPress重构"></option>
               <option value="商机"></option>
               <option value="待办"></option>
               <option value="考试"></option>
@@ -8614,6 +8618,7 @@
             <button type="button" data-top-view="ai-config">AI</button>
             <button type="button" data-top-view="ai-site-builder">建站</button>
             <button type="button" data-top-view="ai-site-detail">详情</button>
+            <button type="button" data-top-view="ai-site-wordpress">WP</button>
             <button type="button" data-top-view="customers">客户</button>
             <button type="button" data-top-view="pipeline">商机</button>
             <button type="button" data-top-view="exam">考试</button>
@@ -10114,6 +10119,14 @@ https://www.ifm.com"></textarea>
           <div id="aiSiteEditorCanvas" class="site-editor-canvas"><div class="empty-cell">请先在 AI建站 页面创建或选择项目任务。</div></div>
         </div>
 
+        <div class="view" id="ai-site-wordpress">
+          <div class="page-head">
+            <div><p class="eyebrow">WordPress Rebuild</p><h1>WordPress重构</h1><p class="sub">读取建站详细中的 WP 元数据，负责转换检查、导出 block theme starter，并预留安装到本地 WordPress 的接口。</p></div>
+            <div class="head-actions"><button class="btn" id="aiSiteWordPressRefreshButton">刷新检查</button><button class="btn" id="aiSiteWordPressBackButton">返回建站详细</button></div>
+          </div>
+          <div id="aiSiteWordPressCanvas" class="site-editor-canvas"><div class="empty-cell">请先在 AI建站 页面创建或选择项目任务。</div></div>
+        </div>
+
 	        <div class="view" id="settings">
           <div class="page-head">
             <div><p class="eyebrow">Account & Access Control</p><h1>账号管理</h1><p class="sub">账号、角色、数据范围、登录状态、MySQL、备份、审计和导出审批统一管理。</p></div>
@@ -10276,7 +10289,7 @@ https://www.ifm.com"></textarea>
       const viewMap = [
         ["客户", "customers"], ["customer", "customers"],
         ["搜客", "lead-finder"], ["获客", "lead-finder"], ["lead", "lead-finder"], ["prospect", "lead-finder"],
-        ["AI建站", "ai-site-builder"], ["ai建站", "ai-site-builder"], ["建站详细", "ai-site-detail"], ["建站详情", "ai-site-detail"], ["建站", "ai-site-builder"], ["website builder", "ai-site-builder"],
+        ["AI建站", "ai-site-builder"], ["ai建站", "ai-site-builder"], ["建站详细", "ai-site-detail"], ["建站详情", "ai-site-detail"], ["WordPress重构", "ai-site-wordpress"], ["WP重构", "ai-site-wordpress"], ["wordpress", "ai-site-wordpress"], ["建站", "ai-site-builder"], ["website builder", "ai-site-builder"],
         ["ai", "ai-config"], ["gpt", "ai-config"], ["模型", "ai-config"], ["apikey", "ai-config"], ["api key", "ai-config"],
         ["商机", "pipeline"], ["pipeline", "pipeline"],
         ["待办", "dashboard"], ["todo", "dashboard"], ["工作台", "dashboard"],
