@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "Scenario-led website optimization for export sales teams",
+      "default_value": "Scenario Paths Built Around Buyer Intent",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "When product lines are not the problem, the buying path usually is. Xunpanyun aligns operating context, buyer friction, and the right B2B website upgrade so overseas traffic turns into qualified inquiries."
+      "default_value": "Each application card previews one buyer situation, the product route that supports it, and the outcome your sales team should guide toward."
     },
     {
       "key": "field_goodjob_applications_primary_label",
@@ -45,7 +45,7 @@
       "label": "Primary Button URL",
       "name": "primary_url",
       "type": "url",
-      "default_value": "#contact-us",
+      "default_value": "/contact-us/",
       "wrapper": {
         "width": "50"
       }

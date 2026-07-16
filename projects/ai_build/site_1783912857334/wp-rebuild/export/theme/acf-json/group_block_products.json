@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "Built for industrial buyers needing consistent quality, repeatable production, and fast inquiry-to-quote support across core manufacturing programs."
+      "default_value": "Browse export-ready industrial parts by process and application. Each category is built for stable quality, repeat orders, and fast inquiry handling."
     },
     {
       "key": "field_goodjob_products_primary_label",
@@ -45,7 +45,7 @@
       "label": "Primary Button URL",
       "name": "primary_url",
       "type": "url",
-      "default_value": "#contact-us",
+      "default_value": "/contact-us/",
       "wrapper": {
         "width": "50"
       }

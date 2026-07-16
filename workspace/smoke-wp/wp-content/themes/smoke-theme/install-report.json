@@ -1,0 +1,118 @@
+{
+  "projectId": "site_1784108497242",
+  "install": {
+    "wordpressRoot": "D:\\Code\\project-mix\\GoodJob\\workspace\\smoke-wp",
+    "themeSlug": "smoke-theme",
+    "targetDir": "D:\\Code\\project-mix\\GoodJob\\workspace\\smoke-wp\\wp-content\\themes\\smoke-theme",
+    "overwrite": true,
+    "backupDir": null,
+    "installedAt": "2026-07-15T09:41:38.659Z",
+    "preflight": {
+      "hasWpConfig": true,
+      "hasWpContent": true,
+      "hasThemesDir": true,
+      "targetExistsBefore": false,
+      "sourceThemeDir": "D:\\Code\\project-mix\\GoodJob\\projects\\ai_build\\site_1784108497242\\wp-rebuild\\export\\theme"
+    },
+    "checks": [
+      {
+        "file": "style.css",
+        "exists": true
+      },
+      {
+        "file": "functions.php",
+        "exists": true
+      },
+      {
+        "file": "templates/front-page.html",
+        "exists": true
+      },
+      {
+        "file": "templates/archive-product.html",
+        "exists": true
+      },
+      {
+        "file": "templates/single-product.html",
+        "exists": true
+      },
+      {
+        "file": "templates/archive-news.html",
+        "exists": true
+      },
+      {
+        "file": "templates/single-news.html",
+        "exists": true
+      },
+      {
+        "file": "blocks/products-archive/block.json",
+        "exists": true
+      },
+      {
+        "file": "blocks/products-archive/render.php",
+        "exists": true
+      },
+      {
+        "file": "blocks/blog-archive/block.json",
+        "exists": true
+      },
+      {
+        "file": "blocks/blog-archive/render.php",
+        "exists": true
+      },
+      {
+        "file": "blocks/product-detail/block.json",
+        "exists": true
+      },
+      {
+        "file": "blocks/product-detail/render.php",
+        "exists": true
+      },
+      {
+        "file": "blocks/news-detail/block.json",
+        "exists": true
+      },
+      {
+        "file": "blocks/news-detail/render.php",
+        "exists": true
+      },
+      {
+        "file": "_data/collections.json",
+        "exists": true
+      },
+      {
+        "file": "_data/pages.json",
+        "exists": true
+      },
+      {
+        "file": "_data/routes.json",
+        "exists": true
+      },
+      {
+        "file": "inc/cpt.php",
+        "exists": true
+      },
+      {
+        "file": "inc/installer.php",
+        "exists": true
+      },
+      {
+        "file": "inc/admin.php",
+        "exists": true
+      }
+    ],
+    "routeHints": {
+      "home": "/",
+      "products": "/products/",
+      "productDetail": "/product/{product-slug}/",
+      "blog": "/blog/",
+      "newsDetail": "/news/{news-slug}/",
+      "contact": "/contact-us/"
+    },
+    "nextSteps": [
+      "Activate the installed theme in wp-admin > Appearance > Themes.",
+      "Open wp-admin > GoodJob AI Site and run the seed/rebuild action if pages or CPT content are empty.",
+      "Open wp-admin > Settings > Permalinks and click Save Changes if product/news detail URLs return 404.",
+      "Confirm Products and News have published sample items before testing single routes."
+    ]
+  }
+}

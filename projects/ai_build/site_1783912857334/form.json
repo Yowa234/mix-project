@@ -1,9 +1,9 @@
 {
   "company_profile": {
-    "legal_name": "询盘云",
-    "wordmark": "询盘云",
-    "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
-    "description": "面向外贸公司进行网站优化",
+    "legal_name": "InquiryCloud",
+    "wordmark": "InquiryCloud",
+    "tagline": "SEO-led B2B inquiry optimization for export-ready manufacturers",
+    "description": "InquiryCloud helps foreign trade companies improve website visibility, buyer trust, and inquiry conversion for global B2B markets.",
     "logo_url": ""
   },
   "contact_info": {
@@ -12,7 +12,12 @@
     "address": ""
   },
   "business_taxonomy": {
-    "product_categories": [],
+    "product_categories": [
+      "CNC Machining Parts",
+      "Valve Components",
+      "Sheet Metal Fabrication",
+      "Automation Hardware"
+    ],
     "solutions": []
   },
   "social_links": {
@@ -23,7 +28,11 @@
   "style_requirements": {
     "preset": "industrial-professional",
     "colors": [],
-    "keywords": [],
+    "keywords": [
+      "professional",
+      "export-ready",
+      "trustworthy"
+    ],
     "reference_sites": [],
     "custom_notes": ""
   }

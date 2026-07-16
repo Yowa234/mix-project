@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "询盘云 helps export-ready manufacturers turn search traffic into qualified global RFQs",
+      "default_value": "Win More Global Buyer Inquiries with SEO-Led Trust Signals",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "Built for foreign trade teams, 询盘云 strengthens website visibility, inquiry conversion, and buyer trust so your industrial business wins more serious overseas opportunities."
+      "default_value": "InquiryCloud helps export-ready manufacturers improve visibility, strengthen buyer confidence, and convert more qualified B2B inquiries with a credible, industry-focused web presence."
     },
     {
       "key": "field_goodjob_hero_primary_label",
@@ -45,7 +45,7 @@
       "label": "Primary Button URL",
       "name": "primary_url",
       "type": "url",
-      "default_value": "#contact-us",
+      "default_value": "/contact-us/",
       "wrapper": {
         "width": "50"
       }

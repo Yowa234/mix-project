@@ -1,0 +1,121 @@
+{
+  "version": "1.0",
+  "mode": "multi-route-block-theme",
+  "note": "Static pages are assembled from ACF blocks. List/detail routes are backed by native WordPress CPT data seeded from collections.json.",
+  "nav": [
+    {
+      "label": "Home",
+      "route_type": "page",
+      "slug": "home",
+      "source": "pages.home"
+    },
+    {
+      "label": "Products",
+      "route_type": "archive",
+      "post_type": "product",
+      "slug": "products",
+      "source": "collections.product"
+    },
+    {
+      "label": "Applications",
+      "route_type": "page",
+      "slug": "applications",
+      "source": "pages.applications"
+    },
+    {
+      "label": "About Us",
+      "route_type": "page",
+      "slug": "about-us",
+      "source": "pages.about_us"
+    },
+    {
+      "label": "Blog",
+      "route_type": "archive",
+      "post_type": "news",
+      "slug": "blog",
+      "source": "collections.news"
+    },
+    {
+      "label": "Contact Us",
+      "route_type": "page",
+      "slug": "contact-us",
+      "source": "pages.contact_us"
+    }
+  ],
+  "cpt_routes": {
+    "product": {
+      "archive": "/products/",
+      "taxonomy": "/product-category/{term}/",
+      "single": "/products/{post}/",
+      "data_source": "collections.product",
+      "required_templates": [
+        "archive-product.html",
+        "taxonomy-product_cat.html",
+        "single-product.html"
+      ],
+      "seed_count": 8
+    },
+    "case": {
+      "archive": "/cases/",
+      "taxonomy": "/case-category/{term}/",
+      "single": "/cases/{post}/",
+      "data_source": "collections.case",
+      "required_templates": [
+        "archive-case.html",
+        "taxonomy-case_cat.html",
+        "single-case.html"
+      ],
+      "seed_count": 4
+    },
+    "news": {
+      "archive": "/blog/",
+      "taxonomy": "/news-category/{term}/",
+      "single": "/blog/{post}/",
+      "data_source": "collections.news",
+      "required_templates": [
+        "archive-news.html",
+        "taxonomy-news_cat.html",
+        "single-news.html"
+      ],
+      "seed_count": 6
+    },
+    "service": {
+      "archive": "/services/",
+      "taxonomy": "/service-category/{term}/",
+      "single": "/services/{post}/",
+      "data_source": "collections.service",
+      "required_templates": [
+        "archive-service.html",
+        "taxonomy-service_cat.html",
+        "single-service.html"
+      ],
+      "seed_count": 4
+    }
+  },
+  "static_pages": {
+    "home": [
+      "hero",
+      "products",
+      "applications",
+      "about_us",
+      "blog",
+      "contact_us"
+    ],
+    "applications": [
+      "applications",
+      "products",
+      "contact_us"
+    ],
+    "about_us": [
+      "about_us",
+      "applications",
+      "contact_us"
+    ],
+    "contact_us": [
+      "contact_us"
+    ],
+    "thanks": [
+      "contact_us"
+    ]
+  }
+}

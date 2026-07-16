@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "Win more qualified overseas inquiries",
+      "default_value": "Talk to a team focused on SEO-driven B2B inquiry growth",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "Tell us how your trade business is performing online, and InquiryCloud will review your website, message flow, and buyer conversion path. We prepare a practical proposal focused on faster response, clearer inquiry capture, and stronger lead quality for interna"
+      "default_value": "询盘云 helps foreign trade companies improve website performance, sharpen inquiry conversion, and support practical RFQ workflows for international buyers. Share your market, target products, and business goals, and we will prepare a focused proposal built for ex"
     },
     {
       "key": "field_goodjob_contact_us_primary_label",
@@ -45,7 +45,7 @@
       "label": "Primary Button URL",
       "name": "primary_url",
       "type": "url",
-      "default_value": "#contact-us",
+      "default_value": "/contact-us/",
       "wrapper": {
         "width": "50"
       }

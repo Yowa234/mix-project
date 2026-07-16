@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "A practical export growth system built for B2B manufacturers",
+      "default_value": "Industrial-grade growth support for export-focused B2B teams",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "询盘云 helps industrial exporters turn websites into qualified inquiry channels. We combine SEO-led structure, conversion-focused content, and disciplined export communication so your online presence supports real manufacturing business, not just traffic."
+      "default_value": "询盘云 helps foreign trade companies strengthen website visibility, inquiry conversion, and buyer trust with a process built for long-cycle B2B sales. We operate like a capability system: strategy, execution, proof control, and export-ready communication in one d"
     },
     {
       "key": "field_goodjob_about_us_primary_label",
@@ -45,7 +45,7 @@
       "label": "Primary Button URL",
       "name": "primary_url",
       "type": "url",
-      "default_value": "#contact-us",
+      "default_value": "/contact-us/",
       "wrapper": {
         "width": "50"
       }

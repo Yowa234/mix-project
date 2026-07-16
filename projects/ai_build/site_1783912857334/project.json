@@ -1,23 +1,24 @@
 {
   "id": "site_1783912857334",
-  "taskName": "询盘云 建站任务",
-  "siteName": "询盘云",
-  "industry": "未指定行业",
+  "taskName": "InquiryCloud AI Website Task",
+  "siteName": "InquiryCloud",
+  "industry": "B2B export website optimization",
   "goal": "lead-generation",
   "tone": "industrial-professional",
   "pages": [
-    "首页",
-    "产品中心",
-    "解决方案",
-    "成功案例",
-    "联系我们"
+    "Home",
+    "Products",
+    "Applications",
+    "About Us",
+    "Blog",
+    "Contact Us"
   ],
   "schemaData": {
     "company_profile": {
-      "legal_name": "询盘云",
-      "wordmark": "询盘云",
-      "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
-      "description": "面向外贸公司进行网站优化",
+      "legal_name": "InquiryCloud",
+      "wordmark": "InquiryCloud",
+      "tagline": "SEO-led B2B inquiry optimization for export-ready manufacturers",
+      "description": "InquiryCloud helps foreign trade companies improve website visibility, buyer trust, and inquiry conversion for global B2B markets.",
       "logo_url": ""
     },
     "contact_info": {
@@ -26,7 +27,12 @@
       "address": ""
     },
     "business_taxonomy": {
-      "product_categories": [],
+      "product_categories": [
+        "CNC Machining Parts",
+        "Valve Components",
+        "Sheet Metal Fabrication",
+        "Automation Hardware"
+      ],
       "solutions": []
     },
     "social_links": {
@@ -37,7 +43,11 @@
     "style_requirements": {
       "preset": "industrial-professional",
       "colors": [],
-      "keywords": [],
+      "keywords": [
+        "professional",
+        "export-ready",
+        "trustworthy"
+      ],
       "reference_sites": [],
       "custom_notes": ""
     }
@@ -49,10 +59,10 @@
     "source": "goodjob_ai_site_builder",
     "website_data": {
       "company_profile": {
-        "legal_name": "询盘云",
-        "wordmark": "询盘云",
-        "tagline": "它是一个基SEO、询盘优化、面向外贸b2b的企业",
-        "description": "面向外贸公司进行网站优化",
+        "legal_name": "InquiryCloud",
+        "wordmark": "InquiryCloud",
+        "tagline": "SEO-led B2B inquiry optimization for export-ready manufacturers",
+        "description": "InquiryCloud helps foreign trade companies improve website visibility, buyer trust, and inquiry conversion for global B2B markets.",
         "logo_url": ""
       },
       "contact_info": {
@@ -61,7 +71,12 @@
         "address": ""
       },
       "business_taxonomy": {
-        "product_categories": [],
+        "product_categories": [
+          "CNC Machining Parts",
+          "Valve Components",
+          "Sheet Metal Fabrication",
+          "Automation Hardware"
+        ],
         "solutions": []
       },
       "social_links": {
@@ -73,17 +88,22 @@
     "style_requirements": {
       "preset": "industrial-professional",
       "colors": [],
-      "keywords": [],
+      "keywords": [
+        "professional",
+        "export-ready",
+        "trustworthy"
+      ],
       "reference_sites": [],
       "custom_notes": ""
     },
     "generation_requirements": {
       "target_pages": [
-        "首页",
-        "产品中心",
-        "解决方案",
-        "成功案例",
-        "联系我们"
+        "Home",
+        "Products",
+        "Applications",
+        "About Us",
+        "Blog",
+        "Contact Us"
       ],
       "output_mode": "project_task_draft",
       "handoff_target": "agent"

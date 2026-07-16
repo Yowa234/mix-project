@@ -16,27 +16,27 @@
       "do not repeat the same heading plus 3-card grid in every section"
     ],
     "palette": {
-      "brand": "#143A7B",
-      "accent": "#C8161C",
-      "surface": "#F4F6FA",
-      "brandDeep": "#091B39",
-      "brandWide": "#35568D",
-      "dark": "#061329"
+      "brand": "#4F46E5",
+      "accent": "#E11D48",
+      "surface": "#F5F3FF",
+      "brandDeep": "#312E81",
+      "brandWide": "#6860E9",
+      "dark": "#17113D"
     },
     "summary": "professional industrial; balanced; industrial geometry; industrial navy/steel bands with controlled accent details; B2B industrial rhythm with varied vertical sections and practical proof modules"
   },
   "palette": {
-    "brand": "#143A7B",
-    "accent": "#C8161C",
-    "brandDeep": "#091B39",
-    "brandWide": "#35568D",
+    "brand": "#4F46E5",
+    "accent": "#E11D48",
+    "brandDeep": "#312E81",
+    "brandWide": "#6860E9",
     "ink": "#16202E",
     "body": "#3C4858",
     "muted": "#6B7686",
     "line": "#E2E7EE",
-    "surface": "#F4F6FA",
+    "surface": "#F5F3FF",
     "steel": "#EAEEF4",
-    "dark": "#061329",
+    "dark": "#17113D",
     "light": "#ffffff"
   },
   "typography": {

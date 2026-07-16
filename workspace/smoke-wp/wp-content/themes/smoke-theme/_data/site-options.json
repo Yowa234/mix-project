@@ -1,0 +1,27 @@
+{
+  "site_name": "未命名网站",
+  "company": {
+    "legal_name": "",
+    "wordmark": "",
+    "tagline": "",
+    "description": "",
+    "logo_url": ""
+  },
+  "contact": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "industrial-professional",
+    "colors": [],
+    "keywords": [],
+    "reference_sites": [],
+    "custom_notes": ""
+  }
+}

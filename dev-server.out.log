@@ -1450,3 +1450,30 @@
 [1] [2m10:08:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/prototype-api.ts[22m
 [1] [2m10:10:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/prototype-api.ts[22m
 [1] [2m10:11:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/prototype-api.ts[22m
+[1] [2m15:39:21[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/me[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:24[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:26[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:27[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:27[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:30[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:39:51[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/login[39m
+[1] Error: connect ECONNREFUSED 127.0.0.1:4188
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16)
+[1] [2m15:52:26[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/ai-site-builder/projects/site_1783912857334/sections/blog/generate[39m
+[1] Error: read ECONNRESET
+[1]     at TCP.onStreamRead (node:internal/stream_base_commons:216:20)

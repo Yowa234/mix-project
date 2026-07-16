@@ -1,0 +1,117 @@
+{
+  "exportedAt": "2026-07-15T09:41:37.941Z",
+  "projectId": "site_1784108497242",
+  "themeSlug": "goodjob-ai-site",
+  "summary": {
+    "pass": 9,
+    "warning": 0,
+    "error": 6
+  },
+  "checks": [
+    {
+      "key": "header",
+      "label": "Header",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "template-parts/header.html"
+    },
+    {
+      "key": "hero",
+      "label": "Hero",
+      "status": "error",
+      "message": "HTML source file is missing.",
+      "target": "blocks/hero-photo-slider"
+    },
+    {
+      "key": "products",
+      "label": "Products",
+      "status": "error",
+      "message": "HTML source file is missing.",
+      "target": "blocks/products-category-catalog"
+    },
+    {
+      "key": "applications",
+      "label": "Applications",
+      "status": "error",
+      "message": "HTML source file is missing.",
+      "target": "blocks/applications-scenario-map"
+    },
+    {
+      "key": "about_us",
+      "label": "About Us",
+      "status": "error",
+      "message": "HTML source file is missing.",
+      "target": "blocks/about-capability-stack"
+    },
+    {
+      "key": "blog",
+      "label": "Blog",
+      "status": "error",
+      "message": "HTML source file is missing.",
+      "target": "blocks/recent-blogs-split"
+    },
+    {
+      "key": "contact_us",
+      "label": "Contact Us",
+      "status": "error",
+      "message": "HTML source file is missing.",
+      "target": "blocks/contact-inquiry-form"
+    },
+    {
+      "key": "footer",
+      "label": "Footer",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "template-parts/footer.html"
+    },
+    {
+      "key": "ai_build_root",
+      "label": "AI build storage",
+      "status": "pass",
+      "message": "Project storage is resolved to D:\\Code\\project-mix\\GoodJob\\projects\\ai_build.",
+      "target": "D:\\Code\\project-mix\\GoodJob\\projects\\ai_build"
+    },
+    {
+      "key": "wp_routes",
+      "label": "WordPress route blueprint",
+      "status": "pass",
+      "message": "Prepared 5 static pages and 4 CPT route groups for multi-route assembly.",
+      "target": "theme/_data/routes.json"
+    },
+    {
+      "key": "wp_collection_product",
+      "label": "Products seed data",
+      "status": "pass",
+      "message": "Prepared 21 product seed records; 21 include editable detail content.",
+      "target": "theme/_data/collections.json:product"
+    },
+    {
+      "key": "wp_collection_service",
+      "label": "Services seed data",
+      "status": "pass",
+      "message": "Prepared 4 service seed records; 4 include editable detail content.",
+      "target": "theme/_data/collections.json:service"
+    },
+    {
+      "key": "wp_collection_case",
+      "label": "Cases seed data",
+      "status": "pass",
+      "message": "Prepared 7 case seed records; 7 include editable detail content.",
+      "target": "theme/_data/collections.json:case"
+    },
+    {
+      "key": "wp_collection_news",
+      "label": "News seed data",
+      "status": "pass",
+      "message": "Prepared 14 news seed records; 14 include editable detail content.",
+      "target": "theme/_data/collections.json:news"
+    },
+    {
+      "key": "wp_templates",
+      "label": "WordPress template set",
+      "status": "pass",
+      "message": "Export will create 18 block templates covering home, archives, taxonomies, singles, search, and 404.",
+      "target": "theme/templates"
+    }
+  ]
+}

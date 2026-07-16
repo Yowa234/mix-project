@@ -4,7 +4,7 @@
   "site_name": "神州离心机",
   "site_template": "b2b_industrial",
   "wp_mode": "block-theme",
-  "updated_at": "2026-07-14T06:33:30.092Z",
+  "updated_at": "2026-07-15T08:03:59.074Z",
   "sections": [
     {
       "section_key": "header",
@@ -17,7 +17,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 0,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "hero",
@@ -27,10 +27,10 @@
       "source_file": "sections/hero.html",
       "wp_role": "block",
       "wp_target": "blocks/hero-photo-slider",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 1,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "products",
@@ -43,7 +43,7 @@
       "status": "blueprint",
       "locked": false,
       "order_index": 2,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "applications",
@@ -56,7 +56,7 @@
       "status": "blueprint",
       "locked": false,
       "order_index": 3,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "about_us",
@@ -69,7 +69,7 @@
       "status": "blueprint",
       "locked": false,
       "order_index": 4,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "blog",
@@ -82,7 +82,7 @@
       "status": "blueprint",
       "locked": false,
       "order_index": 5,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "contact_us",
@@ -92,10 +92,10 @@
       "source_file": "sections/contact_us.html",
       "wp_role": "block",
       "wp_target": "blocks/contact-inquiry-form",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 6,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     },
     {
       "section_key": "footer",
@@ -108,7 +108,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 7,
-      "updated_at": "2026-07-14T06:33:30.092Z"
+      "updated_at": "2026-07-15T08:03:59.073Z"
     }
   ],
   "next_stage": {

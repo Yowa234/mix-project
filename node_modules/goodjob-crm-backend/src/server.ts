@@ -1,7 +1,8 @@
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
-import { access, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import nodemailer from "nodemailer";
 import { z } from "zod";
 import { canManageAccounts, canManageRole, canSeeOwner, canSeePersonalData, publicUser, requireAuth, signToken } from "./auth.js";
@@ -13,6 +14,9 @@ import type { AiModelConfig, AiSiteBuilderProject, AiSiteBuilderSetting, Custome
 export const app = express();
 app.use(cors());
 app.use(express.json());
+
+const serverModuleDir = path.dirname(fileURLToPath(import.meta.url));
+const goodJobProjectRoot = path.resolve(serverModuleDir, "..", "..");
 
 function asyncRoute(handler: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -2617,7 +2621,11 @@ function htmlEscape(value: unknown) {
 }
 
 function aiBuildRoot() {
-  return path.resolve(process.env.AI_SITE_BUILD_DIR || path.join(process.cwd(), "..", "projects", "ai_build"));
+  const configured = process.env.AI_SITE_BUILD_DIR?.trim();
+  if (configured) {
+    return path.isAbsolute(configured) ? path.resolve(configured) : path.resolve(goodJobProjectRoot, configured);
+  }
+  return path.join(goodJobProjectRoot, "projects", "ai_build");
 }
 
 function aiProjectDir(projectId: string) {
@@ -3028,7 +3036,7 @@ function aiSiteFrameworkCss(project?: AiSiteBuilderProject) {
   const footer = palette?.dark || mixHexColor(brandDeep, "#000000", 0.28);
   const surface = palette?.surface || "#F4F6FA";
   return `:root{--blue:${brand};--blue-deep:${brandDeep};--blue-700:${brandWide};--red:${accent};--red-deep:${mixHexColor(accent, "#000000", 0.18)};--ink:#16202E;--body:#3C4858;--mid:#6B7686;--line:#E2E7EE;--bg:#FFFFFF;--bg-soft:${surface};--bg-steel:#EAEEF4;--footer:${footer};--footer-2:${mixHexColor(footer, "#000000", 0.16)};--gold:#E8A12C;--max:1280px;--r:4px;--ease:cubic-bezier(.4,0,.2,1);--shadow:0 10px 30px rgba(16,32,60,.10);--shadow-lg:0 24px 60px rgba(16,32,60,.16)}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Barlow,Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--body);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}svg{display:block}.container,.ai-wrap{width:min(var(--max),calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.ai-topbar{background:var(--blue-deep);color:#AFC0DD;font-size:13.5px}.ai-topbar .container{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:18px}.ai-topbar-left,.ai-topbar-right,.ai-socials,.ai-contact-line{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.ai-topbar svg{width:14px;height:14px;color:var(--red);flex:none}.ai-socials a{width:24px;height:24px;border:1px solid rgba(255,255,255,.18);border-radius:3px;display:grid;place-items:center;color:#C7D5EC}.ai-socials a:hover{background:var(--red);border-color:var(--red);color:#fff}.ai-socials svg{width:12px;height:12px}.ai-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(16,32,60,.04)}.ai-nav{min-height:84px;display:flex;align-items:center;justify-content:space-between;gap:clamp(14px,2vw,28px)}.ai-brand{font-weight:800;color:var(--blue);font-size:clamp(24px,2vw,34px);letter-spacing:-.02em;line-height:1;white-space:nowrap;flex:none}.ai-brand small{display:block;font-size:10px;color:var(--mid);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}.ai-brand span{color:var(--red)}.ai-nav-menu{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;flex-wrap:nowrap;min-width:0}.ai-nav-menu li{flex:none}.ai-nav-link{display:flex;align-items:center;gap:6px;height:84px;padding:0 clamp(9px,1vw,17px);font-weight:700;font-size:clamp(13.5px,1vw,15px);color:var(--ink);position:relative;white-space:nowrap;flex:none}.ai-nav-link svg{width:12px;height:12px;flex:none}.ai-nav-link::after{content:"";position:absolute;left:17px;right:17px;bottom:24px;height:2px;background:var(--red);transform:scaleX(0);transform-origin:left;transition:transform .28s var(--ease)}.ai-nav-link:hover::after,.ai-nav-link.is-active::after{transform:scaleX(1)}.ai-caret{width:10px;height:10px}.ai-nav-item{position:relative}.ai-dropdown{position:absolute;top:100%;left:0;min-width:280px;background:#fff;border:1px solid var(--line);border-top:3px solid var(--red);box-shadow:var(--shadow);padding:10px;opacity:0;visibility:hidden;transform:translateY(10px);transition:all .26s var(--ease);border-radius:0 0 var(--r) var(--r)}.ai-nav-item:hover .ai-dropdown{opacity:1;visibility:visible;transform:none}.ai-dropdown a{display:flex;align-items:center;gap:10px;padding:11px 14px;font-size:14.5px;font-weight:600;color:var(--body);border-radius:3px;white-space:nowrap}.ai-dropdown a::before{content:"";width:6px;height:6px;background:var(--red);border-radius:50%;flex:none}.ai-header-cta{display:flex;align-items:center;gap:12px;flex:none}.ai-cta-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#F1F5FB;color:var(--blue);flex:none}.ai-cta-icon svg{width:20px;height:20px}.ai-header-cta > span:not(.ai-cta-icon){display:block;font-size:12px;color:var(--mid)}.ai-header-cta b{display:block;color:var(--ink);font-size:16px;white-space:nowrap}.ai-menu-button{display:none;width:46px;height:46px;border:1px solid var(--line);border-radius:4px;background:#fff;place-items:center}.ai-menu-button i,.ai-menu-button i::before,.ai-menu-button i::after{display:block;width:22px;height:2px;background:var(--ink);content:""}.ai-menu-button i::before{transform:translateY(-7px)}.ai-menu-button i::after{transform:translateY(5px)}.ai-hero{position:relative;min-height:clamp(560px,82vh,760px);padding:0;overflow:hidden;background:radial-gradient(circle at 72% 32%,rgba(127,176,255,.18),transparent 28%),linear-gradient(100deg,rgba(10,22,41,.96) 0%,rgba(10,22,41,.78) 48%,rgba(10,22,41,.48) 100%),linear-gradient(135deg,#20344f 0%,#6f7f83 48%,#1d3b65 100%);color:#fff}.ai-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(0deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:72px 72px;opacity:.35}.ai-hero-inner{position:relative;z-index:2;min-height:inherit;display:flex;align-items:center}.ai-hero-card{max-width:720px}.ai-hero-tag{display:inline-flex;align-items:center;gap:10px;background:rgba(200,22,28,.16);border:1px solid rgba(200,22,28,.5);color:#FFB2B6;font-weight:800;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;padding:9px 16px;border-radius:var(--r);margin-bottom:22px}.ai-hero-tag::before{content:"";width:8px;height:8px;background:var(--red);border-radius:50%;box-shadow:0 0 0 4px rgba(200,22,28,.3)}.ai-hero h1{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(40px,5.4vw,72px);line-height:.98;color:#fff;letter-spacing:.01em;margin:0 0 20px}.ai-hero p{font-size:clamp(16px,1.7vw,20px);line-height:1.7;color:#C8D6EE;max-width:620px;margin:0 0 34px}.ai-actions,.btn-row{display:flex;gap:16px;flex-wrap:wrap}.ai-btn,.primary-btn,.ghost-btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 28px;border-radius:var(--r);font-weight:800;text-transform:uppercase;letter-spacing:.03em}.ai-btn svg,.primary-btn svg,.ghost-btn svg{width:18px;height:18px}.ai-btn-primary,.primary-btn{background:var(--red);color:#fff;border:1px solid var(--red)}.ai-btn-ghost,.ghost-btn{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.46)}.ai-hero-nav{position:absolute;z-index:3;left:0;right:0;bottom:38px}.ai-hero-nav .container{display:flex;justify-content:space-between;align-items:center}.ai-hero-dots{display:flex;gap:10px}.ai-dot{width:38px;height:4px;background:rgba(255,255,255,.3);border-radius:2px}.ai-dot.is-active{background:var(--red);width:54px}.ai-hero-arrows{display:flex;gap:10px}.ai-arrow{width:50px;height:50px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.05);color:#fff;border-radius:var(--r);display:grid;place-items:center}.ai-arrow svg{width:20px;height:20px}.ai-hero-strip{background:var(--blue);color:#fff}.ai-hero-strip .ai-strip-grid{display:grid;grid-template-columns:repeat(4,1fr)}.ai-stat{display:flex;align-items:center;gap:18px;min-height:100px;padding:22px 34px;border-left:1px solid rgba(255,255,255,.16)}.ai-stat:last-child{border-right:1px solid rgba(255,255,255,.16)}.ai-stat svg{width:32px;height:32px;color:#B9D2FF}.ai-stat strong{display:block;font-size:clamp(24px,2.2vw,32px);line-height:1;font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif}.ai-stat span{display:block;color:#D7E4FF;font-size:14px;margin-top:3px}.ai-section,section.ai-section{padding:96px 0;border:0;overflow:hidden}.ai-section-soft{background:var(--bg-soft)}.ai-section-steel{background:var(--bg-steel)}.ai-section-dark{background:var(--footer);color:#C7D2E4}.ai-section-head{max-width:760px;margin:0 0 52px}.ai-section-head.center{margin-left:auto;margin-right:auto;text-align:center}.eyebrow,.ai-eyebrow{display:inline-flex;align-items:center;gap:10px;color:var(--red);font-weight:900;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px}.eyebrow::before,.ai-eyebrow::before{content:"";width:28px;height:2px;background:var(--red)}.ai-section h2,.ai-section-title{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(30px,3.6vw,46px);line-height:1.06;color:var(--ink);margin:0}.ai-section-dark h2{color:#fff}.ai-section-sub{margin-top:18px;font-size:17px;color:var(--mid);line-height:1.75}.ai-grid,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:clamp(18px,3vw,32px)}.ai-card,.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 1px 0 rgba(16,32,60,.04);padding:clamp(22px,2.4vw,32px);min-width:0}.ai-card h3,.card h3{margin:0 0 10px;color:var(--ink);font-size:clamp(20px,1.6vw,24px)}.ai-card p,.card p{color:var(--body);line-height:1.72}.ai-footer,.footer{background:var(--footer);color:#C7D2E4}.ai-footer-top,.footer-top{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.15fr;gap:clamp(26px,4vw,56px);padding:72px 0}.ai-footer h3,.ai-footer h4,.footer h3,.footer h4{color:#fff;margin-top:0}.ai-footer ul,.footer ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}.ai-footer li,.footer li{display:flex;align-items:center;gap:9px;min-width:0}.ai-footer li svg,.footer li svg{width:16px;height:16px;flex:none;color:var(--red)}.ai-footer li,.ai-footer p,.footer li,.footer p{color:#C7D2E4;line-height:1.7}.ai-footer-brand{font-size:28px;font-weight:900;color:#fff}.ai-footer-brand span{color:var(--red)}.ai-footer-bottom,.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98A6BD}.to-top{float:right;color:#fff;display:inline-flex;align-items:center;gap:8px}.to-top svg{width:14px;height:14px;display:inline-block}.placeholder{background:var(--bg-soft)}.placeholder .ai-card,.placeholder .card{border-style:dashed}@media(max-width:1180px){.ai-nav-menu,.ai-header-cta,.ai-topbar-left .hide-md{display:none}.ai-menu-button{display:grid}.ai-nav{min-height:84px}.ai-hero-strip .ai-strip-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:760px){.container,.ai-wrap{width:min(100% - 40px,680px)}.ai-topbar .container{justify-content:space-between}.ai-topbar-left{gap:12px}.ai-topbar-left .ai-contact-line:nth-child(n+2){display:none}.ai-hero{min-height:760px}.ai-hero-card{max-width:100%}.ai-hero h1{font-size:clamp(38px,12vw,54px)}.ai-actions .ai-btn,.btn-row .primary-btn,.btn-row .ghost-btn{width:100%}.ai-hero-nav{bottom:38px}.ai-stat{min-height:122px;padding:24px 20px}.ai-section,section.ai-section{padding:64px 0}.ai-footer-top,.footer-top{grid-template-columns:1fr}.ai-footer-bottom,.footer-bottom{text-align:center}.to-top{float:none;display:inline-flex;margin-top:10px}}`;
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Barlow,Inter,Arial,"Microsoft YaHei",sans-serif;color:var(--body);background:var(--bg);overflow-x:hidden}a{color:inherit;text-decoration:none}svg{display:block}.container,.ai-wrap{width:min(var(--max),calc(100vw - clamp(32px,6vw,120px)));margin:0 auto}.ai-topbar{background:var(--blue-deep);color:#AFC0DD;font-size:13.5px}.ai-topbar .container{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:18px}.ai-topbar-left,.ai-topbar-right,.ai-socials,.ai-contact-line{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.ai-topbar svg{width:14px;height:14px;color:var(--red);flex:none}.ai-socials a{width:24px;height:24px;border:1px solid rgba(255,255,255,.18);border-radius:3px;display:grid;place-items:center;color:#C7D5EC}.ai-socials a:hover{background:var(--red);border-color:var(--red);color:#fff}.ai-socials svg{width:12px;height:12px}.ai-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(16,32,60,.04)}.ai-nav{min-height:84px;display:flex;align-items:center;justify-content:space-between;gap:clamp(14px,2vw,28px)}.ai-brand{font-weight:800;color:var(--blue);font-size:clamp(24px,2vw,34px);letter-spacing:-.02em;line-height:1;white-space:nowrap;flex:none}.ai-brand small{display:block;font-size:10px;color:var(--mid);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}.ai-brand span{color:var(--red)}.ai-nav-menu{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;flex-wrap:nowrap;min-width:0}.ai-nav-menu li{flex:none}.ai-nav-link{display:flex;align-items:center;gap:6px;height:84px;padding:0 clamp(9px,1vw,17px);font-weight:700;font-size:clamp(13.5px,1vw,15px);color:var(--ink);position:relative;white-space:nowrap;flex:none}.ai-nav-link svg{width:12px;height:12px;flex:none}.ai-nav-link::after{content:"";position:absolute;left:17px;right:17px;bottom:24px;height:2px;background:var(--red);transform:scaleX(0);transform-origin:left;transition:transform .28s var(--ease)}.ai-nav-link:hover::after,.ai-nav-link.is-active::after{transform:scaleX(1)}.ai-caret{width:10px;height:10px}.ai-nav-item{position:relative}.ai-dropdown{position:absolute;top:100%;left:0;min-width:280px;background:#fff;border:1px solid var(--line);border-top:3px solid var(--red);box-shadow:var(--shadow);padding:10px;opacity:0;visibility:hidden;transform:translateY(10px);transition:all .26s var(--ease);border-radius:0 0 var(--r) var(--r)}.ai-nav-item:hover .ai-dropdown{opacity:1;visibility:visible;transform:none}.ai-dropdown a{display:flex;align-items:center;gap:10px;padding:11px 14px;font-size:14.5px;font-weight:600;color:var(--body);border-radius:3px;white-space:nowrap}.ai-dropdown a::before{content:"";width:6px;height:6px;background:var(--red);border-radius:50%;flex:none}.ai-header-cta{display:flex;align-items:center;gap:12px;flex:none}.ai-cta-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#F1F5FB;color:var(--blue);flex:none}.ai-cta-icon svg{width:20px;height:20px}.ai-header-cta > span:not(.ai-cta-icon){display:block;font-size:12px;color:var(--mid)}.ai-header-cta b{display:block;color:var(--ink);font-size:16px;white-space:nowrap}.ai-menu-button{display:none;width:46px;height:46px;border:1px solid var(--line);border-radius:4px;background:#fff;place-items:center}.ai-menu-button i,.ai-menu-button i::before,.ai-menu-button i::after{display:block;width:22px;height:2px;background:var(--ink);content:""}.ai-menu-button i::before{transform:translateY(-7px)}.ai-menu-button i::after{transform:translateY(5px)}.ai-hero{position:relative;min-height:clamp(560px,82vh,760px);padding:0;overflow:hidden;background:radial-gradient(circle at 72% 32%,rgba(127,176,255,.18),transparent 28%),linear-gradient(100deg,rgba(10,22,41,.96) 0%,rgba(10,22,41,.78) 48%,rgba(10,22,41,.48) 100%),linear-gradient(135deg,#20344f 0%,#6f7f83 48%,#1d3b65 100%);color:#fff}.ai-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(0deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:72px 72px;opacity:.35}.ai-hero-inner{position:relative;z-index:2;min-height:inherit;display:flex;align-items:center}.ai-hero-card{max-width:720px}.ai-hero-tag{display:inline-flex;align-items:center;gap:10px;background:rgba(200,22,28,.16);border:1px solid rgba(200,22,28,.5);color:#FFB2B6;font-weight:800;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;padding:9px 16px;border-radius:var(--r);margin-bottom:22px}.ai-hero-tag::before{content:"";width:8px;height:8px;background:var(--red);border-radius:50%;box-shadow:0 0 0 4px rgba(200,22,28,.3)}.ai-hero h1{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(40px,5.4vw,72px);line-height:.98;color:#fff;letter-spacing:.01em;margin:0 0 20px}.ai-hero p{font-size:clamp(16px,1.7vw,20px);line-height:1.7;color:#C8D6EE;max-width:620px;margin:0 0 34px}.ai-actions,.btn-row{display:flex;gap:16px;flex-wrap:wrap}.ai-btn,.primary-btn,.ghost-btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 28px;border-radius:var(--r);font-weight:800;text-transform:uppercase;letter-spacing:.03em}.ai-btn svg,.primary-btn svg,.ghost-btn svg{width:18px;height:18px}.ai-btn-primary,.primary-btn{background:var(--red);color:#fff;border:1px solid var(--red)}.ai-btn-ghost,.ghost-btn{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.46)}.ai-hero-nav{position:absolute;z-index:3;left:0;right:0;bottom:38px}.ai-hero-nav .container{display:flex;justify-content:space-between;align-items:center}.ai-hero-dots{display:flex;gap:10px}.ai-dot{width:38px;height:4px;background:rgba(255,255,255,.3);border-radius:2px}.ai-dot.is-active{background:var(--red);width:54px}.ai-hero-arrows{display:flex;gap:10px}.ai-arrow{width:50px;height:50px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.05);color:#fff;border-radius:var(--r);display:grid;place-items:center}.ai-arrow svg{width:20px;height:20px}.ai-photo-hero .hero-bg span{transition:opacity .9s ease}.ai-photo-hero .hero-bg span.is-active,.ai-photo-hero[data-active-slide="1"] .hero-bg-1,.ai-photo-hero[data-active-slide="2"] .hero-bg-2,.ai-photo-hero[data-active-slide="3"] .hero-bg-3{opacity:1!important;animation:none!important}.ai-photo-hero .ai-hero-status span.is-active{display:inline!important;opacity:1!important;animation:none!important}.ai-hero-strip{background:var(--blue);color:#fff}.ai-hero-strip .ai-strip-grid{display:grid;grid-template-columns:repeat(4,1fr)}.ai-stat{display:flex;align-items:center;gap:18px;min-height:100px;padding:22px 34px;border-left:1px solid rgba(255,255,255,.16)}.ai-stat:last-child{border-right:1px solid rgba(255,255,255,.16)}.ai-stat svg{width:32px;height:32px;color:#B9D2FF}.ai-stat strong{display:block;font-size:clamp(24px,2.2vw,32px);line-height:1;font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif}.ai-stat span{display:block;color:#D7E4FF;font-size:14px;margin-top:3px}.ai-section,section.ai-section{padding:96px 0;border:0;overflow:hidden}.ai-section-soft{background:var(--bg-soft)}.ai-section-steel{background:var(--bg-steel)}.ai-section-dark{background:var(--footer);color:#C7D2E4}.ai-section-head{max-width:760px;margin:0 0 52px}.ai-section-head.center{margin-left:auto;margin-right:auto;text-align:center}.eyebrow,.ai-eyebrow{display:inline-flex;align-items:center;gap:10px;color:var(--red);font-weight:900;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px}.eyebrow::before,.ai-eyebrow::before{content:"";width:28px;height:2px;background:var(--red)}.ai-section h2,.ai-section-title{font-family:"Barlow Semi Condensed",Barlow,Arial,sans-serif;font-size:clamp(30px,3.6vw,46px);line-height:1.06;color:var(--ink);margin:0}.ai-section-dark h2{color:#fff}.ai-section-sub{margin-top:18px;font-size:17px;color:var(--mid);line-height:1.75}.ai-grid,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:clamp(18px,3vw,32px)}.ai-card,.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 1px 0 rgba(16,32,60,.04);padding:clamp(22px,2.4vw,32px);min-width:0}.ai-card h3,.card h3{margin:0 0 10px;color:var(--ink);font-size:clamp(20px,1.6vw,24px)}.ai-card p,.card p{color:var(--body);line-height:1.72}.ai-footer,.footer{background:var(--footer);color:#C7D2E4}.ai-footer-top,.footer-top{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.15fr;gap:clamp(26px,4vw,56px);padding:72px 0}.ai-footer h3,.ai-footer h4,.footer h3,.footer h4{color:#fff;margin-top:0}.ai-footer ul,.footer ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}.ai-footer li,.footer li{display:flex;align-items:center;gap:9px;min-width:0}.ai-footer li svg,.footer li svg{width:16px;height:16px;flex:none;color:var(--red)}.ai-footer li,.ai-footer p,.footer li,.footer p{color:#C7D2E4;line-height:1.7}.ai-footer-brand{font-size:28px;font-weight:900;color:#fff}.ai-footer-brand span{color:var(--red)}.ai-footer-bottom,.footer-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;color:#98A6BD}.to-top{float:right;color:#fff;display:inline-flex;align-items:center;gap:8px}.to-top svg{width:14px;height:14px;display:inline-block}.placeholder{background:var(--bg-soft)}.placeholder .ai-card,.placeholder .card{border-style:dashed}@media(max-width:1180px){.ai-nav-menu,.ai-header-cta,.ai-topbar-left .hide-md{display:none}.ai-menu-button{display:grid}.ai-nav{min-height:84px;position:relative}.ai-header.is-menu-open .ai-nav-menu{position:absolute;left:0;right:0;top:100%;display:flex;flex-direction:column;align-items:stretch;gap:0;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-lg);padding:8px 10px 12px;z-index:60}.ai-header.is-menu-open .ai-nav-menu li{width:100%}.ai-header.is-menu-open .ai-nav-link{height:auto;min-height:44px;padding:10px 8px;color:var(--ink)}.ai-header.is-menu-open .ai-nav-link::after{display:none}.ai-header.is-menu-open .ai-nav-item .ai-dropdown{position:static;min-width:0;opacity:1;visibility:visible;transform:none;box-shadow:none;border:1px solid var(--line);border-top:2px solid var(--red);margin:2px 0 8px}.ai-hero-strip .ai-strip-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:760px){.container,.ai-wrap{width:min(100% - 40px,680px)}.ai-topbar .container{justify-content:space-between}.ai-topbar-left{gap:12px}.ai-topbar-left .ai-contact-line:nth-child(n+2){display:none}.ai-hero{min-height:760px}.ai-hero-card{max-width:100%}.ai-hero h1{font-size:clamp(38px,12vw,54px)}.ai-actions .ai-btn,.btn-row .primary-btn,.btn-row .ghost-btn{width:100%}.ai-hero-nav{bottom:38px}.ai-stat{min-height:122px;padding:24px 20px}.ai-section,section.ai-section{padding:64px 0}.ai-footer-top,.footer-top{grid-template-columns:1fr}.ai-footer-bottom,.footer-bottom{text-align:center}.to-top{float:none;display:inline-flex;margin-top:10px}}`;
 }
 
 function aiSiteStats(project: AiSiteBuilderProject) {
@@ -3088,6 +3096,155 @@ function aiSiteChromeThemeCss(project: AiSiteBuilderProject) {
 </style>`;
 }
 
+function aiSiteWpThemeScript() {
+  return `(() => {
+  const onReady = (fn) => {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn, { once: true });
+    else fn();
+  };
+  const qsa = (root, selector) => Array.from(root.querySelectorAll(selector));
+
+  function initMobileHeader() {
+    qsa(document, ".ai-header").forEach((header) => {
+      const button = header.querySelector(".ai-menu-button");
+      const menu = header.querySelector(".ai-nav-menu");
+      if (!(button instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) return;
+      button.setAttribute("aria-expanded", "false");
+      const close = () => {
+        header.classList.remove("is-menu-open");
+        button.setAttribute("aria-expanded", "false");
+      };
+      const toggle = () => {
+        const open = !header.classList.contains("is-menu-open");
+        header.classList.toggle("is-menu-open", open);
+        button.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+      });
+      qsa(menu, "a").forEach((link) => link.addEventListener("click", close));
+      document.addEventListener("click", (event) => {
+        if (!header.contains(event.target)) close();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") close();
+      });
+    });
+  }
+
+  function initHeroSliders() {
+    qsa(document, ".ai-photo-hero").forEach((hero) => {
+      if (!(hero instanceof HTMLElement)) return;
+      const slides = qsa(hero, ".hero-bg span");
+      if (!slides.length) return;
+      const radios = qsa(hero, "input.hero-radio").filter((item) => item instanceof HTMLInputElement);
+      const status = qsa(hero, ".ai-hero-status span");
+      let index = Math.max(0, radios.findIndex((item) => item.checked));
+      if (index < 0 || index >= slides.length) index = 0;
+      let timer = 0;
+      const setSlide = (next, manual = false) => {
+        index = (next + slides.length) % slides.length;
+        hero.dataset.activeSlide = String(index + 1);
+        slides.forEach((slide, slideIndex) => slide.classList.toggle("is-active", slideIndex === index));
+        const radio = radios[index];
+        if (radio instanceof HTMLInputElement) radio.checked = true;
+        status.forEach((item) => {
+          if (!(item instanceof HTMLElement)) return;
+          const text = item.textContent || "";
+          const matches = new RegExp(String(index + 1).padStart(2, "0") + "\\\\s*/").test(text) || item.classList.contains("s" + (index + 1));
+          item.classList.toggle("is-active", matches);
+        });
+        if (manual) restart();
+      };
+      const restart = () => {
+        if (timer) window.clearInterval(timer);
+        timer = window.setInterval(() => setSlide(index + 1), 6000);
+      };
+      qsa(hero, ".ai-arrow[for]").forEach((control) => {
+        control.addEventListener("click", () => {
+          const target = String(control.getAttribute("for") || "");
+          const matched = target.match(/(\\d+)$/);
+          if (matched) setSlide(Number(matched[1]) - 1, true);
+        });
+      });
+      radios.forEach((radio, radioIndex) => radio.addEventListener("change", () => setSlide(radioIndex, true)));
+      setSlide(index);
+      restart();
+    });
+  }
+
+  function initProductsTabs() {
+    qsa(document, ".products-category-showcase").forEach((section) => {
+      if (!(section instanceof HTMLElement)) return;
+      const buttons = qsa(section, ".products-tab, [data-product-category]").filter((item) => item instanceof HTMLElement);
+      if (!buttons.length) return;
+      const panels = qsa(section, "[data-product-category-panel]").filter((item) => item instanceof HTMLElement);
+      const cards = qsa(section, ".products-card").filter((item) => item instanceof HTMLElement);
+      const updateFallbackCards = (label) => {
+        cards.forEach((card, cardIndex) => {
+          const title = card.querySelector("h3");
+          const image = card.querySelector("img");
+          const names = [
+            "Standard Model",
+            "Export Series",
+            "Heavy Duty Assembly",
+            "Custom Unit",
+            "Compact Type",
+            "High Flow Version",
+            "Corrosion Resistant Series",
+            "Project Spare Kit"
+          ];
+          const nextName = (label + " " + names[cardIndex % names.length]).trim();
+          if (title) title.textContent = nextName.toUpperCase();
+          if (image instanceof HTMLImageElement && /placehold\\.co/i.test(image.src)) {
+            image.src = "https://placehold.co/560x420/f8fafc/244aa5?text=" + encodeURIComponent(nextName).replace(/%20/g, "+");
+            image.alt = nextName;
+          }
+        });
+      };
+      const activate = (button) => {
+        const label = String(button.getAttribute("data-product-category") || button.textContent || "").trim();
+        if (!label) return;
+        buttons.forEach((item) => {
+          const active = item === button;
+          item.classList.toggle("is-active", active);
+          item.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        let panelFound = false;
+        panels.forEach((panel) => {
+          const active = String(panel.getAttribute("data-product-category-panel") || "").toLowerCase() === label.toLowerCase();
+          panel.hidden = !active;
+          panel.classList.toggle("is-active", active);
+          panelFound = panelFound || active;
+        });
+        if (!panelFound) updateFallbackCards(label);
+        const firstPage = section.querySelector("#products-page-1");
+        if (firstPage instanceof HTMLInputElement) firstPage.checked = true;
+      };
+      buttons.forEach((button, buttonIndex) => {
+        if (!button.hasAttribute("data-product-category")) button.setAttribute("data-product-category", String(button.textContent || "").trim());
+        button.setAttribute("role", "tab");
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          activate(button);
+        });
+        if (button.classList.contains("is-active") || buttonIndex === 0) button.setAttribute("aria-selected", button.classList.contains("is-active") ? "true" : "false");
+      });
+      const initial = buttons.find((button) => button.classList.contains("is-active")) || buttons[0];
+      activate(initial);
+    });
+  }
+
+  onReady(() => {
+    initMobileHeader();
+    initHeroSliders();
+    initProductsTabs();
+  });
+})();`;
+}
+
 function defaultAiSectionHtml(sectionKey: AiSiteSectionKey, project: AiSiteBuilderProject, generated = false, customPages: AiSiteCustomPageMeta[] = []) {
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const company = schema.company_profile;
@@ -3123,7 +3280,7 @@ function defaultAiSectionHtml(sectionKey: AiSiteSectionKey, project: AiSiteBuild
   if (sectionKey === "products") {
     const productCategories = (categories.length ? categories : ["Gate Valve", "Butterfly Valve", "Check Valve & Strainer", "Ball Valve", "Globe Valve", "Control Valve", "Other Valve And Fittings"]).slice(0, 8);
     const activeCategory = productCategories[Math.min(3, productCategories.length - 1)] || productCategories[0] || "Industrial Product";
-    const categoryButtons = productCategories.map((item) => `<button type="button" class="products-tab${item === activeCategory ? " is-active" : ""}">${htmlEscape(item)}</button>`).join("");
+    const categoryButtons = productCategories.map((item) => `<button type="button" class="products-tab${item === activeCategory ? " is-active" : ""}" data-product-category="${htmlEscape(item)}">${htmlEscape(item)}</button>`).join("");
     const productBase = activeCategory.replace(/\s*&\s*/g, " ").replace(/\s+/g, " ").trim() || "Industrial Product";
     const products = [
       `1PC ${productBase} Standard Model`,
@@ -3137,6 +3294,16 @@ function defaultAiSectionHtml(sectionKey: AiSiteSectionKey, project: AiSiteBuild
     ];
     const cardMarkup = (items: string[]) => items.map((name) => `<article class="products-card"><div class="products-image"><img src="https://placehold.co/560x420/f8fafc/244aa5?text=${encodeURIComponent(name).replace(/%20/g, "+")}" alt="${htmlEscape(name)}"></div><h3>${htmlEscape(name)}</h3><a href="#contact-us" aria-label="Request ${htmlEscape(name)}">${svgUse("icon-arrow-right")}</a></article>`).join("");
     return `<section class="ai-section products-category-showcase ${generated ? "" : "placeholder"}" id="products"><style>#products{background:#fff;padding:clamp(54px,6vw,92px) 0;overflow:hidden}#products .products-wrap{width:min(1560px,calc(100vw - clamp(34px,6vw,120px)));margin:auto}#products .products-head{text-align:center;max-width:980px;margin:0 auto clamp(28px,4vw,52px)}#products .products-head h2{font-size:clamp(36px,4.2vw,58px);line-height:1.04;margin:0 0 14px;color:#050b18}#products .products-head p{margin:0;color:#586171;font-size:clamp(15px,1.15vw,18px);line-height:1.7}#products .products-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(10px,1.4vw,18px);margin-bottom:clamp(34px,4.4vw,58px)}#products .products-tab{min-width:min(184px,100%);border:1px solid #a7acb8;border-radius:999px;background:#fff;color:#868b95;padding:12px 22px;font-weight:800;cursor:pointer}#products .products-tab.is-active{border-color:#244aa5;background:#244aa5;color:#fff}#products .products-radio{position:absolute;opacity:0;pointer-events:none}#products .products-stage{position:relative}#products .products-track{display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(22px,2.8vw,38px);padding:0 clamp(34px,5vw,70px)}#products #products-page-1:checked~.products-stage .page-1,#products #products-page-2:checked~.products-stage .page-2{display:grid}#products .products-card{position:relative;background:#f5f5f6;min-width:0;padding:14px 14px 0;text-align:center;overflow:hidden}#products .products-image{background:#fff;aspect-ratio:1/1;display:grid;place-items:center;margin-bottom:22px}#products .products-image img{width:100%;height:100%;object-fit:contain;display:block}#products .products-card h3{min-height:64px;margin:0;padding:0 6px 26px;color:#111827;font-size:clamp(15px,1.1vw,18px);line-height:1.45;text-transform:uppercase;letter-spacing:.02em}#products .products-card a{position:absolute;right:0;bottom:0;width:52px;height:52px;display:grid;place-items:end;background:linear-gradient(135deg,transparent 0 49%,#244aa5 50%);color:#fff;padding:0 7px 7px 0}#products .products-card svg{width:18px;height:18px}#products .products-arrow{position:absolute;top:50%;transform:translateY(-50%);width:54px;height:74px;color:#244aa5;display:grid;place-items:center;cursor:pointer}#products .products-arrow svg{width:46px;height:46px;stroke-width:3}#products .products-arrow.prev{left:0}#products .products-arrow.next{right:0}#products .prev-1,#products .next-1,#products .prev-2,#products .next-2{display:none}#products #products-page-1:checked~.products-stage .prev-1,#products #products-page-1:checked~.products-stage .next-1,#products #products-page-2:checked~.products-stage .prev-2,#products #products-page-2:checked~.products-stage .next-2{display:grid}@media(max-width:1080px){#products .products-track{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 58px}#products .products-tab{min-width:150px}}@media(max-width:760px){#products{padding:44px 0}#products .products-wrap{width:min(100% - 32px,680px)}#products .products-track{grid-template-columns:1fr;padding:0}#products .products-arrow{display:none}#products .products-tab{min-width:0;flex:1 1 150px}}</style><div class="products-wrap"><div class="products-head"><h2>Product Category</h2><p>${htmlEscape(text || `We provide ${productCategories.slice(0, 4).join(", ")} and related industrial products manufactured for global B2B purchasing standards.`)}</p></div><div class="products-tabs">${categoryButtons}</div><input class="products-radio" type="radio" name="products-page" id="products-page-1" checked><input class="products-radio" type="radio" name="products-page" id="products-page-2"><div class="products-stage"><label class="products-arrow prev prev-1" for="products-page-2" aria-label="Previous products">${svgUse("icon-arrow-left")}</label><label class="products-arrow next next-1" for="products-page-2" aria-label="Next products">${svgUse("icon-arrow-next")}</label><label class="products-arrow prev prev-2" for="products-page-1" aria-label="Previous products">${svgUse("icon-arrow-left")}</label><label class="products-arrow next next-2" for="products-page-1" aria-label="Next products">${svgUse("icon-arrow-next")}</label><div class="products-track page-1">${cardMarkup(products.slice(0, 4))}</div><div class="products-track page-2">${cardMarkup(products.slice(4, 8))}</div></div></div></section>`;
+  }
+  if (sectionKey === "applications") {
+    const applicationItems = [
+      ["Search Visibility", "Buyers search by application and specification, but thin pages miss long-tail demand.", categories[0] || "Core Products", "Capture higher-intent organic visits."],
+      ["Inquiry Conversion", "Visitors need clearer trust signals, RFQ prompts, and product-fit guidance before they contact sales.", categories[1] || categories[0] || "Configured Solutions", "Turn more visits into qualified requests."],
+      ["Product Selection", "Complex catalogs make it hard for overseas buyers to choose the right technical route quickly.", categories[2] || categories[0] || "Custom Options", "Shorten the path from browsing to inquiry."],
+      ["Distributor Support", "Regional partners need consistent product proof, documentation, and response paths.", categories[3] || categories[0] || "Export Support", "Support faster partner evaluation."]
+    ];
+    const cards = applicationItems.map(([title, pain, product, outcome], index) => `<article class="applications-card"><span class="applications-index">${String(index + 1).padStart(2, "0")}</span><h3>${htmlEscape(title)}</h3><p>${htmlEscape(pain)}</p><div class="applications-chip">${htmlEscape(product)}</div><strong>${htmlEscape(outcome)}</strong></article>`).join("");
+    return `<section class="ai-section applications-horizontal-card-preview ${generated ? "" : "placeholder"}" id="applications"><style>#applications{position:relative;background:linear-gradient(135deg,#f7fbff,#ffffff);padding:clamp(56px,7vw,96px) 0;color:#0b1f35;overflow:hidden}#applications .applications-wrap{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:auto}#applications .applications-head{display:grid;grid-template-columns:minmax(0,.85fr) minmax(260px,.45fr);gap:clamp(18px,4vw,58px);align-items:end;margin-bottom:clamp(26px,4vw,44px)}#applications .applications-eyebrow{display:inline-flex;width:max-content;margin-bottom:12px;color:#f97316;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}#applications h2{margin:0;color:#0b1f35;font-size:clamp(34px,4.2vw,58px);line-height:1.05;letter-spacing:0}#applications .applications-head p{margin:0;color:#536273;font-size:clamp(15px,1.2vw,18px);line-height:1.72}#applications .applications-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(280px,360px);gap:clamp(16px,2.3vw,28px);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding:4px 4px 18px}#applications .applications-row::-webkit-scrollbar{height:9px}#applications .applications-row::-webkit-scrollbar-thumb{background:#cbd5e1}#applications .applications-card{scroll-snap-align:start;min-width:0;background:#fff;border:1px solid #dce5ef;box-shadow:0 18px 50px rgba(11,31,53,.08);padding:clamp(22px,2.6vw,30px);display:grid;gap:14px;align-content:start}#applications .applications-index{display:grid;place-items:center;width:42px;height:42px;background:#0f4c81;color:#fff;font-weight:900}#applications .applications-card h3{margin:0;color:#0b1f35;font-size:clamp(20px,1.9vw,26px);line-height:1.18}#applications .applications-card p{margin:0;color:#536273;line-height:1.66;font-size:15px}#applications .applications-chip{width:max-content;max-width:100%;padding:8px 11px;background:#eef6ff;color:#0f4c81;border:1px solid #cfe3f7;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.06em;overflow-wrap:anywhere}#applications .applications-card strong{display:block;margin-top:2px;color:#0b1f35;line-height:1.45}#applications .applications-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:clamp(22px,3vw,34px)}#applications .applications-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 18px;background:#f97316;color:#fff;text-decoration:none;font-weight:900}#applications .applications-btn svg{width:18px;height:18px}#applications .applications-note{color:#536273;font-weight:700}@media(max-width:900px){#applications .applications-head{grid-template-columns:1fr;align-items:start}#applications .applications-row{grid-auto-columns:minmax(260px,82vw)}}@media(max-width:640px){#applications{padding:46px 0}#applications .applications-wrap{width:min(100% - 32px,680px)}#applications h2{font-size:34px}#applications .applications-row{gap:14px;padding-bottom:14px}#applications .applications-actions a{width:100%}}</style><div class="applications-wrap"><div class="applications-head"><div><span class="applications-eyebrow">Applications</span><h2>Application Paths Built Around Buyer Intent</h2></div><p>${htmlEscape(text || "Map each scenario to the product proof, content structure, and inquiry path that helps overseas buyers move from research to RFQ.")}</p></div><div class="applications-row">${cards}</div><div class="applications-actions"><a class="applications-btn" href="#contact-us">Discuss Your Application ${svgUse("icon-arrow-right")}</a><span class="applications-note">Horizontal preview cards stay readable across desktop and mobile.</span></div></div></section>`;
   }
   if (sectionKey === "contact_us") {
     const contactMethods = [
@@ -3301,6 +3468,33 @@ function sanitizeAiSiteExportFragment(html: string) {
     .trim();
 }
 
+const aiSiteWpRouteLinks: Record<string, string> = {
+  "#home": "/",
+  "#top": "/",
+  "#products": "/products/",
+  "#applications": "/applications/",
+  "#about": "/about-us/",
+  "#about-us": "/about-us/",
+  "#about_us": "/about-us/",
+  "#blog": "/blog/",
+  "#news": "/blog/",
+  "#contact": "/contact-us/",
+  "#contact-us": "/contact-us/",
+  "#contact_us": "/contact-us/"
+};
+
+function rewriteAiSiteWpRouteLinks(html: string) {
+  return html.replace(/<a\b([^>]*?)\shref=(["'])(#[^"']*)\2/gi, (match, before: string, quote: string, href: string) => {
+    const target = aiSiteWpRouteLinks[href.toLowerCase()];
+    if (!target) return match;
+    return `<a${before} href=${quote}${target}${quote}`;
+  });
+}
+
+function sanitizeAiSiteWpExportFragment(html: string) {
+  return rewriteAiSiteWpRouteLinks(sanitizeAiSiteExportFragment(html));
+}
+
 function buildAiSiteExportDocument(project: AiSiteBuilderProject, fragments: string[]) {
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const company = schema.company_profile;
@@ -3430,7 +3624,7 @@ function buildAiSiteWpAcfFieldGroup(section: AiSiteWpSectionMeta, fragment: stri
         label: "Primary Button URL",
         name: "primary_url",
         type: "url",
-        default_value: "#contact-us",
+        default_value: "/contact-us/",
         wrapper: { width: "50" }
       },
       {
@@ -3517,7 +3711,7 @@ $eyebrow = function_exists('get_field') ? (get_field('eyebrow') ?: ${aiSitePhpSt
 $title = function_exists('get_field') ? (get_field('title') ?: ${aiSitePhpString(fallbackTitle)}) : ${aiSitePhpString(fallbackTitle)};
 $intro = function_exists('get_field') ? (get_field('intro') ?: ${aiSitePhpString(fallbackIntro)}) : ${aiSitePhpString(fallbackIntro)};
 $primary_label = function_exists('get_field') ? (get_field('primary_label') ?: 'Request a Proposal') : 'Request a Proposal';
-$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: '#contact-us') : '#contact-us';
+$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: '/contact-us/') : '/contact-us/';
 $image = function_exists('get_field') ? get_field('image') : null;
 $image_url = is_array($image) && !empty($image['url']) ? $image['url'] : '';
 if (!$image_url) {
@@ -3565,7 +3759,7 @@ function buildAiSiteWpPageBlock(section: AiSiteWpSectionMeta, fragment: string) 
       _intro: aiSiteWpFieldKey(section.section_key, "intro"),
       primary_label: section.section_key === "contact_us" ? "Send Inquiry" : "Request a Proposal",
       _primary_label: aiSiteWpFieldKey(section.section_key, "primary_label"),
-      primary_url: section.section_key === "contact_us" ? "#contact-us" : "#contact-us",
+      primary_url: "/contact-us/",
       _primary_url: aiSiteWpFieldKey(section.section_key, "primary_url"),
       html_source: "",
       _html_source: aiSiteWpFieldKey(section.section_key, "html_source")
@@ -3578,51 +3772,131 @@ function buildAiSiteWpPageBlock(section: AiSiteWpSectionMeta, fragment: string) 
 function buildAiSiteWpCollections(project: AiSiteBuilderProject) {
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const categories = sectionArray(schema.business_taxonomy.product_categories);
-  const productCategories = (categories.length ? categories : ["Pressure Instruments", "Temperature Instruments", "Flow Meters"]).slice(0, 10);
-  const makeItems = (prefix: string, count: number) => Array.from({ length: count }, (_, index) => {
+  const productCategories = (categories.length ? categories : ["Gate Valve", "Butterfly Valve", "Check Valve & Strainer", "Ball Valve", "Globe Valve", "Control Valve", "Other Valve And Fittings"]).slice(0, 10);
+  const brand = schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName || "GoodJob";
+  const primaryMarket = project.industry || schema.company_profile.tagline || "global industrial buyers";
+  const productNameSuffixes = [
+    "Ductile Iron Wafer Type",
+    "Lug Type With Handle",
+    "Double Stem Lug Type",
+    "Flanged Gear Operated",
+    "Stainless Steel Industrial",
+    "Compact OEM Series",
+    "Resilient Seated Model",
+    "Heavy Duty Export Type"
+  ];
+  const genericProductSuffixes = [
+    "Standard Export Model",
+    "Precision OEM Series",
+    "Heavy Duty Assembly",
+    "Custom Manufacturing Unit",
+    "Industrial Supply Version",
+    "High Stability Project Type",
+    "Inspection Ready Series",
+    "Distributor Stock Option"
+  ];
+  const productImageColor = ["244aa5", "1f57b7", "2f6fc6", "315f9f", "4878d0", "113a7c"];
+  const makeProductItems = (count: number) => Array.from({ length: count }, (_, index) => {
     const category = productCategories[index % productCategories.length] || "Industrial Products";
+    const isValveCategory = /valve|strainer|fitting/i.test(category);
+    const suffix = isValveCategory ? productNameSuffixes[index % productNameSuffixes.length] : genericProductSuffixes[index % genericProductSuffixes.length];
+    const title = isValveCategory ? `${suffix} ${category}`.replace(/\s+/g, " ").trim() : `${category} ${suffix}`.replace(/\s+/g, " ").trim();
+    const desc = `${brand} supplies ${category.toLowerCase()} options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.`;
+    const material = ["Carbon steel", "Stainless steel", "Aluminum alloy", "Custom alloy"][index % 4];
+    const application = ["OEM assembly", "Process equipment", "Automation line", "Maintenance replacement"][index % 4];
+    const imageText = encodeURIComponent(category.replace(/&/g, "and")).replace(/%20/g, "+");
+    const image = `https://placehold.co/640x520/f6f8fb/${productImageColor[index % productImageColor.length]}?text=${imageText}`;
     return {
-      title: `${category} ${prefix} ${index + 1}`,
-      desc: `${category} solution prepared for international B2B buyers, with export-ready documentation, stable supply, and technical consultation.`,
+      title,
+      desc,
       category,
-      image: ""
+      image,
+      sku: `GJ-${String(index + 1).padStart(3, "0")}`,
+      material,
+      application,
+      lead_time: "15-35 days after drawing or sample confirmation",
+      export_docs: "Commercial invoice, packing list, certificate, inspection record",
+      content: `<h2>${htmlEscape(title)} Overview</h2>
+<p>${htmlEscape(desc)}</p>
+<h3>Typical Specifications</h3>
+<table><tbody>
+<tr><th>Category</th><td>${htmlEscape(category)}</td></tr>
+<tr><th>Material</th><td>${htmlEscape(material)}</td></tr>
+<tr><th>Application</th><td>${htmlEscape(application)}</td></tr>
+<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>
+<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>
+</tbody></table>
+<h3>Inquiry Checklist</h3>
+<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>`
     };
   });
+  const caseCategories = ["Factory Upgrade", "Distributor Program", "OEM Supply", "Process Optimization"];
+  const newsCategories = ["Selection Guides", "Maintenance", "Materials", "Export Notes"];
   return {
     product: {
       label: "Products",
       taxonomy: "Product Categories",
-      items: makeItems("Model", Math.max(6, productCategories.length * 2))
+      items: makeProductItems(Math.max(8, productCategories.length * 3))
     },
     service: {
       label: "Services",
       taxonomy: "Service Categories",
       items: [
-        { title: "Application Matching", desc: "Match products to operating conditions, buyer requirements, and target markets.", category: "Pre-sales", image: "" },
-        { title: "Export Documentation", desc: "Support datasheets, certificates, packing details, and shipment documents.", category: "Export", image: "" },
-        { title: "Distributor Support", desc: "Prepare catalogs, technical content, and inquiry follow-up materials for channel partners.", category: "Channel", image: "" }
+        { title: "Application Matching", desc: "Match products to operating conditions, buyer requirements, and target markets.", category: "Pre-sales", image: "", deliverables: "Selection notes, model shortlist, inquiry checklist", content: "<h2>Application Matching</h2><p>We translate buyer requirements into product selections, technical questions, and a sourcing path that can be confirmed quickly.</p><ul><li>Operating condition review</li><li>Model and material shortlist</li><li>RFQ checklist for faster quotation</li></ul>" },
+        { title: "Export Documentation", desc: "Support datasheets, certificates, packing details, and shipment documents.", category: "Export", image: "", deliverables: "Datasheets, certificates, packing list, shipment notes", content: "<h2>Export Documentation</h2><p>Documentation is prepared around foreign trade expectations so procurement, customs, and buyer approval steps move with fewer avoidable delays.</p><ul><li>Datasheet and certificate preparation</li><li>Packing and label information</li><li>Shipment document coordination</li></ul>" },
+        { title: "Distributor Support", desc: "Prepare catalogs, technical content, and inquiry follow-up materials for channel partners.", category: "Channel", image: "", deliverables: "Catalog structure, product copy, inquiry follow-up scripts", content: "<h2>Distributor Support</h2><p>Channel partners receive structured product information, localized selling points, and practical follow-up materials for repeated inquiry handling.</p><ul><li>Catalog and category planning</li><li>Sales copy and FAQ support</li><li>Repeat inquiry workflow</li></ul>" },
+        { title: "After-sales Coordination", desc: "Keep repeat orders, revisions, replenishment, and warranty communication organized.", category: "Support", image: "", deliverables: "Revision record, replenishment plan, after-sales communication log", content: "<h2>After-sales Coordination</h2><p>After the first order, we keep replacement, revision, and replenishment communication organized so buyers can reorder with confidence.</p><ul><li>Revision and reorder tracking</li><li>Warranty communication support</li><li>Repeat shipment coordination</li></ul>" }
       ]
     },
     case: {
       label: "Cases",
       taxonomy: "Case Categories",
-      items: productCategories.slice(0, 4).map((category, index) => ({
-        title: `${category} Export Project ${index + 1}`,
-        desc: `Delivered ${category.toLowerCase()} support for an overseas industrial customer with stable quality and responsive communication.`,
-        category,
-        image: ""
-      }))
+      items: Array.from({ length: Math.max(4, productCategories.length) }, (_, index) => {
+        const category = productCategories[index % productCategories.length] || "Industrial Products";
+        const title = `${category} Export Project ${index + 1}`;
+        const desc = `${brand} delivered ${category.toLowerCase()} support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.`;
+        const region = ["Europe", "Middle East", "South America", "Southeast Asia"][index % 4];
+        return {
+          title,
+          desc,
+          category: caseCategories[index % caseCategories.length],
+          image: "",
+          region,
+          challenge: "The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.",
+          solution: `${brand} organized the inquiry details, checked product requirements, and prepared export-ready communication for ${primaryMarket}.`,
+          result: "The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.",
+          content: `<h2>Project Background</h2><p>${htmlEscape(desc)}</p><h3>Challenge</h3><p>The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.</p><h3>Solution</h3><p>${htmlEscape(brand)} organized the inquiry details, checked product requirements, and prepared export-ready communication for ${htmlEscape(primaryMarket)}.</p><h3>Result</h3><p>The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.</p>`
+        };
+      })
     },
     news: {
       label: "News",
       taxonomy: "News Categories",
-      items: productCategories.slice(0, 4).map((category, index) => ({
-        title: `${category} Selection Guide ${index + 1}`,
-        desc: `Practical notes for sourcing ${category.toLowerCase()} in international industrial procurement.`,
-        category: "Guides",
-        image: "",
-        date: new Date(Date.now() - index * 86400000).toISOString().slice(0, 10)
-      }))
+      items: Array.from({ length: Math.max(8, productCategories.length * 2) }, (_, index) => {
+        const category = productCategories[index % productCategories.length] || "Industrial Products";
+        const firstBlogTitle = /s$/i.test(category) ? `What Buyers Should Know About ${category}` : `What Is a ${category} and How Does It Work?`;
+        const blogTitles = [
+          firstBlogTitle,
+          `${category} Selection Guide for Industrial Piping Projects`,
+          `Resilient Seated vs Metal Seated ${category}: Key Differences`,
+          `${category} Maintenance Checklist for Export Buyers`,
+          `How to Prepare an RFQ for ${category} Suppliers`,
+          `${category} Materials, Pressure Ratings, and Inspection Notes`,
+          `Common ${category} Applications in Fluid Control Systems`,
+          `How Packaging and Documentation Affect ${category} Delivery`
+        ];
+        const title = blogTitles[index % blogTitles.length];
+        const desc = `Practical notes for sourcing ${category.toLowerCase()} in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.`;
+        const imageText = encodeURIComponent(category.replace(/&/g, "and")).replace(/%20/g, "+");
+        return {
+          title,
+          desc,
+          category: newsCategories[index % newsCategories.length],
+          image: `https://placehold.co/640x360/e9edf4/244aa5?text=${imageText}`,
+          date: new Date(Date.now() - index * 3 * 86400000).toISOString().slice(0, 10),
+          content: `<h2>${htmlEscape(title)}</h2><p>${htmlEscape(desc)}</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How ${htmlEscape(brand)} supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>`
+        };
+      })
     }
   };
 }
@@ -3636,6 +3910,697 @@ function buildAiSiteWpSiteOptions(project: AiSiteBuilderProject) {
     social_links: schema.social_links,
     style_requirements: schema.style_requirements
   };
+}
+
+function buildAiSiteWpRouteBlueprint(project: AiSiteBuilderProject) {
+  const schema = normalizeAiSiteSchemaData(project.schemaData);
+  const categories = sectionArray(schema.business_taxonomy.product_categories);
+  return {
+    version: "1.0",
+    mode: "multi-route-block-theme",
+    note: "Static pages are assembled from ACF blocks. List/detail routes are backed by native WordPress CPT data seeded from collections.json.",
+    nav: [
+      { label: "Home", route_type: "page", slug: "home", source: "pages.home" },
+      { label: "Products", route_type: "archive", post_type: "product", slug: "products", source: "collections.product" },
+      { label: "Applications", route_type: "page", slug: "applications", source: "pages.applications" },
+      { label: "About Us", route_type: "page", slug: "about-us", source: "pages.about_us" },
+      { label: "Blog", route_type: "archive", post_type: "news", slug: "blog", source: "collections.news" },
+      { label: "Contact Us", route_type: "page", slug: "contact-us", source: "pages.contact_us" }
+    ],
+    cpt_routes: {
+      product: {
+        archive: "/products/",
+        taxonomy: "/product-category/{term}/",
+        single: "/products/{post}/",
+        data_source: "collections.product",
+        required_templates: ["archive-product.html", "taxonomy-product_cat.html", "single-product.html"],
+        seed_count: Math.max(8, categories.length * 3)
+      },
+      case: {
+        archive: "/cases/",
+        taxonomy: "/case-category/{term}/",
+        single: "/cases/{post}/",
+        data_source: "collections.case",
+        required_templates: ["archive-case.html", "taxonomy-case_cat.html", "single-case.html"],
+        seed_count: Math.max(4, categories.length)
+      },
+      news: {
+        archive: "/blog/",
+        taxonomy: "/news-category/{term}/",
+        single: "/blog/{post}/",
+        data_source: "collections.news",
+        required_templates: ["archive-news.html", "taxonomy-news_cat.html", "single-news.html"],
+        seed_count: Math.max(6, categories.length * 2)
+      },
+      service: {
+        archive: "/services/",
+        taxonomy: "/service-category/{term}/",
+        single: "/services/{post}/",
+        data_source: "collections.service",
+        required_templates: ["archive-service.html", "taxonomy-service_cat.html", "single-service.html"],
+        seed_count: 4
+      }
+    },
+    static_pages: {
+      home: ["hero", "products", "applications", "about_us", "blog", "contact_us"],
+      applications: ["applications", "products", "contact_us"],
+      about_us: ["about_us", "applications", "contact_us"],
+      contact_us: ["contact_us"],
+      thanks: ["contact_us"]
+    }
+  };
+}
+
+function buildAiSiteWpTemplateShell(content: string) {
+  return `<!-- wp:template-part {"slug":"header"} /-->
+<!-- wp:group {"tagName":"main","layout":{"type":"default"}} -->
+<main class="wp-block-group">
+${content}
+</main>
+<!-- /wp:group -->
+<!-- wp:template-part {"slug":"footer"} /-->`;
+}
+
+function buildAiSiteWpArchiveTemplate(config: { title: string; intro: string; cpt: string; mediaRatio: string; tone: "product" | "case" | "news" | "service" | "generic" }) {
+  const toneClass = `goodjob-archive--${config.tone}`;
+  return buildAiSiteWpTemplateShell(`<!-- wp:group {"className":"goodjob-archive ${toneClass}","layout":{"type":"constrained","contentSize":"1440px"}} -->
+<section class="wp-block-group goodjob-archive ${toneClass}">
+  <!-- wp:group {"className":"goodjob-archive__head","layout":{"type":"constrained","contentSize":"920px"}} -->
+  <div class="wp-block-group goodjob-archive__head">
+    <!-- wp:query-title {"type":"archive","level":1} /-->
+    <!-- wp:paragraph --><p>${htmlEscape(config.intro)}</p><!-- /wp:paragraph -->
+  </div>
+  <!-- /wp:group -->
+  <!-- wp:query {"query":{"perPage":12,"pages":0,"offset":0,"postType":"${config.cpt}","order":"desc","orderBy":"date","inherit":true},"displayLayout":{"type":"flex","columns":3},"className":"goodjob-archive__query"} -->
+  <div class="wp-block-query goodjob-archive__query">
+    <!-- wp:post-template className="goodjob-archive__grid" -->
+      <!-- wp:group {"className":"goodjob-card","layout":{"type":"constrained"}} -->
+      <article class="wp-block-group goodjob-card">
+        <!-- wp:post-featured-image {"isLink":true,"aspectRatio":"${config.mediaRatio}","className":"goodjob-card__media"} /-->
+        <!-- wp:post-terms {"term":"${config.cpt === "product" ? "product_cat" : config.cpt === "case" ? "case_cat" : config.cpt === "news" ? "news_cat" : config.cpt === "service" ? "service_cat" : "category"}","className":"goodjob-card__terms"} /-->
+        <!-- wp:post-title {"isLink":true,"level":2,"className":"goodjob-card__title"} /-->
+        <!-- wp:post-excerpt {"moreText":"View Details","className":"goodjob-card__excerpt"} /-->
+      </article>
+      <!-- /wp:group -->
+    <!-- /wp:post-template -->
+    <!-- wp:query-pagination {"className":"goodjob-pagination","layout":{"type":"flex","justifyContent":"center"}} -->
+      <!-- wp:query-pagination-previous /-->
+      <!-- wp:query-pagination-numbers /-->
+      <!-- wp:query-pagination-next /-->
+    <!-- /wp:query-pagination -->
+    <!-- wp:query-no-results -->
+      <!-- wp:paragraph --><p>No items have been published yet. Add content in the WordPress admin panel to populate this route.</p><!-- /wp:paragraph -->
+    <!-- /wp:query-no-results -->
+  </div>
+  <!-- /wp:query -->
+</section>
+<!-- /wp:group -->`);
+}
+
+function buildAiSiteWpProductsArchiveTemplate() {
+  return buildAiSiteWpTemplateShell(`<!-- wp:goodjob-ai-site/products-archive /-->`);
+}
+
+function buildAiSiteWpBlogArchiveTemplate() {
+  return buildAiSiteWpTemplateShell(`<!-- wp:goodjob-ai-site/blog-archive /-->`);
+}
+
+function buildAiSiteWpNativeArchiveBlockJson(name: "products-archive" | "blog-archive" | "product-detail" | "news-detail", title: string, icon: string) {
+  return {
+    apiVersion: 2,
+    name: `goodjob-ai-site/${name}`,
+    title,
+    category: "goodjob-ai-site",
+    icon,
+    description: `${title} dynamic CPT archive block generated by GoodJob AI Website Factory.`,
+    render: "file:./render.php",
+    style: "file:./style.css",
+    supports: {
+      html: false,
+      align: ["wide", "full"]
+    }
+  };
+}
+
+function buildAiSiteWpProductsArchiveRender() {
+  return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$current_term = is_tax('product_cat') ? get_queried_object() : null;
+$current_term_id = ($current_term && !is_wp_error($current_term) && !empty($current_term->term_id)) ? (int) $current_term->term_id : 0;
+$terms = get_terms(array('taxonomy' => 'product_cat', 'hide_empty' => false));
+if (is_wp_error($terms) || !is_array($terms)) {
+    $terms = array();
+}
+$query_args = array(
+    'post_type' => 'product',
+    'post_status' => 'publish',
+    'posts_per_page' => 12,
+    'orderby' => 'menu_order date',
+    'order' => 'DESC',
+);
+if ($current_term_id) {
+    $query_args['tax_query'] = array(array(
+        'taxonomy' => 'product_cat',
+        'field' => 'term_id',
+        'terms' => $current_term_id,
+    ));
+}
+$products = new WP_Query($query_args);
+?>
+<section class="goodjob-products-page">
+  <div class="goodjob-products-page__wrap">
+    <aside class="goodjob-products-sidebar" aria-label="Product categories">
+      <h1>Products Categories</h1>
+      <nav>
+        <a class="<?php echo $current_term_id ? '' : 'is-active'; ?>" href="<?php echo esc_url(get_post_type_archive_link('product')); ?>">All Products</a>
+        <?php foreach ($terms as $term) :
+          $term_link = get_term_link($term);
+          if (is_wp_error($term_link)) {
+              continue;
+          }
+        ?>
+          <a class="<?php echo ((int) $term->term_id === $current_term_id) ? 'is-active' : ''; ?>" href="<?php echo esc_url($term_link); ?>"><?php echo esc_html($term->name); ?></a>
+        <?php endforeach; ?>
+      </nav>
+    </aside>
+    <div class="goodjob-products-main">
+      <div class="goodjob-products-main__head">
+        <span>Product Center</span>
+        <h2><?php echo esc_html($current_term_id && $current_term ? $current_term->name : 'Industrial Product Catalog'); ?></h2>
+        <p>Browse product categories, compare typical models, and open a direct inquiry for drawings, pricing, and export documents.</p>
+      </div>
+      <?php if ($products->have_posts()) : ?>
+        <div class="goodjob-product-grid">
+          <?php while ($products->have_posts()) : $products->the_post();
+            $image_url = get_the_post_thumbnail_url(get_the_ID(), 'large');
+            if (!$image_url) {
+                $image_url = (string) get_post_meta(get_the_ID(), 'goodjob_image', true);
+            }
+            if (!$image_url) {
+                $image_url = 'https://placehold.co/640x520/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+            }
+          ?>
+            <article class="goodjob-product-card">
+              <a class="goodjob-product-card__media" href="<?php the_permalink(); ?>">
+                <img src="<?php echo esc_url($image_url); ?>" alt="<?php the_title_attribute(); ?>" loading="lazy" decoding="async">
+                <span aria-hidden="true">→</span>
+              </a>
+              <h3><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
+            </article>
+          <?php endwhile; wp_reset_postdata(); ?>
+        </div>
+      <?php else : ?>
+        <p class="goodjob-products-empty">No products are published yet. Add Products in the WordPress admin panel.</p>
+      <?php endif; ?>
+    </div>
+  </div>
+</section>`;
+}
+
+function buildAiSiteWpBlogArchiveRender() {
+  return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$current_term = is_tax('news_cat') ? get_queried_object() : null;
+$current_term_id = ($current_term && !is_wp_error($current_term) && !empty($current_term->term_id)) ? (int) $current_term->term_id : 0;
+$query_args = array(
+    'post_type' => 'news',
+    'post_status' => 'publish',
+    'posts_per_page' => 10,
+    'orderby' => 'date',
+    'order' => 'DESC',
+);
+if ($current_term_id) {
+    $query_args['tax_query'] = array(array(
+        'taxonomy' => 'news_cat',
+        'field' => 'term_id',
+        'terms' => $current_term_id,
+    ));
+}
+$news_query = new WP_Query($query_args);
+?>
+<section class="goodjob-blog-page">
+  <header class="goodjob-blog-hero">
+    <div class="goodjob-blog-hero__shade"></div>
+    <h1><?php echo is_tax('news_cat') ? esc_html(single_term_title('', false)) : 'Blog'; ?></h1>
+  </header>
+  <nav class="goodjob-blog-breadcrumb" aria-label="Breadcrumb">
+    <a href="<?php echo esc_url(home_url('/')); ?>">Home</a>
+    <span aria-hidden="true">›</span>
+    <span>Blog</span>
+  </nav>
+  <div class="goodjob-blog-list">
+    <?php if ($news_query->have_posts()) : ?>
+      <?php while ($news_query->have_posts()) : $news_query->the_post();
+        $image_url = get_the_post_thumbnail_url(get_the_ID(), 'large');
+        if (!$image_url) {
+            $image_url = (string) get_post_meta(get_the_ID(), 'goodjob_image', true);
+        }
+        if (!$image_url) {
+            $image_url = 'https://placehold.co/640x360/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+        }
+      ?>
+        <article class="goodjob-blog-item">
+          <a class="goodjob-blog-item__media" href="<?php the_permalink(); ?>">
+            <img src="<?php echo esc_url($image_url); ?>" alt="<?php the_title_attribute(); ?>" loading="lazy" decoding="async">
+          </a>
+          <div class="goodjob-blog-item__body">
+            <h2><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h2>
+            <time datetime="<?php echo esc_attr(get_the_date('c')); ?>"><?php echo esc_html(get_the_date('Y-m-d')); ?></time>
+            <p><?php echo esc_html(wp_trim_words(get_the_excerpt(), 26)); ?></p>
+            <a class="goodjob-blog-item__button" href="<?php the_permalink(); ?>">View Detail</a>
+          </div>
+        </article>
+      <?php endwhile; wp_reset_postdata(); ?>
+    <?php else : ?>
+      <p class="goodjob-blog-empty">No blog posts are published yet. Add News items in the WordPress admin panel.</p>
+    <?php endif; ?>
+  </div>
+</section>`;
+}
+
+function buildAiSiteWpProductsArchiveStyle() {
+  return `.goodjob-products-page{background:#fff;padding:clamp(54px,6vw,92px) clamp(18px,4vw,54px)}
+.goodjob-products-page__wrap{width:min(1440px,100%);margin:auto;display:grid;grid-template-columns:292px minmax(0,1fr);gap:clamp(34px,5vw,68px);align-items:start}
+.goodjob-products-sidebar{background:#f0f0f0;padding:0 12px 12px;position:sticky;top:110px}
+.goodjob-products-sidebar h1{margin:0 -12px 10px;padding:16px 16px;background:var(--blue,#244aa5);color:#fff;text-transform:uppercase;font-size:21px;line-height:1.15;letter-spacing:.01em}
+.goodjob-products-sidebar nav{display:grid;background:#fff}
+.goodjob-products-sidebar a{display:block;padding:16px 26px;border-bottom:1px solid #e7e7e7;color:#111827;text-decoration:none;font-size:18px;line-height:1.35}
+.goodjob-products-sidebar a:hover,.goodjob-products-sidebar a.is-active{color:var(--blue,#244aa5);background:#f7f9ff}
+.goodjob-products-main__head{margin-bottom:clamp(22px,3vw,34px)}
+.goodjob-products-main__head span{display:inline-flex;margin-bottom:8px;color:var(--blue,#244aa5);font-weight:900;text-transform:uppercase;letter-spacing:.1em;font-size:12px}
+.goodjob-products-main__head h2{margin:0 0 10px;color:#101828;font-size:clamp(30px,3.4vw,48px);line-height:1.08}
+.goodjob-products-main__head p{margin:0;max-width:820px;color:#667085;font-size:16px;line-height:1.7}
+.goodjob-product-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.goodjob-product-card{position:relative;background:#fff;border:1px solid #d3d3d3;min-width:0;text-align:center}
+.goodjob-product-card__media{position:relative;display:block;aspect-ratio:1/1;background:#f7f8fa;overflow:hidden}
+.goodjob-product-card__media img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .35s ease}
+.goodjob-product-card__media span{position:absolute;right:18px;top:22%;width:68px;height:68px;border-radius:50%;background:var(--blue,#244aa5);color:#fff;display:grid;place-items:center;font-size:38px;box-shadow:0 0 0 8px rgba(255,255,255,.88);opacity:0;transform:translateX(10px);transition:.25s ease}
+.goodjob-product-card:hover .goodjob-product-card__media img{transform:scale(1.035)}
+.goodjob-product-card:hover .goodjob-product-card__media span{opacity:1;transform:none}
+.goodjob-product-card h3{min-height:82px;margin:0;padding:18px 18px 20px;display:grid;place-items:center;font-size:20px;line-height:1.12;font-weight:500}
+.goodjob-product-card h3 a{color:#050b18;text-decoration:none}
+.goodjob-products-empty{padding:28px;background:#f7f9fc;border:1px dashed #cbd5e1;color:#667085}
+@media(max-width:1100px){.goodjob-products-page__wrap{grid-template-columns:240px minmax(0,1fr)}.goodjob-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.goodjob-products-page{padding:36px 16px}.goodjob-products-page__wrap{grid-template-columns:1fr}.goodjob-products-sidebar{position:static}.goodjob-product-grid{grid-template-columns:1fr}.goodjob-product-card__media span{opacity:1;transform:none;width:54px;height:54px;font-size:30px}}`;
+}
+
+function buildAiSiteWpBlogArchiveStyle() {
+  return `.goodjob-blog-page{background:#fff;color:#101828}
+.goodjob-blog-hero{position:relative;min-height:255px;display:grid;place-items:start center;padding-top:8px;background:linear-gradient(rgba(0,0,0,.52),rgba(0,0,0,.52)),url("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1800&q=80") center 42%/cover no-repeat;color:#fff}
+.goodjob-blog-hero h1{position:relative;margin:0;font-size:38px;line-height:1.1;color:#fff;font-weight:800}
+.goodjob-blog-breadcrumb{background:#f0f0f0;min-height:72px;display:flex;align-items:center;gap:14px;padding:0 max(24px,calc((100vw - 1570px)/2 + 24px));font-size:19px}
+.goodjob-blog-breadcrumb a{color:#111827;text-decoration:none}.goodjob-blog-breadcrumb span:last-child{color:var(--blue,#244aa5);text-transform:capitalize}
+.goodjob-blog-list{width:min(1550px,calc(100vw - clamp(32px,8vw,180px)));margin:0 auto;padding:clamp(56px,7vw,78px) 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:62px;row-gap:54px}
+.goodjob-blog-item{display:grid;grid-template-columns:minmax(180px,245px) minmax(0,1fr);gap:24px;padding-bottom:28px;border-bottom:1px solid #e7e7e7;align-items:start}
+.goodjob-blog-item__media{display:block;border:1px solid #ddd;background:#f6f7f9;padding:6px;aspect-ratio:2/1;overflow:hidden}
+.goodjob-blog-item__media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease}
+.goodjob-blog-item:hover .goodjob-blog-item__media img{transform:scale(1.04)}
+.goodjob-blog-item__body{min-width:0}.goodjob-blog-item h2{margin:0 0 14px;font-size:24px;line-height:1.16;color:var(--blue,#244aa5)}
+.goodjob-blog-item h2 a{color:inherit;text-decoration:none}.goodjob-blog-item time{display:block;margin-bottom:18px;color:#9aa0a6;font-size:18px}
+.goodjob-blog-item time::before{content:"▣";font-size:14px;margin-right:6px;color:#a7adb4}.goodjob-blog-item p{margin:0;color:#050b18;font-size:18px;line-height:1.55}
+.goodjob-blog-item__button{float:right;margin-top:18px;display:inline-flex;align-items:center;justify-content:center;min-width:140px;min-height:38px;background:var(--blue,#244aa5);color:#fff;text-decoration:none;font-size:16px}
+.goodjob-blog-empty{grid-column:1/-1;padding:28px;background:#f7f9fc;border:1px dashed #cbd5e1;color:#667085}
+@media(max-width:1180px){.goodjob-blog-list{grid-template-columns:1fr;width:min(100% - 48px,860px)}}
+@media(max-width:640px){.goodjob-blog-hero{min-height:190px}.goodjob-blog-breadcrumb{min-height:60px;font-size:16px;padding:0 20px}.goodjob-blog-list{width:min(100% - 32px,680px);padding:40px 0}.goodjob-blog-item{grid-template-columns:1fr}.goodjob-blog-item__button{float:none;width:100%}}`;
+}
+
+function buildAiSiteWpProductDetailTemplate() {
+  return buildAiSiteWpTemplateShell(`<!-- wp:goodjob-ai-site/product-detail /-->`);
+}
+
+function buildAiSiteWpNewsDetailTemplate() {
+  return buildAiSiteWpTemplateShell(`<!-- wp:goodjob-ai-site/news-detail /-->`);
+}
+
+function buildAiSiteWpProductDetailRender() {
+  return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$post_id = get_the_ID();
+$terms = get_the_terms($post_id, 'product_cat');
+if (is_wp_error($terms) || !is_array($terms)) {
+    $terms = array();
+}
+$primary_term = !empty($terms) ? $terms[0] : null;
+$image_url = get_the_post_thumbnail_url($post_id, 'large');
+if (!$image_url) {
+    $image_url = (string) get_post_meta($post_id, 'goodjob_image', true);
+}
+if (!$image_url) {
+    $image_url = 'https://placehold.co/900x720/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+}
+$sku = (string) get_post_meta($post_id, 'goodjob_sku', true);
+$material = (string) get_post_meta($post_id, 'goodjob_material', true);
+$application = (string) get_post_meta($post_id, 'goodjob_application', true);
+$lead_time = (string) get_post_meta($post_id, 'goodjob_lead_time', true);
+$export_docs = (string) get_post_meta($post_id, 'goodjob_export_docs', true);
+$specs = array(
+    'SKU' => $sku ?: 'Confirm by drawing or sample',
+    'Category' => $primary_term ? $primary_term->name : 'Industrial Product',
+    'Material' => $material ?: 'Custom material available',
+    'Application' => $application ?: 'Industrial fluid control and OEM supply',
+    'Lead Time' => $lead_time ?: '15-35 days after confirmation',
+    'Export Documents' => $export_docs ?: 'Invoice, packing list, certificate, inspection record',
+);
+$related_args = array(
+    'post_type' => 'product',
+    'post_status' => 'publish',
+    'posts_per_page' => 3,
+    'post__not_in' => array($post_id),
+);
+if ($primary_term) {
+    $related_args['tax_query'] = array(array(
+        'taxonomy' => 'product_cat',
+        'field' => 'term_id',
+        'terms' => (int) $primary_term->term_id,
+    ));
+}
+$related = new WP_Query($related_args);
+?>
+<article class="goodjob-product-detail">
+  <nav class="goodjob-product-detail__breadcrumb" aria-label="Breadcrumb">
+    <a href="<?php echo esc_url(home_url('/')); ?>">Home</a>
+    <span aria-hidden="true">/</span>
+    <a href="<?php echo esc_url(get_post_type_archive_link('product')); ?>">Products</a>
+    <span aria-hidden="true">/</span>
+    <span><?php the_title(); ?></span>
+  </nav>
+  <section class="goodjob-product-detail__hero">
+    <div class="goodjob-product-detail__media">
+      <img src="<?php echo esc_url($image_url); ?>" alt="<?php the_title_attribute(); ?>" loading="eager" decoding="async">
+    </div>
+    <div class="goodjob-product-detail__summary">
+      <div class="goodjob-product-detail__terms">
+        <?php foreach ($terms as $term) :
+          $term_link = get_term_link($term);
+          if (is_wp_error($term_link)) {
+              continue;
+          }
+        ?>
+          <a href="<?php echo esc_url($term_link); ?>"><?php echo esc_html($term->name); ?></a>
+        <?php endforeach; ?>
+      </div>
+      <h1><?php the_title(); ?></h1>
+      <p><?php echo esc_html(get_the_excerpt() ?: wp_trim_words(wp_strip_all_tags(get_the_content()), 34)); ?></p>
+      <div class="goodjob-product-detail__actions">
+        <a class="goodjob-product-detail__primary" href="<?php echo esc_url(home_url('/contact-us/')); ?>">Request Price & Drawings</a>
+        <a class="goodjob-product-detail__ghost" href="<?php echo esc_url(get_post_type_archive_link('product')); ?>">Back to Products</a>
+      </div>
+    </div>
+  </section>
+  <section class="goodjob-product-detail__body">
+    <aside class="goodjob-product-detail__specs">
+      <h2>Product Specifications</h2>
+      <dl>
+        <?php foreach ($specs as $label => $value) : ?>
+          <div><dt><?php echo esc_html($label); ?></dt><dd><?php echo esc_html($value); ?></dd></div>
+        <?php endforeach; ?>
+      </dl>
+      <div class="goodjob-product-detail__rfq">
+        <strong>RFQ Checklist</strong>
+        <ul>
+          <li>Target model, drawing, or sample photo</li>
+          <li>Quantity and destination market</li>
+          <li>Material, pressure, size, and inspection needs</li>
+        </ul>
+      </div>
+    </aside>
+    <div class="goodjob-product-detail__content">
+      <?php the_content(); ?>
+    </div>
+  </section>
+  <?php if ($related->have_posts()) : ?>
+  <section class="goodjob-product-detail__related">
+    <div class="goodjob-product-detail__related-head">
+      <span>Related Products</span>
+      <h2>More options in this category</h2>
+    </div>
+    <div class="goodjob-product-detail__related-grid">
+      <?php while ($related->have_posts()) : $related->the_post();
+        $related_image = get_the_post_thumbnail_url(get_the_ID(), 'medium');
+        if (!$related_image) {
+            $related_image = (string) get_post_meta(get_the_ID(), 'goodjob_image', true);
+        }
+        if (!$related_image) {
+            $related_image = 'https://placehold.co/420x320/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+        }
+      ?>
+        <article>
+          <a href="<?php the_permalink(); ?>"><img src="<?php echo esc_url($related_image); ?>" alt="<?php the_title_attribute(); ?>" loading="lazy" decoding="async"></a>
+          <h3><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
+        </article>
+      <?php endwhile; wp_reset_postdata(); ?>
+    </div>
+  </section>
+  <?php endif; ?>
+</article>`;
+}
+
+function buildAiSiteWpProductDetailStyle() {
+  return `.goodjob-product-detail{background:#fff;color:#101828}
+.goodjob-product-detail__breadcrumb{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto;padding:24px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#667085;font-size:14px}
+.goodjob-product-detail__breadcrumb a{color:var(--blue,#244aa5);text-decoration:none}
+.goodjob-product-detail__hero{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto;display:grid;grid-template-columns:minmax(360px,.9fr) minmax(0,1fr);gap:clamp(34px,5vw,76px);align-items:center;padding:clamp(18px,3vw,38px) 0 clamp(54px,7vw,92px)}
+.goodjob-product-detail__media{background:#f4f7fb;border:1px solid #d9e1ec;aspect-ratio:1/1;display:grid;place-items:center;padding:clamp(18px,3vw,42px)}
+.goodjob-product-detail__media img{width:100%;height:100%;object-fit:contain;display:block}
+.goodjob-product-detail__terms{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+.goodjob-product-detail__terms a{background:#eef4ff;color:var(--blue,#244aa5);border:1px solid #cdddf8;padding:7px 10px;font-size:12px;text-transform:uppercase;font-weight:900;text-decoration:none}
+.goodjob-product-detail__summary h1{margin:0 0 18px;color:#050b18;font-size:clamp(38px,5vw,68px);line-height:1.02;letter-spacing:0}
+.goodjob-product-detail__summary p{margin:0;color:#536273;font-size:clamp(16px,1.3vw,19px);line-height:1.75;max-width:720px}
+.goodjob-product-detail__actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+.goodjob-product-detail__primary,.goodjob-product-detail__ghost{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 20px;text-decoration:none;font-weight:900}
+.goodjob-product-detail__primary{background:var(--blue,#244aa5);color:#fff}.goodjob-product-detail__ghost{background:#fff;color:#101828;border:1px solid #cfd8e6}
+.goodjob-product-detail__body{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto;display:grid;grid-template-columns:360px minmax(0,1fr);gap:clamp(30px,5vw,72px);align-items:start;padding:0 0 clamp(64px,8vw,108px)}
+.goodjob-product-detail__specs{background:#f6f8fb;border-top:5px solid var(--blue,#244aa5);padding:clamp(22px,3vw,34px);position:sticky;top:112px}
+.goodjob-product-detail__specs h2{margin:0 0 20px;font-size:24px;color:#101828}
+.goodjob-product-detail__specs dl{margin:0;display:grid;gap:0}.goodjob-product-detail__specs div{border-bottom:1px solid #dce4ee;padding:13px 0}
+.goodjob-product-detail__specs dt{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#667085;font-weight:900}.goodjob-product-detail__specs dd{margin:5px 0 0;color:#101828;line-height:1.45}
+.goodjob-product-detail__rfq{margin-top:24px;background:#fff;border:1px solid #dde5ef;padding:18px}.goodjob-product-detail__rfq strong{display:block;margin-bottom:10px}.goodjob-product-detail__rfq ul{margin:0;padding-left:18px;color:#536273;line-height:1.65}
+.goodjob-product-detail__content{min-width:0;color:#263241;font-size:17px;line-height:1.78}.goodjob-product-detail__content h2,.goodjob-product-detail__content h3{color:#101828;line-height:1.18}.goodjob-product-detail__content table{width:100%;border-collapse:collapse;margin:22px 0}.goodjob-product-detail__content th,.goodjob-product-detail__content td{border:1px solid #dde5ef;padding:12px;text-align:left}
+.goodjob-product-detail__related{background:#f6f8fb;padding:clamp(52px,7vw,86px) clamp(18px,4vw,54px)}.goodjob-product-detail__related-head,.goodjob-product-detail__related-grid{width:min(1440px,100%);margin:auto}.goodjob-product-detail__related-head span{color:var(--blue,#244aa5);font-weight:900;text-transform:uppercase;font-size:12px;letter-spacing:.1em}.goodjob-product-detail__related-head h2{margin:8px 0 28px;font-size:clamp(28px,3.5vw,44px)}
+.goodjob-product-detail__related-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.goodjob-product-detail__related-grid article{background:#fff;border:1px solid #dce4ee;padding:16px}.goodjob-product-detail__related-grid img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#f4f7fb}.goodjob-product-detail__related-grid h3{font-size:18px;line-height:1.25}.goodjob-product-detail__related-grid a{color:#101828;text-decoration:none}
+@media(max-width:980px){.goodjob-product-detail__hero,.goodjob-product-detail__body{grid-template-columns:1fr}.goodjob-product-detail__specs{position:static}.goodjob-product-detail__related-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.goodjob-product-detail__hero,.goodjob-product-detail__body,.goodjob-product-detail__breadcrumb{width:min(100% - 32px,680px)}.goodjob-product-detail__actions a{width:100%}.goodjob-product-detail__related-grid{grid-template-columns:1fr}}`;
+}
+
+function buildAiSiteWpNewsDetailRender() {
+  return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$post_id = get_the_ID();
+$terms = get_the_terms($post_id, 'news_cat');
+if (is_wp_error($terms) || !is_array($terms)) {
+    $terms = array();
+}
+$primary_term = !empty($terms) ? $terms[0] : null;
+$image_url = get_the_post_thumbnail_url($post_id, 'large');
+if (!$image_url) {
+    $image_url = (string) get_post_meta($post_id, 'goodjob_image', true);
+}
+if (!$image_url) {
+    $image_url = 'https://placehold.co/1200x640/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+}
+$related_args = array(
+    'post_type' => 'news',
+    'post_status' => 'publish',
+    'posts_per_page' => 3,
+    'post__not_in' => array($post_id),
+    'orderby' => 'date',
+    'order' => 'DESC',
+);
+if ($primary_term) {
+    $related_args['tax_query'] = array(array(
+        'taxonomy' => 'news_cat',
+        'field' => 'term_id',
+        'terms' => (int) $primary_term->term_id,
+    ));
+}
+$related = new WP_Query($related_args);
+?>
+<article class="goodjob-news-detail">
+  <header class="goodjob-news-detail__hero">
+    <div class="goodjob-news-detail__shade"></div>
+    <div class="goodjob-news-detail__hero-inner">
+      <nav class="goodjob-news-detail__breadcrumb" aria-label="Breadcrumb">
+        <a href="<?php echo esc_url(home_url('/')); ?>">Home</a>
+        <span aria-hidden="true">/</span>
+        <a href="<?php echo esc_url(get_post_type_archive_link('news')); ?>">Blog</a>
+      </nav>
+      <div class="goodjob-news-detail__meta">
+        <?php if ($primary_term) : ?><span><?php echo esc_html($primary_term->name); ?></span><?php endif; ?>
+        <time datetime="<?php echo esc_attr(get_the_date('c')); ?>"><?php echo esc_html(get_the_date('Y-m-d')); ?></time>
+      </div>
+      <h1><?php the_title(); ?></h1>
+      <p><?php echo esc_html(get_the_excerpt() ?: wp_trim_words(wp_strip_all_tags(get_the_content()), 28)); ?></p>
+    </div>
+  </header>
+  <div class="goodjob-news-detail__layout">
+    <main class="goodjob-news-detail__main">
+      <figure class="goodjob-news-detail__image">
+        <img src="<?php echo esc_url($image_url); ?>" alt="<?php the_title_attribute(); ?>" loading="eager" decoding="async">
+      </figure>
+      <div class="goodjob-news-detail__content">
+        <?php the_content(); ?>
+      </div>
+    </main>
+    <aside class="goodjob-news-detail__aside">
+      <div class="goodjob-news-detail__panel">
+        <strong>Need help with product selection?</strong>
+        <p>Send your operating conditions, target market, and expected quantity. We will prepare a focused RFQ path.</p>
+        <a href="<?php echo esc_url(home_url('/contact-us/')); ?>">Send Inquiry</a>
+      </div>
+      <?php if (!empty($terms)) : ?>
+      <div class="goodjob-news-detail__panel">
+        <strong>Topics</strong>
+        <div class="goodjob-news-detail__tags">
+          <?php foreach ($terms as $term) :
+            $term_link = get_term_link($term);
+            if (is_wp_error($term_link)) {
+                continue;
+            }
+          ?>
+            <a href="<?php echo esc_url($term_link); ?>"><?php echo esc_html($term->name); ?></a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+    </aside>
+  </div>
+  <?php if ($related->have_posts()) : ?>
+  <section class="goodjob-news-detail__related">
+    <div class="goodjob-news-detail__related-head">
+      <span>More Blogs</span>
+      <h2>Related reading</h2>
+    </div>
+    <div class="goodjob-news-detail__related-grid">
+      <?php while ($related->have_posts()) : $related->the_post(); ?>
+        <article>
+          <time datetime="<?php echo esc_attr(get_the_date('c')); ?>"><?php echo esc_html(get_the_date('Y-m-d')); ?></time>
+          <h3><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
+          <p><?php echo esc_html(wp_trim_words(get_the_excerpt(), 18)); ?></p>
+        </article>
+      <?php endwhile; wp_reset_postdata(); ?>
+    </div>
+  </section>
+  <?php endif; ?>
+</article>`;
+}
+
+function buildAiSiteWpNewsDetailStyle() {
+  return `.goodjob-news-detail{background:#fff;color:#101828}
+.goodjob-news-detail__hero{position:relative;min-height:430px;background:linear-gradient(rgba(6,16,32,.66),rgba(6,16,32,.66)),url("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1800&q=80") center/cover no-repeat;color:#fff;display:grid;align-items:end}
+.goodjob-news-detail__hero-inner{position:relative;width:min(1120px,calc(100vw - clamp(32px,8vw,160px)));margin:0 auto;padding:54px 0}
+.goodjob-news-detail__breadcrumb{display:flex;gap:10px;align-items:center;margin-bottom:22px;color:rgba(255,255,255,.76)}.goodjob-news-detail__breadcrumb a{color:#fff;text-decoration:none}
+.goodjob-news-detail__meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.goodjob-news-detail__meta span,.goodjob-news-detail__meta time{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24);padding:7px 10px;font-size:12px;text-transform:uppercase;font-weight:900;letter-spacing:.08em}
+.goodjob-news-detail__hero h1{max-width:920px;margin:0;color:#fff;font-size:clamp(38px,5vw,70px);line-height:1.04}.goodjob-news-detail__hero p{max-width:760px;margin:18px 0 0;color:rgba(255,255,255,.8);font-size:18px;line-height:1.65}
+.goodjob-news-detail__layout{width:min(1320px,calc(100vw - clamp(32px,7vw,130px)));margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:clamp(34px,5vw,72px);padding:clamp(54px,7vw,90px) 0}
+.goodjob-news-detail__image{margin:0 0 34px;background:#f4f7fb;border:1px solid #dde5ef}.goodjob-news-detail__image img{width:100%;aspect-ratio:16/8;object-fit:cover;display:block}
+.goodjob-news-detail__content{font-size:18px;line-height:1.82;color:#263241}.goodjob-news-detail__content h2,.goodjob-news-detail__content h3{color:#101828;line-height:1.18;margin-top:1.7em}.goodjob-news-detail__content ul{padding-left:1.3em}
+.goodjob-news-detail__aside{display:grid;gap:20px;align-content:start;position:sticky;top:112px}.goodjob-news-detail__panel{background:#f6f8fb;border:1px solid #dde5ef;border-top:4px solid var(--blue,#244aa5);padding:22px}.goodjob-news-detail__panel strong{display:block;color:#101828;font-size:20px;line-height:1.2}.goodjob-news-detail__panel p{color:#536273;line-height:1.65}.goodjob-news-detail__panel>a{display:inline-flex;min-height:44px;align-items:center;justify-content:center;background:var(--blue,#244aa5);color:#fff;text-decoration:none;font-weight:900;padding:0 16px}
+.goodjob-news-detail__tags{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.goodjob-news-detail__tags a{background:#fff;color:var(--blue,#244aa5);border:1px solid #cdddf8;text-decoration:none;padding:7px 10px;font-weight:800}
+.goodjob-news-detail__related{background:#f6f8fb;padding:clamp(52px,7vw,86px) clamp(18px,4vw,54px)}.goodjob-news-detail__related-head,.goodjob-news-detail__related-grid{width:min(1320px,100%);margin:auto}.goodjob-news-detail__related-head span{color:var(--blue,#244aa5);font-weight:900;text-transform:uppercase;font-size:12px;letter-spacing:.1em}.goodjob-news-detail__related-head h2{margin:8px 0 28px;font-size:clamp(28px,3.5vw,44px)}
+.goodjob-news-detail__related-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.goodjob-news-detail__related-grid article{background:#fff;border:1px solid #dce4ee;padding:24px}.goodjob-news-detail__related-grid time{color:#98a2b3}.goodjob-news-detail__related-grid h3{font-size:20px;line-height:1.2}.goodjob-news-detail__related-grid a{color:var(--blue,#244aa5);text-decoration:none}.goodjob-news-detail__related-grid p{color:#536273;line-height:1.6}
+@media(max-width:980px){.goodjob-news-detail__layout{grid-template-columns:1fr}.goodjob-news-detail__aside{position:static}.goodjob-news-detail__related-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.goodjob-news-detail__hero{min-height:360px}.goodjob-news-detail__hero-inner,.goodjob-news-detail__layout{width:min(100% - 32px,680px)}.goodjob-news-detail__related-grid{grid-template-columns:1fr}}`;
+}
+
+function buildAiSiteWpSingleTemplate(config: { cpt: string; tone: "product" | "case" | "news" | "service" | "generic"; cta: string }) {
+  const toneClass = `goodjob-single--${config.tone}`;
+  return buildAiSiteWpTemplateShell(`<!-- wp:group {"className":"goodjob-single ${toneClass}","layout":{"type":"constrained","contentSize":"1180px"}} -->
+<article class="wp-block-group goodjob-single ${toneClass}">
+  <!-- wp:post-terms {"term":"${config.cpt === "product" ? "product_cat" : config.cpt === "case" ? "case_cat" : config.cpt === "news" ? "news_cat" : config.cpt === "service" ? "service_cat" : "category"}","className":"goodjob-single__terms"} /-->
+  <!-- wp:post-title {"level":1,"className":"goodjob-single__title"} /-->
+  <!-- wp:post-featured-image {"aspectRatio":"16/9","className":"goodjob-single__media"} /-->
+  <!-- wp:post-content {"layout":{"type":"constrained","contentSize":"860px"},"className":"goodjob-single__content"} /-->
+  <!-- wp:group {"className":"goodjob-single__cta","layout":{"type":"flex","justifyContent":"space-between","flexWrap":"wrap"}} -->
+  <div class="wp-block-group goodjob-single__cta">
+    <!-- wp:paragraph --><p>${htmlEscape(config.cta)}</p><!-- /wp:paragraph -->
+    <!-- wp:buttons -->
+    <div class="wp-block-buttons"><!-- wp:button {"className":"is-style-fill"} --><div class="wp-block-button is-style-fill"><a class="wp-block-button__link wp-element-button" href="/contact-us/">Send Inquiry</a></div><!-- /wp:button --></div>
+    <!-- /wp:buttons -->
+  </div>
+  <!-- /wp:group -->
+</article>
+<!-- /wp:group -->`);
+}
+
+function buildAiSiteWpSearchTemplate() {
+  return buildAiSiteWpTemplateShell(`<!-- wp:group {"className":"goodjob-archive goodjob-archive--search","layout":{"type":"constrained","contentSize":"1180px"}} -->
+<section class="wp-block-group goodjob-archive goodjob-archive--search">
+  <!-- wp:query-title {"type":"search","level":1} /-->
+  <!-- wp:search {"label":"Search","showLabel":false,"buttonText":"Search","className":"goodjob-search-form"} /-->
+  <!-- wp:query {"query":{"perPage":10,"pages":0,"offset":0,"postType":"any","order":"desc","orderBy":"date","inherit":true}} -->
+  <div class="wp-block-query">
+    <!-- wp:post-template className="goodjob-archive__grid" -->
+      <!-- wp:group {"className":"goodjob-card","layout":{"type":"constrained"}} -->
+      <article class="wp-block-group goodjob-card">
+        <!-- wp:post-title {"isLink":true,"level":2,"className":"goodjob-card__title"} /-->
+        <!-- wp:post-excerpt {"moreText":"Read More"} /-->
+      </article>
+      <!-- /wp:group -->
+    <!-- /wp:post-template -->
+    <!-- wp:query-pagination {"layout":{"type":"flex","justifyContent":"center"}} -->
+      <!-- wp:query-pagination-previous /-->
+      <!-- wp:query-pagination-numbers /-->
+      <!-- wp:query-pagination-next /-->
+    <!-- /wp:query-pagination -->
+  </div>
+  <!-- /wp:query -->
+</section>
+<!-- /wp:group -->`);
+}
+
+function buildAiSiteWp404Template() {
+  return buildAiSiteWpTemplateShell(`<!-- wp:group {"className":"goodjob-not-found","layout":{"type":"constrained","contentSize":"760px"}} -->
+<section class="wp-block-group goodjob-not-found">
+  <!-- wp:heading {"level":1} --><h1>Page Not Found</h1><!-- /wp:heading -->
+  <!-- wp:paragraph --><p>The page you are looking for may have moved. Search the site or return to the homepage.</p><!-- /wp:paragraph -->
+  <!-- wp:search {"label":"Search","showLabel":false,"buttonText":"Search"} /-->
+  <!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->
+  <div class="wp-block-buttons"><!-- wp:button --><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/">Back to Home</a></div><!-- /wp:button --></div>
+  <!-- /wp:buttons -->
+</section>
+<!-- /wp:group -->`);
+}
+
+function buildAiSiteWpRouteCss() {
+  return `
+
+/* Multi-route WordPress templates */
+.goodjob-archive,.goodjob-single,.goodjob-not-found{padding:clamp(64px,8vw,116px) clamp(20px,4vw,56px)}
+.goodjob-archive__head{margin-bottom:clamp(28px,4vw,56px);text-align:center}
+.goodjob-archive__head h1,.goodjob-single__title,.goodjob-not-found h1{margin:0 0 16px;color:var(--ink,#16202e);font-size:clamp(36px,5vw,68px);line-height:1.04}
+.goodjob-archive__head p,.goodjob-single__content,.goodjob-not-found p{color:var(--body,#3c4858);font-size:clamp(16px,1.2vw,18px);line-height:1.75}
+.goodjob-archive__grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,2.4vw,30px)}
+.goodjob-card{background:#fff;border:1px solid var(--line,#e2e7ee);box-shadow:0 18px 48px rgba(16,32,60,.08);overflow:hidden}
+.goodjob-card__media{margin:0;background:#eef2f7}
+.goodjob-card__terms{margin:18px 20px 6px;color:var(--red,#c8161c);font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.goodjob-card__title{margin:0 20px 10px;font-size:clamp(20px,1.8vw,28px);line-height:1.16}
+.goodjob-card__title a{color:var(--ink,#16202e);text-decoration:none}
+.goodjob-card__excerpt{margin:0 20px 22px;color:var(--body,#3c4858);line-height:1.68}
+.goodjob-archive--product{background:#f7f9fc}.goodjob-archive--case{background:#fff}.goodjob-archive--news{background:#f5f7fb}.goodjob-archive--service{background:#fff}
+.goodjob-archive--case .goodjob-card{border-radius:0}.goodjob-archive--news .goodjob-card{box-shadow:none;border-left:4px solid var(--blue,#143a7b)}.goodjob-archive--service .goodjob-card{display:grid;grid-template-columns:190px minmax(0,1fr)}
+.goodjob-single{background:#fff}
+.goodjob-single__terms{color:var(--red,#c8161c);font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.goodjob-single__media{margin:clamp(22px,4vw,42px) 0;background:#eef2f7}
+.goodjob-single__content{max-width:860px;margin:0 auto}
+.goodjob-single__cta{margin-top:clamp(30px,5vw,56px);padding:clamp(20px,3vw,34px);background:#f7f9fc;border:1px solid var(--line,#e2e7ee)}
+.goodjob-pagination{margin-top:clamp(28px,4vw,48px)}
+.goodjob-search-form{margin:0 auto 34px;max-width:720px}
+.goodjob-not-found{text-align:center;min-height:54vh;display:grid;place-content:center}
+@media(max-width:920px){.goodjob-archive__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.goodjob-archive--service .goodjob-card{display:block}}
+@media(max-width:640px){.goodjob-archive__grid{grid-template-columns:1fr}.goodjob-archive,.goodjob-single,.goodjob-not-found{padding:48px 20px}}
+`;
 }
 
 function aiSiteWpRebuildSummary(checks: AiSiteWpRebuildCheck[]) {
@@ -3680,6 +4645,55 @@ async function inspectAiSiteWpRebuild(project: AiSiteBuilderProject) {
     checks.push({ key: sectionKey, label, status: "pass", message: "HTML source and WP metadata are ready.", target: section?.wp_target });
   }
 
+  const root = aiBuildRoot();
+  checks.push({
+    key: "ai_build_root",
+    label: "AI build storage",
+    status: await fileExists(root) ? "pass" : "warning",
+    message: `Project storage is resolved to ${root}.`,
+    target: root
+  });
+
+  const routeBlueprint = buildAiSiteWpRouteBlueprint(project);
+  const staticPageCount = Object.keys(routeBlueprint.static_pages).length;
+  const cptRoutes = Object.entries(routeBlueprint.cpt_routes);
+  checks.push({
+    key: "wp_routes",
+    label: "WordPress route blueprint",
+    status: staticPageCount >= 4 && cptRoutes.length >= 4 ? "pass" : "warning",
+    message: `Prepared ${staticPageCount} static pages and ${cptRoutes.length} CPT route groups for multi-route assembly.`,
+    target: "theme/_data/routes.json"
+  });
+
+  const collections = buildAiSiteWpCollections(project);
+  for (const [postType, collection] of Object.entries(collections)) {
+    const items = Array.isArray(collection.items) ? collection.items : [];
+    const routeConfig = routeBlueprint.cpt_routes[postType as keyof typeof routeBlueprint.cpt_routes];
+    const expected = routeConfig?.seed_count || (postType === "service" ? 4 : 1);
+    const withContent = items.filter((item) => typeof item.content === "string" && item.content.trim().length > 40).length;
+    checks.push({
+      key: `wp_collection_${postType}`,
+      label: `${collection.label} seed data`,
+      status: items.length >= expected && withContent === items.length ? "pass" : items.length ? "warning" : "error",
+      message: `Prepared ${items.length} ${postType} seed records; ${withContent} include editable detail content.`,
+      target: `theme/_data/collections.json:${postType}`
+    });
+  }
+
+  const requiredTemplates = [
+    "front-page.html", "index.html", "archive-product.html", "taxonomy-product_cat.html", "single-product.html",
+    "archive-case.html", "taxonomy-case_cat.html", "single-case.html", "archive-news.html", "taxonomy-news_cat.html",
+    "single-news.html", "archive-service.html", "taxonomy-service_cat.html", "single-service.html", "archive.html",
+    "single.html", "search.html", "404.html"
+  ];
+  checks.push({
+    key: "wp_templates",
+    label: "WordPress template set",
+    status: "pass",
+    message: `Export will create ${requiredTemplates.length} block templates covering home, archives, taxonomies, singles, search, and 404.`,
+    target: "theme/templates"
+  });
+
   return { project, order, customPages, wpMetadata, checks, summary: aiSiteWpRebuildSummary(checks) };
 }
 
@@ -3696,6 +4710,7 @@ async function exportAiSiteWpRebuildPackage(project: AiSiteBuilderProject) {
   const acfJsonDir = path.join(themeDir, "acf-json");
   const dataDir = path.join(themeDir, "_data");
   const incDir = path.join(themeDir, "inc");
+  const assetsJsDir = path.join(themeDir, "assets", "js");
   const exportedAt = new Date().toISOString();
   const files: string[] = [];
 
@@ -3708,15 +4723,17 @@ async function exportAiSiteWpRebuildPackage(project: AiSiteBuilderProject) {
   await mkdir(acfJsonDir, { recursive: true });
   await mkdir(dataDir, { recursive: true });
   await mkdir(incDir, { recursive: true });
+  await mkdir(assetsJsDir, { recursive: true });
 
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const title = cleanAiSiteWpHeaderValue(schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName, "GoodJob AI Site");
   const description = cleanAiSiteWpHeaderValue(schema.company_profile.description || schema.company_profile.tagline, "Block theme starter exported from GoodJob AI Website Factory.");
   const pageBlockLines: string[] = [];
+  const pageBlocksByKey = new Map<string, string>();
 
   for (const section of state.wpMetadata.sections) {
     const raw = await readFile(aiSectionFile(project.id, section.section_key), "utf8").catch(() => defaultAiSectionHtml(section.section_key, project, false, state.customPages));
-    const fragment = sanitizeAiSiteExportFragment(raw);
+    const fragment = sanitizeAiSiteWpExportFragment(raw);
     const sourceName = `${section.section_key}.html`;
     await writeFile(path.join(sectionsDir, sourceName), fragment, "utf8");
     files.push(`sections/${sourceName}`);
@@ -3750,7 +4767,9 @@ ${fragment}
     await writeFile(path.join(blockDir, "style.css"), buildAiSiteWpBlockStyle(section), "utf8");
     await writeFile(path.join(acfJsonDir, `group_block_${blockSlug}.json`), JSON.stringify(buildAiSiteWpAcfFieldGroup(section, fragment), null, 2), "utf8");
     files.push(`theme/blocks/${blockSlug}/block.json`, `theme/blocks/${blockSlug}/render.php`, `theme/blocks/${blockSlug}/style.css`, `theme/acf-json/group_block_${blockSlug}.json`);
-    pageBlockLines.push(buildAiSiteWpPageBlock(section, fragment));
+    const pageBlock = buildAiSiteWpPageBlock(section, fragment);
+    pageBlockLines.push(pageBlock);
+    pageBlocksByKey.set(section.section_key, pageBlock);
   }
 
   const styleCss = `/*
@@ -3766,6 +4785,7 @@ Text Domain: ${themeSlug}
 */
 
 ${aiSiteFrameworkCss(project)}
+${buildAiSiteWpRouteCss()}
 `;
   const themeJson = {
     version: 3,
@@ -3784,7 +4804,9 @@ ${aiSiteFrameworkCss(project)}
   };
   const siteOptions = buildAiSiteWpSiteOptions(project);
   const collections = buildAiSiteWpCollections(project);
+  const routeBlueprint = buildAiSiteWpRouteBlueprint(project);
   const pageContent = pageBlockLines.join("\n\n");
+  const pageContentFor = (keys: string[]) => keys.map((key) => pageBlocksByKey.get(key)).filter(Boolean).join("\n\n");
   const frontPageTemplate = `<!-- wp:template-part {"slug":"header"} /-->
 <!-- wp:group {"tagName":"main","layout":{"type":"default"}} -->
 <main class="wp-block-group">
@@ -3799,6 +4821,40 @@ ${aiSiteFrameworkCss(project)}
       template: "front-page",
       status: "publish",
       post_content: pageContent
+    },
+    applications: {
+      title: "Applications",
+      slug: "applications",
+      template: "page",
+      status: "publish",
+      post_content: pageContentFor(["applications", "products", "contact_us"])
+    },
+    about_us: {
+      title: "About Us",
+      slug: "about-us",
+      template: "page",
+      status: "publish",
+      post_content: pageContentFor(["about_us", "applications", "contact_us"])
+    },
+    contact_us: {
+      title: "Contact Us",
+      slug: "contact-us",
+      template: "page",
+      status: "publish",
+      post_content: pageContentFor(["contact_us"])
+    },
+    thanks: {
+      title: "Thank You",
+      slug: "thanks",
+      template: "page",
+      status: "publish",
+      post_content: `<!-- wp:group {"className":"goodjob-not-found","layout":{"type":"constrained","contentSize":"760px"}} -->
+<section class="wp-block-group goodjob-not-found">
+<!-- wp:heading {"level":1} --><h1>Thank You</h1><!-- /wp:heading -->
+<!-- wp:paragraph --><p>Your inquiry has been received. Our team will review your project details and respond with the next step as soon as possible.</p><!-- /wp:paragraph -->
+<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} --><div class="wp-block-buttons"><!-- wp:button --><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/">Back to Home</a></div><!-- /wp:button --></div><!-- /wp:buttons -->
+</section>
+<!-- /wp:group -->`
     }
   };
   const readme = `# ${title}
@@ -3809,8 +4865,9 @@ This is a WordPress ACF block theme package exported by GoodJob AI Website Facto
 - Source fragments are stored in \`sections/\`.
 - Editable ACF blocks are stored in \`theme/blocks/\`.
 - ACF Local JSON field groups are stored in \`theme/acf-json/\`.
-- Seed data is stored in \`theme/_data/\`.
-- Activating the theme registers CPTs, ACF blocks, admin tools, and seeds the home page/content once.
+- Seed data and route blueprints are stored in \`theme/_data/\`.
+- Activating the theme registers CPTs, ACF blocks, admin tools, static pages, route templates, and seed content once.
+- Multi-route templates include products, cases, services, blog/news, taxonomy archives, single detail pages, search, and 404.
 `;
   const cptPhp = `<?php
 if (!defined('ABSPATH')) {
@@ -3819,10 +4876,10 @@ if (!defined('ABSPATH')) {
 
 function goodjob_ai_site_collection_types() {
     return array(
-        'product' => array('label' => 'Products', 'singular' => 'Product', 'taxonomy' => 'product_cat'),
-        'service' => array('label' => 'Services', 'singular' => 'Service', 'taxonomy' => 'service_cat'),
-        'case' => array('label' => 'Cases', 'singular' => 'Case', 'taxonomy' => 'case_cat'),
-        'news' => array('label' => 'News', 'singular' => 'News', 'taxonomy' => 'news_cat'),
+        'product' => array('label' => 'Products', 'singular' => 'Product', 'taxonomy' => 'product_cat', 'archive_slug' => 'products', 'taxonomy_slug' => 'product-category', 'icon' => 'dashicons-products'),
+        'service' => array('label' => 'Services', 'singular' => 'Service', 'taxonomy' => 'service_cat', 'archive_slug' => 'services', 'taxonomy_slug' => 'service-category', 'icon' => 'dashicons-hammer'),
+        'case' => array('label' => 'Cases', 'singular' => 'Case', 'taxonomy' => 'case_cat', 'archive_slug' => 'cases', 'taxonomy_slug' => 'case-category', 'icon' => 'dashicons-portfolio'),
+        'news' => array('label' => 'News', 'singular' => 'News', 'taxonomy' => 'news_cat', 'archive_slug' => 'blog', 'taxonomy_slug' => 'news-category', 'icon' => 'dashicons-media-document'),
     );
 }
 
@@ -3838,16 +4895,16 @@ function goodjob_ai_site_register_cpts() {
             'public' => true,
             'show_in_rest' => true,
             'has_archive' => true,
-            'menu_icon' => $post_type === 'product' ? 'dashicons-products' : 'dashicons-screenoptions',
-            'supports' => array('title', 'editor', 'excerpt', 'thumbnail', 'custom-fields'),
-            'rewrite' => array('slug' => $post_type === 'news' ? 'blog' : $post_type . 's'),
+            'menu_icon' => $config['icon'],
+            'supports' => array('title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions'),
+            'rewrite' => array('slug' => $config['archive_slug']),
         ));
         register_taxonomy($config['taxonomy'], array($post_type), array(
             'labels' => array('name' => $config['label'] . ' Categories'),
             'public' => true,
             'hierarchical' => true,
             'show_in_rest' => true,
-            'rewrite' => array('slug' => $config['taxonomy']),
+            'rewrite' => array('slug' => $config['taxonomy_slug']),
         ));
     }
 }
@@ -3900,6 +4957,9 @@ function goodjob_ai_site_register_acf_blocks() {
             continue;
         }
         $full_name = (string) $metadata['name'];
+        if (strpos($full_name, 'acf/') !== 0) {
+            continue;
+        }
         $acf_name = preg_replace('#^acf/#', '', $full_name);
         if (!$acf_name) {
             continue;
@@ -3969,7 +5029,7 @@ function goodjob_ai_site_read_json($relative) {
 }
 
 function goodjob_ai_site_data_signature() {
-    $files = array('_data/pages.json', '_data/collections.json', '_data/site-options.json');
+    $files = array('_data/pages.json', '_data/collections.json', '_data/site-options.json', '_data/routes.json');
     $hashes = array();
     foreach ($files as $relative) {
         $file = get_stylesheet_directory() . '/' . $relative;
@@ -4029,11 +5089,25 @@ function goodjob_ai_site_seed_collections($force = false) {
                 'post_type' => $post_type,
                 'post_status' => 'publish',
                 'post_excerpt' => sanitize_textarea_field($item['desc'] ?? ''),
-                'post_content' => wp_kses_post($item['desc'] ?? ''),
+                'post_content' => wp_kses_post($item['content'] ?? $item['desc'] ?? ''),
                 'post_date' => sanitize_text_field($item['date'] ?? current_time('mysql')),
             );
             $post_id = $existing ? wp_update_post(array_merge($postarr, array('ID' => $existing->ID))) : wp_insert_post($postarr);
-            if (!is_wp_error($post_id) && $taxonomy && !empty($item['category'])) {
+            if (is_wp_error($post_id)) {
+                continue;
+            }
+            foreach ($item as $meta_key => $meta_value) {
+                if (in_array($meta_key, array('title', 'desc', 'content', 'category', 'date'), true)) {
+                    continue;
+                }
+                $clean_key = sanitize_key('goodjob_' . $meta_key);
+                if (is_array($meta_value)) {
+                    update_post_meta($post_id, $clean_key, wp_json_encode($meta_value, JSON_UNESCAPED_UNICODE));
+                } else {
+                    update_post_meta($post_id, $clean_key, sanitize_text_field((string) $meta_value));
+                }
+            }
+            if ($taxonomy && !empty($item['category'])) {
                 $term = term_exists($item['category'], $taxonomy);
                 if (!$term) {
                     $term = wp_insert_term($item['category'], $taxonomy);
@@ -4046,8 +5120,50 @@ function goodjob_ai_site_seed_collections($force = false) {
     }
 }
 
+function goodjob_ai_site_write_htaccess() {
+    $base = parse_url(home_url('/'), PHP_URL_PATH);
+    $base = $base ? trailingslashit($base) : '/';
+    $index = $base . 'index.php';
+    $rules = "# BEGIN WordPress\n";
+    $rules .= "<IfModule mod_rewrite.c>\n";
+    $rules .= "RewriteEngine On\n";
+    $rules .= "RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]\n";
+    $rules .= "RewriteBase " . $base . "\n";
+    $rules .= "RewriteRule ^index\\.php$ - [L]\n";
+    $rules .= "RewriteCond %{REQUEST_FILENAME} !-f\n";
+    $rules .= "RewriteCond %{REQUEST_FILENAME} !-d\n";
+    $rules .= "RewriteRule . " . $index . " [L]\n";
+    $rules .= "</IfModule>\n";
+    $rules .= "# END WordPress\n";
+    $file = ABSPATH . '.htaccess';
+    if (!file_exists($file) || is_writable($file)) {
+        file_put_contents($file, $rules);
+    }
+}
+
+function goodjob_ai_site_write_nginx_rewrite() {
+    $file = ABSPATH . 'nginx.htaccess';
+    $rule = "try_files \\$uri \\$uri/ /index.php?\\$args;\n";
+    if (!file_exists($file) || is_writable($file)) {
+        file_put_contents($file, $rule);
+    }
+}
+
+function goodjob_ai_site_configure_routes() {
+    global $wp_rewrite;
+    if (get_option('permalink_structure') !== '/%postname%/') {
+        update_option('permalink_structure', '/%postname%/');
+    }
+    if ($wp_rewrite && method_exists($wp_rewrite, 'set_permalink_structure')) {
+        $wp_rewrite->set_permalink_structure('/%postname%/');
+    }
+    goodjob_ai_site_write_htaccess();
+    goodjob_ai_site_write_nginx_rewrite();
+}
+
 function goodjob_ai_site_seed_all($force = false) {
     goodjob_ai_site_register_cpts();
+    goodjob_ai_site_configure_routes();
     goodjob_ai_site_seed_pages($force);
     goodjob_ai_site_seed_collections($force);
     update_option('goodjob_ai_site_options', goodjob_ai_site_read_json('_data/site-options.json'));
@@ -4090,6 +5206,7 @@ function goodjob_ai_site_admin_page() {
     }
     $options = goodjob_ai_site_read_json('_data/site-options.json');
     $collections = goodjob_ai_site_read_json('_data/collections.json');
+    $routes = goodjob_ai_site_read_json('_data/routes.json');
     echo '<div class="wrap"><h1>GoodJob AI Site</h1>';
     echo '<p>This page is generated by GoodJob. It shows the imported site options, seed collections, and install status.</p>';
     echo '<p><strong>Last seeded:</strong> ' . esc_html(get_option('goodjob_ai_site_seeded_at', 'Not seeded yet')) . '</p>';
@@ -4099,6 +5216,7 @@ function goodjob_ai_site_admin_page() {
     submit_button('Rebuild Pages and Seed Data');
     echo '</form>';
     echo '<h2>Site Options</h2><pre style="max-height:280px;overflow:auto;background:#fff;padding:16px;border:1px solid #ccd0d4;">' . esc_html(wp_json_encode($options, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    echo '<h2>Route Blueprint</h2><pre style="max-height:360px;overflow:auto;background:#fff;padding:16px;border:1px solid #ccd0d4;">' . esc_html(wp_json_encode($routes, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
     echo '<h2>Collections</h2><pre style="max-height:360px;overflow:auto;background:#fff;padding:16px;border:1px solid #ccd0d4;">' . esc_html(wp_json_encode($collections, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
     echo '</div>';
 }
@@ -4119,12 +5237,75 @@ add_action('admin_post_goodjob_ai_site_reseed', 'goodjob_ai_site_handle_reseed')
   await writeFile(path.join(dataDir, "site-options.json"), JSON.stringify(siteOptions, null, 2), "utf8");
   await writeFile(path.join(dataDir, "collections.json"), JSON.stringify(collections, null, 2), "utf8");
   await writeFile(path.join(dataDir, "pages.json"), JSON.stringify(pages, null, 2), "utf8");
+  await writeFile(path.join(dataDir, "routes.json"), JSON.stringify(routeBlueprint, null, 2), "utf8");
   await writeFile(path.join(incDir, "cpt.php"), cptPhp, "utf8");
   await writeFile(path.join(incDir, "acf.php"), acfPhp, "utf8");
   await writeFile(path.join(incDir, "installer.php"), installerPhp, "utf8");
   await writeFile(path.join(incDir, "admin.php"), adminPhp, "utf8");
   await writeFile(path.join(templatesDir, "index.html"), frontPageTemplate, "utf8");
   await writeFile(path.join(templatesDir, "front-page.html"), frontPageTemplate, "utf8");
+  const archiveTemplates = {
+    "archive-product.html": buildAiSiteWpProductsArchiveTemplate(),
+    "taxonomy-product_cat.html": buildAiSiteWpProductsArchiveTemplate(),
+    "archive-case.html": buildAiSiteWpArchiveTemplate({ title: "Cases", intro: "Explore delivery references, export coordination stories, and project proof from relevant industrial scenarios.", cpt: "case", mediaRatio: "4/3", tone: "case" }),
+    "taxonomy-case_cat.html": buildAiSiteWpArchiveTemplate({ title: "Case Category", intro: "Review project references by scenario, market, or delivery type.", cpt: "case", mediaRatio: "4/3", tone: "case" }),
+    "archive-news.html": buildAiSiteWpBlogArchiveTemplate(),
+    "taxonomy-news_cat.html": buildAiSiteWpBlogArchiveTemplate(),
+    "archive-service.html": buildAiSiteWpArchiveTemplate({ title: "Services", intro: "Review pre-sales, export, channel, and after-sales services that support B2B industrial buying.", cpt: "service", mediaRatio: "8/5", tone: "service" }),
+    "taxonomy-service_cat.html": buildAiSiteWpArchiveTemplate({ title: "Service Category", intro: "Review service capabilities grouped by support stage and buyer need.", cpt: "service", mediaRatio: "8/5", tone: "service" }),
+    "archive.html": buildAiSiteWpArchiveTemplate({ title: "Archive", intro: "Browse the latest published content from this industrial website.", cpt: "post", mediaRatio: "4/3", tone: "generic" }),
+    "search.html": buildAiSiteWpSearchTemplate(),
+    "404.html": buildAiSiteWp404Template()
+  };
+  const singleTemplates = {
+    "single-product.html": buildAiSiteWpProductDetailTemplate(),
+    "single-case.html": buildAiSiteWpSingleTemplate({ cpt: "case", tone: "case", cta: "Want to discuss a similar project or sourcing scenario?" }),
+    "single-news.html": buildAiSiteWpNewsDetailTemplate(),
+    "single-service.html": buildAiSiteWpSingleTemplate({ cpt: "service", tone: "service", cta: "Need this support for your current export or sourcing project?" }),
+    "single.html": buildAiSiteWpSingleTemplate({ cpt: "post", tone: "generic", cta: "Contact the team for more information about this topic." })
+  };
+  for (const [templateName, templateContent] of Object.entries({ ...archiveTemplates, ...singleTemplates })) {
+    await writeFile(path.join(templatesDir, templateName), templateContent, "utf8");
+    files.push(`theme/templates/${templateName}`);
+  }
+  const nativeArchiveBlocks = [
+    {
+      slug: "products-archive",
+      title: "Products Archive",
+      icon: "products",
+      render: buildAiSiteWpProductsArchiveRender(),
+      style: buildAiSiteWpProductsArchiveStyle()
+    },
+    {
+      slug: "blog-archive",
+      title: "Blog Archive",
+      icon: "media-document",
+      render: buildAiSiteWpBlogArchiveRender(),
+      style: buildAiSiteWpBlogArchiveStyle()
+    },
+    {
+      slug: "product-detail",
+      title: "Product Detail",
+      icon: "products",
+      render: buildAiSiteWpProductDetailRender(),
+      style: buildAiSiteWpProductDetailStyle()
+    },
+    {
+      slug: "news-detail",
+      title: "News Detail",
+      icon: "media-document",
+      render: buildAiSiteWpNewsDetailRender(),
+      style: buildAiSiteWpNewsDetailStyle()
+    }
+  ] as const;
+  for (const block of nativeArchiveBlocks) {
+    const blockDir = path.join(blocksDir, block.slug);
+    await mkdir(blockDir, { recursive: true });
+    await writeFile(path.join(blockDir, "block.json"), JSON.stringify(buildAiSiteWpNativeArchiveBlockJson(block.slug, block.title, block.icon), null, 2), "utf8");
+    await writeFile(path.join(blockDir, "render.php"), block.render, "utf8");
+    await writeFile(path.join(blockDir, "style.css"), block.style, "utf8");
+    files.push(`theme/blocks/${block.slug}/block.json`, `theme/blocks/${block.slug}/render.php`, `theme/blocks/${block.slug}/style.css`);
+  }
   const functionsPhp = `<?php
 if (!defined('ABSPATH')) {
     exit;
@@ -4142,6 +5323,13 @@ function goodjob_ai_site_enqueue_assets() {
         get_stylesheet_uri(),
         array(),
         $theme->get('Version')
+    );
+    wp_enqueue_script(
+        'goodjob-ai-site-script',
+        get_stylesheet_directory_uri() . '/assets/js/goodjob-site.js',
+        array(),
+        $theme->get('Version'),
+        true
     );
 }
 add_action('wp_enqueue_scripts', 'goodjob_ai_site_enqueue_assets');
@@ -4166,10 +5354,11 @@ function goodjob_ai_site_theme_setup() {
 add_action('after_setup_theme', 'goodjob_ai_site_theme_setup');
 `;
   await writeFile(path.join(themeDir, "functions.php"), functionsPhp, "utf8");
+  await writeFile(path.join(assetsJsDir, "goodjob-site.js"), aiSiteWpThemeScript(), "utf8");
   await writeFile(path.join(exportDir, "README.md"), readme, "utf8");
   await writeFile(path.join(exportDir, "wp-metadata.json"), JSON.stringify(state.wpMetadata, null, 2), "utf8");
   await writeFile(path.join(exportDir, "conversion-report.json"), JSON.stringify({ exportedAt, projectId: project.id, themeSlug, summary: state.summary, checks: state.checks }, null, 2), "utf8");
-  files.push("theme/style.css", "theme/theme.json", "theme/templates/index.html", "theme/templates/front-page.html", "theme/functions.php", "theme/inc/cpt.php", "theme/inc/acf.php", "theme/inc/installer.php", "theme/inc/admin.php", "theme/_data/site-options.json", "theme/_data/collections.json", "theme/_data/pages.json", "README.md", "wp-metadata.json", "conversion-report.json");
+  files.push("theme/style.css", "theme/theme.json", "theme/templates/index.html", "theme/templates/front-page.html", "theme/functions.php", "theme/assets/js/goodjob-site.js", "theme/inc/cpt.php", "theme/inc/acf.php", "theme/inc/installer.php", "theme/inc/admin.php", "theme/_data/site-options.json", "theme/_data/collections.json", "theme/_data/pages.json", "theme/_data/routes.json", "README.md", "wp-metadata.json", "conversion-report.json");
 
   return { ...state, export: { exportDir, themeDir, themeSlug, exportedAt, files } };
 }
@@ -4177,20 +5366,107 @@ add_action('after_setup_theme', 'goodjob_ai_site_theme_setup');
 async function installAiSiteWpRebuildPackage(project: AiSiteBuilderProject, wordpressRoot: string, themeSlugInput?: string, overwrite = false) {
   const root = path.resolve(String(wordpressRoot || ""));
   if (!root || !(await fileExists(root))) throw new Error("WordPress root does not exist.");
-  if (!(await fileExists(path.join(root, "wp-config.php"))) && !(await fileExists(path.join(root, "wp-content", "themes")))) {
+  const wpConfigPath = path.join(root, "wp-config.php");
+  const wpContentDir = path.join(root, "wp-content");
+  const themesDir = path.join(wpContentDir, "themes");
+  const hasWpConfig = await fileExists(wpConfigPath);
+  const hasThemesDir = await fileExists(themesDir);
+  if (!hasWpConfig && !hasThemesDir) {
     throw new Error("WordPress root must contain wp-config.php or wp-content/themes.");
   }
   const exported = await exportAiSiteWpRebuildPackage(project);
   const themeSlug = cleanAiSiteWpThemeSlug(themeSlugInput, exported.export.themeSlug);
-  const themesDir = path.join(root, "wp-content", "themes");
   await mkdir(themesDir, { recursive: true });
+  const writeProbe = path.join(themesDir, `.goodjob-install-probe-${Date.now()}.tmp`);
+  try {
+    await writeFile(writeProbe, "ok", "utf8");
+    await rm(writeProbe, { force: true });
+  } catch (error) {
+    throw new Error(`WordPress themes directory is not writable: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const targetDir = path.join(themesDir, themeSlug);
+  const targetExistsBefore = await fileExists(targetDir);
+  let backupDir = "";
   if (await fileExists(targetDir)) {
     if (!overwrite) throw new Error("Target WordPress theme already exists. Rename the theme slug or enable overwrite after backup.");
-    await rm(targetDir, { recursive: true, force: true });
+    const backupStamp = new Date().toISOString().replace(/[:.]/g, "-");
+    backupDir = path.join(themesDir, `${themeSlug}.backup-${backupStamp}`);
+    await rename(targetDir, backupDir);
   }
-  await cp(exported.export.themeDir, targetDir, { recursive: true });
-  return { ...exported, install: { wordpressRoot: root, themeSlug, targetDir, installedAt: new Date().toISOString() } };
+  try {
+    await cp(exported.export.themeDir, targetDir, { recursive: true });
+  } catch (error) {
+    if (backupDir && !(await fileExists(targetDir)) && (await fileExists(backupDir))) {
+      await rename(backupDir, targetDir).catch(() => undefined);
+    }
+    throw new Error(`Failed to copy WordPress theme: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const requiredFiles = [
+    "style.css",
+    "functions.php",
+    "templates/front-page.html",
+    "templates/archive-product.html",
+    "templates/single-product.html",
+    "templates/archive-news.html",
+    "templates/single-news.html",
+    "blocks/products-archive/block.json",
+    "blocks/products-archive/render.php",
+    "blocks/blog-archive/block.json",
+    "blocks/blog-archive/render.php",
+    "blocks/product-detail/block.json",
+    "blocks/product-detail/render.php",
+    "blocks/news-detail/block.json",
+    "blocks/news-detail/render.php",
+    "_data/collections.json",
+    "_data/pages.json",
+    "_data/routes.json",
+    "inc/cpt.php",
+    "inc/installer.php",
+    "inc/admin.php"
+  ];
+  const checks = await Promise.all(requiredFiles.map(async (relativePath) => ({
+    file: relativePath,
+    exists: await fileExists(path.join(targetDir, relativePath))
+  })));
+  const missingFiles = checks.filter((check) => !check.exists).map((check) => check.file);
+  if (missingFiles.length) {
+    throw new Error(`WordPress theme installation is incomplete. Missing files: ${missingFiles.join(", ")}`);
+  }
+  const routeHints = {
+    home: "/",
+    products: "/products/",
+    productDetail: "/product/{product-slug}/",
+    blog: "/blog/",
+    newsDetail: "/news/{news-slug}/",
+    contact: "/contact-us/"
+  };
+  const nextSteps = [
+    "Activate the installed theme in wp-admin > Appearance > Themes.",
+    "Open wp-admin > GoodJob AI Site and run the seed/rebuild action if pages or CPT content are empty.",
+    "Open wp-admin > Settings > Permalinks and click Save Changes if product/news detail URLs return 404.",
+    "Confirm Products and News have published sample items before testing single routes."
+  ];
+  const install = {
+    wordpressRoot: root,
+    themeSlug,
+    targetDir,
+    overwrite,
+    backupDir: backupDir || null,
+    installedAt: new Date().toISOString(),
+    preflight: {
+      hasWpConfig,
+      hasWpContent: await fileExists(wpContentDir),
+      hasThemesDir: await fileExists(themesDir),
+      targetExistsBefore,
+      sourceThemeDir: exported.export.themeDir
+    },
+    checks,
+    routeHints,
+    nextSteps
+  };
+  await writeFile(path.join(targetDir, "install-report.json"), JSON.stringify({ projectId: project.id, install }, null, 2), "utf8");
+  return { ...exported, install };
 }
 
 function canSeeAiSiteProject(user: SessionUser, project: { ownerId: string; teamId: string }) {
@@ -4399,12 +5675,42 @@ function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSect
   if (sectionKey !== "hero" && !/class=["'][^"']*\bai-section\b/i.test(html)) {
     throw new Error(`Generated ${sectionId}.html must use the shared ai-section framework class`);
   }
+  if (sectionKey === "hero") {
+    if (/@keyframes\s*#/i.test(css) || /animation(?:-[a-z-]+)?\s*:\s*#/i.test(css)) {
+      throw new Error("Generated hero.html contains an invalid # keyframe/animation name");
+    }
+    if ((html.match(/data-upload-slot=["']hero-background-/gi) || []).length < 3) {
+      throw new Error("Generated hero.html must include 3 data-upload-slot hero background hooks");
+    }
+  }
   if (sectionKey === "contact_us") {
     const inputCount = (html.match(/<input\b/gi) || []).length;
     if (!/<form\b/i.test(html)) throw new Error("Generated contact-us.html must include a real inquiry <form>");
     if (inputCount < 5) throw new Error("Generated contact-us.html must include name, country, email, product/project type, and target capacity inputs");
     if (!/<textarea\b/i.test(html)) throw new Error("Generated contact-us.html must include a project details textarea");
     if (!/SEND\s+INQUIRY|Request\s+a\s+Free\s+Proposal/i.test(html)) throw new Error("Generated contact-us.html must include the fixed inquiry form CTA");
+  }
+  if (sectionKey === "products" || sectionKey === "applications" || sectionKey === "about_us") {
+    if (/linear-gradient\([^)]*\b(\d{1,2})%\s*,\s*#[0-9a-f]{3,8}\s+\1%/i.test(css)) {
+      throw new Error(`Generated ${sectionId}.html uses a hard-split background that can create broken half-color bands`);
+    }
+    if (/href=["']#["']/i.test(html)) {
+      throw new Error(`Generated ${sectionId}.html contains inert href="#" controls; use #contact-us or script-free radio label controls`);
+    }
+  }
+  if (sectionKey === "products") {
+    if (!/products-category-showcase/i.test(html)) throw new Error("Generated products.html must keep the products-category-showcase structure");
+    if (!/<(button|label)\b[\s\S]*(products|category|pill|tab)/i.test(html)) throw new Error("Generated products.html must include clickable category controls");
+    if (!/data-product-category=["']/i.test(html)) throw new Error("Generated products.html category controls must include data-product-category hooks");
+    if ((html.match(/<article\b/gi) || []).length < 4) throw new Error("Generated products.html must include at least 4 product preview cards");
+  }
+  if (sectionKey === "applications") {
+    if (!/applications-horizontal-card-preview/i.test(html)) throw new Error("Generated applications.html must keep the horizontal application card preview structure");
+    if ((html.match(/<article\b/gi) || []).length < 3) throw new Error("Generated applications.html must include at least 3 application preview cards");
+  }
+  if (sectionKey === "about_us") {
+    if (!/about-us-capability-stack-and-quality-process/i.test(html)) throw new Error("Generated about-us.html must keep the capability stack and quality process structure");
+    if (!/capability/i.test(html) || !/(quality|inspection|documentation|process)/i.test(html)) throw new Error("Generated about-us.html must include capability and quality/process proof content");
   }
   if (!/@media/i.test(css)) throw new Error(`Generated ${sectionId}.html CSS is missing responsive @media rules`);
   if (!/(clamp\(|minmax\(|auto-fit|grid-template-columns|flex-wrap)/i.test(css)) {
@@ -4492,28 +5798,30 @@ function aiSiteSectionLayoutStrategy(project: AiSiteBuilderProject, sectionKey: 
       avoid: ["specification matrix", "proof strip", "identical 3-card layout", "plain list only", "image-left text-right split", "crowded card columns"]
     },
     applications: {
-      family: "vertical_application_lanes",
+      family: "applications_horizontal_card_preview",
       blueprintSignals: signals,
       composition: [
-        "Create a vertical set of application lanes connected by a thin process rule or numbered markers.",
-        "Each lane should map operating environment -> buyer pain point -> suitable product -> outcome.",
-        "Use alternating surface bands or stepped rows, not detached equal cards.",
-        "Keep the section top-to-bottom so it feels like a consultative scenario map."
+        "Create a horizontal application card preview section.",
+        "Start with a readable title block, then a row of wide application cards that preview operating environment, buyer pain point, suitable product, and outcome.",
+        "Use a full-surface background and card surfaces; do not split the section background with hard percentage color stops.",
+        "Cards may scroll or wrap, but the desktop first view should feel like a horizontal preview carousel.",
+        "Keep all CTA controls clickable and above decorative layers."
       ],
-      requiredElements: ["3-5 application lanes", "pain point labels", "matching product chips", "outcome notes"],
-      avoid: ["same product card layout", "generic features grid", "two-column split", "decorative cards without scenario logic"]
+      requiredElements: ["3-5 horizontal application cards", "pain point labels", "matching product chips", "outcome notes", "clickable CTA to #contact-us", "high-contrast headings on dark or light backgrounds"],
+      avoid: ["hard-split gradient bands", "low-contrast dark text on blue backgrounds", "same product card layout", "generic features grid", "two-column split", "decorative overlays covering controls"]
     },
     about_us: {
       family: "capability_stack_and_quality_process",
       blueprintSignals: signals,
       composition: [
-        "Use stacked capability bands for manufacturing, QC, export service, and support.",
-        "Add a process belt or certification/checkpoint strip instead of generic biography cards.",
+        "Use a refined institutional About Us section with a clear title block, capability stack, documentation proof, reliability note, and quality/export process belt.",
+        "Use one continuous full-surface background; do not split the section background with hard percentage color stops.",
+        "Place dark panels and light cards as deliberate surfaces, with explicit text colors for every heading and paragraph group.",
         "Show the company as an operating system: facilities, standards, response, documentation.",
-        "Make this section calmer and more institutional than Products or Cases."
+        "Make this section calmer and more institutional than Products or Applications."
       ],
-      requiredElements: ["capability stack", "quality/export process", "documentation or certification proof", "company reliability statement"],
-      avoid: ["founder story card grid", "same 3-column cards", "left text plus right image", "oversized decorative badge"]
+      requiredElements: ["capability stack", "quality/export process", "documentation or certification proof", "company reliability statement", "high-contrast headings on dark or light backgrounds", "CTA to #contact-us"],
+      avoid: ["hard-split gradient bands", "low-contrast dark text on blue backgrounds", "founder story card grid", "same 3-column cards", "left text plus right image", "oversized decorative badge", "decorative overlays covering controls"]
     },
     blog: {
       family: "industrial_editorial_digest",
@@ -4666,7 +5974,7 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "Content only: eyebrow badge, H1, one subtitle paragraph, two buttons named exactly Request a Proposal and Learn More.",
       "Headline rule: create a suitable company-specific headline from the form data. Do not force the generic 'Industrial ...' wording. CSS must visually limit H1 to 2 lines with max-width and line clamp or balanced wrapping.",
       "Bottom-right only: working previous/next arrow controls and slide status text like 01 / 03.",
-      "Interaction: no script. Use hidden radio inputs plus label controls for manual switching, and CSS keyframes so backgrounds auto-switch every 6 seconds.",
+      "Interaction: no script. Use hidden radio inputs plus label controls for manual switching. The exported WordPress theme will also enhance the section with a 6-second slider timer, so keep stable hooks and never name keyframes with # or an ID-like value.",
       "Future upload hook: add data-hero-image-api=\"/api/ai-site-builder/projects/{projectId}/hero-backgrounds\" on the section and data-upload-slot=\"hero-background-1/2/3\" on each background element.",
       "Do not add cards, metrics, proof strips, stats, grids, side panels, extra sections, forms, testimonials, or product lists.",
       "Use reliable external image URLs in CSS background-image, preferably industrial plant/factory/mining/manufacturing photos from images.unsplash.com with auto=format&fit=crop&w=1800&q=80. If unsure, use neutral placeholder background URLs and keep upload hooks.",
@@ -4694,12 +6002,72 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "Layout must match this top-to-bottom order: Product Category heading, one explanation paragraph, category pill buttons, current category product catalog cards, left/right browsing arrows.",
       "Style rule: follow Brief JSON style_profile for mood, density, geometry, card treatment, CTA shape, and background treatment. Keep global consistency but avoid copying the same visual formula as Hero or other sections.",
       "Cards: show 4 large product cards in the first view. Each card needs a square or near-square product image area, uppercase product name, and a small bottom-right inquiry arrow.",
-      "Interaction: no script. If browsing is interactive, use hidden radio inputs and label arrows to switch between two product pages. Keep category buttons as visible pills.",
+      "Background safety: do not use hard-split linear-gradient backgrounds such as dark 18% then light 18%; use one continuous section background plus separate card/tab surfaces. Avoid absolute decorative layers unless they have pointer-events:none and z-index below content.",
+      "Contrast safety: headings, tabs, product names, and arrows must have WCAG-like readable contrast. Never put dark gray or black text directly on a dark blue background; use white/light text on dark surfaces and dark text on light cards.",
+      "Interaction: no script. Browsing arrows must be <label> controls for hidden radio inputs and must visibly switch product pages. Category controls must be real <button type=\"button\" class=\"products-tab\" data-product-category=\"Category Name\"> controls, not inert spans. The exported WordPress theme JS uses data-product-category to switch the active category and update visible cards.",
+      "Clickable links: product inquiry arrows must use href=\"#contact-us\". Do not output href=\"#\".",
       "Images: use realistic product image URLs when safe, otherwise use placeholder URLs such as https://placehold.co/560x420/f8fafc/244aa5?text=Product. Do not use external page links.",
       "Avoid: specification matrix, proof strip, generic 3-card layout, image-left text-right split, forms, testimonials, CRM/login/logout/app links.",
       "CSS quality: 28-64 declarations, include @media(max-width:760px), use grid-template-columns, minmax() or clamp(), and avoid fixed widths over 420px.",
       "Copy: English, concise, product-buyer focused. Use the product categories from the JSON as button labels and card naming anchors.",
       "Brief JSON: " + JSON.stringify(productsBrief)
+    ].filter(Boolean).join("\n");
+  }
+  if (sectionKey === "applications") {
+    const applicationsBrief = {
+      categories: sectionArray(schema.business_taxonomy.product_categories),
+      brand: schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName,
+      plan: blueprint.applications,
+      palette: designSystem.palette,
+      style_profile: styleProfile,
+      layout: layoutStrategy
+    };
+    return [
+      "Generate one premium B2B industrial APPLICATIONS horizontal card preview section. Return only JSON: {\"html\":\"...\"}.",
+      "Speed mode: compact output. No explanations. No markdown.",
+      `Required root: <section id="${sectionId}" class="ai-section applications-horizontal-card-preview">`,
+      "First child inside the section must be one scoped <style>. Every selector must start with #applications.",
+      repairReason ? `Previous output failed validation: ${repairReason}` : "",
+      userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      "Layout contract: top readable title block, then a horizontal preview row of 3-5 application cards. Each card maps operating environment -> buyer pain point -> suitable product/category -> outcome.",
+      "Structure contract: use <article> for each application card. Cards should be wide, visually distinct, and arranged with grid-auto-flow:column, overflow-x:auto, scroll-snap, or a responsive grid that reads horizontally on desktop.",
+      "Preserve Applications direction: this is not a vertical process lane and not a generic feature grid. It must look like a horizontal application card preview.",
+      "Background safety: do not use hard-split linear-gradient backgrounds such as dark 22% then light 22%; use one continuous section background plus card surfaces. If decorative pseudo-elements are used, set pointer-events:none and keep them behind content.",
+      "Contrast safety: all text on dark blue/brand surfaces must be white or very light. All gray body text must sit on light cards. Eyebrow labels must not be gray on blue.",
+      "Interaction safety: CTA buttons and card links must use href=\"#contact-us\" or href=\"#products\". Do not output href=\"#\". Decorative layers must not cover links.",
+      "Required content: 3-5 application cards, pain point label, product/category chips, outcome note, one CTA to #contact-us.",
+      "CSS quality: 30-68 declarations, include @media(max-width:760px), use clamp(), minmax(), grid-template-columns or grid-auto-flow, and avoid fixed card widths over 420px.",
+      "Copy: English, concrete, buyer-facing, 100-190 words max. Use real product/category clues from JSON.",
+      "Brief JSON: " + JSON.stringify(applicationsBrief)
+    ].filter(Boolean).join("\n");
+  }
+  if (sectionKey === "about_us") {
+    const aboutBrief = {
+      brand: schema.company_profile.wordmark || schema.company_profile.legal_name || project.siteName,
+      company: schema.company_profile,
+      categories: sectionArray(schema.business_taxonomy.product_categories),
+      plan: blueprint.about_us,
+      palette: designSystem.palette,
+      style_profile: styleProfile,
+      layout: layoutStrategy
+    };
+    return [
+      "Generate one premium B2B industrial ABOUT US capability and quality process section. Return only JSON: {\"html\":\"...\"}.",
+      "Speed mode: compact output. No explanations. No markdown.",
+      `Required root: <section id="${sectionId}" class="ai-section about-us-capability-stack-and-quality-process">`,
+      "First child inside the section must be one scoped <style>. Every selector must start with #about-us.",
+      repairReason ? `Previous output failed validation: ${repairReason}` : "",
+      userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      "Layout contract: readable title block, capability stack panel, documentation/proof card, reliability card, and a quality/export process belt.",
+      "Background safety: do not use hard-split linear-gradient backgrounds such as dark 34% then light 34%; use one continuous background plus deliberate dark panels and white cards.",
+      "Contrast safety: every heading on dark panels must explicitly use white or very light color. Body text on dark panels must use rgba(255,255,255,.76+) or equivalent. Gray text may only sit on white/light surfaces.",
+      "Surface rule: keep dark surfaces and light cards visually separated with spacing, not by cutting the whole section background in half.",
+      "Required content: 4 capability stack items, documentation/proof list, long-term reliability note, 4-step quality/export process, and one CTA link to #contact-us.",
+      "Interaction safety: CTA links must use href=\"#contact-us\". Do not output href=\"#\" or href=\"#contact\".",
+      "Style rule: follow Brief JSON style_profile for mood, density, geometry, card treatment, CTA style, and palette while keeping a calm institutional About section.",
+      "CSS quality: 34-72 declarations, include @media(max-width:760px), use clamp(), minmax(), grid-template-columns or auto-fit, and avoid fixed widths over 520px.",
+      "Copy: English, concrete, buyer-facing, 130-230 words max. Use company/category clues from JSON.",
+      "Brief JSON: " + JSON.stringify(aboutBrief)
     ].filter(Boolean).join("\n");
   }
   if (sectionKey === "contact_us") {

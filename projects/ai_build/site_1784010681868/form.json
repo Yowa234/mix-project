@@ -22,7 +22,13 @@
   },
   "style_requirements": {
     "preset": "industrial-professional",
-    "colors": [],
+    "colors": [
+      "#4F46E5",
+      "#E11D48",
+      "#F5F3FF",
+      "#312E81",
+      "#17113D"
+    ],
     "keywords": [],
     "reference_sites": [],
     "custom_notes": ""

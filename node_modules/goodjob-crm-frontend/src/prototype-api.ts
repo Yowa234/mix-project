@@ -364,6 +364,7 @@ interface AiSiteWpRebuildState {
     themeSlug: string;
     targetDir: string;
     installedAt: string;
+    overwrite?: boolean;
   };
 }
 
@@ -1207,6 +1208,93 @@ function renderAiSiteWordPressPanel(data: AiSiteWpRebuildState) {
   if (!canvas) return;
   const wpRootValue = qs<HTMLInputElement>("#aiSiteWpRootInput")?.value || "";
   const themeSlugValue = qs<HTMLInputElement>("#aiSiteWpThemeSlugInput")?.value || data.export?.themeSlug || "";
+  const overwriteChecked = qs<HTMLInputElement>("#aiSiteWpOverwriteInput")?.checked || false;
+  const hasBlockingErrors = data.summary.error > 0;
+  const hasExport = Boolean(data.export);
+  const hasInstall = Boolean(data.install);
+  const flowSteps = [
+    { index: "01", title: "转换检查", done: !hasBlockingErrors, active: !hasExport, desc: hasBlockingErrors ? `存在 ${data.summary.error} 个阻断项，需要先回到建站详细修复。` : "区块、路由、CPT 数据和模板集合已通过检查。" },
+    { index: "02", title: "导出主题包", done: hasExport, active: !hasExport && !hasBlockingErrors, desc: hasExport ? `${data.export?.files.length || 0} 个文件已写入本地导出目录。` : "生成 block theme、template parts、ACF blocks、routes 与 seed data。" },
+    { index: "03", title: "安装到本地 WP", done: hasInstall, active: hasExport && !hasInstall, desc: hasInstall ? `主题已复制到 ${data.install?.targetDir || ""}` : "填写 WordPress 根目录后复制主题包，必要时可勾选覆盖安装。" },
+    { index: "04", title: "后台验收", done: false, active: hasInstall, desc: "激活主题后检查 GoodJob AI Site、ACF 字段组、Products/Cases/News/Services 与固定链接。" }
+  ];
+  const flowMarkup = flowSteps.map((step) => `
+    <div class="dense-card" style="border-color:${step.active ? "var(--primary)" : step.done ? "#b7e4c7" : "var(--border)"};background:${step.active ? "#f0f7ff" : "#fff"}">
+      <span>${step.index} · ${step.done ? "已完成" : step.active ? "当前步骤" : "待执行"}</span>
+      <b style="font-size:18px">${escapeHtml(step.title)}</b>
+      <small>${escapeHtml(step.desc)}</small>
+    </div>
+  `).join("");
+  const deliveryChecklist = [
+    "WordPress 已安装并能访问 wp-admin。",
+    "ACF 插件已启用；如需要后台可视化字段编辑，建议使用 ACF Pro。",
+    "复制主题后在后台外观中激活导出的主题。",
+    "进入 GoodJob AI Site 菜单，执行 Rebuild Pages and Seed Data。",
+    "进入设置 > 固定链接，保存一次，刷新 CPT 路由。",
+    "检查 Products、Cases、News、Services 列表与详情页均非空。"
+  ];
+  canvas.innerHTML = `
+    <section class="panel section site-editor-workflow">
+      <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg></span><div><h2>WordPress 构建流水线</h2><span>${escapeHtml(data.project.siteName)} · ${escapeHtml(data.wpMetadata.wp_mode)} · ${escapeHtml(data.wpMetadata.site_template)}</span></div></div></div>
+      <div class="dense-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:12px">${flowMarkup}</div>
+      <div class="dense-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px">
+        <div class="dense-card"><span>通过</span><b>${data.summary.pass}</b><small>可进入下一步转换</small></div>
+        <div class="dense-card"><span>需复核</span><b>${data.summary.warning}</b><small>可导出，但建议人工确认</small></div>
+        <div class="dense-card"><span>阻断</span><b>${data.summary.error}</b><small>需要先修复 HTML 源码</small></div>
+      </div>
+      <div class="schema-form-grid" style="grid-template-columns:1fr">
+        <div class="form-field"><label>本地 WordPress 根目录</label><input id="aiSiteWpRootInput" value="${escapeHtml(wpRootValue)}" placeholder="例如 D:/Code/wordpress 或 C:/Users/EDY/Desktop/site/wordpress"></div>
+        <div class="form-field"><label>主题目录名</label><input id="aiSiteWpThemeSlugInput" value="${escapeHtml(themeSlugValue)}" placeholder="例如 industrial-demo"></div>
+        <label class="empty-cell" style="display:flex;gap:10px;align-items:center;justify-content:flex-start;text-align:left;padding:10px 12px">
+          <input id="aiSiteWpOverwriteInput" type="checkbox" ${overwriteChecked ? "checked" : ""}>
+          <span>目标主题目录已存在时覆盖安装。仅在已经备份或确认可以替换时使用。</span>
+        </label>
+      </div>
+      <div class="head-actions" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn" id="aiSiteWpCheckButton">重新检查</button>
+        <button class="btn primary" id="aiSiteWpExportButton" ${hasBlockingErrors ? "disabled" : ""}>导出转换包</button>
+        <button class="btn" id="aiSiteWpInstallButton" ${hasBlockingErrors ? "disabled" : ""}>安装到本地 WP</button>
+        <button class="btn" id="aiSiteWpDetailButton">返回建站详细</button>
+      </div>
+      <div class="empty-cell" style="padding:10px 12px;margin-top:12px;text-align:left">
+        ${data.export ? `已导出：${escapeHtml(data.export.exportDir)} · ${data.export.files.length} files` : "尚未导出。导出会生成 block theme、template parts、ACF blocks、CPT 模板、routes.json 与 seed data。"}
+        ${data.install ? `<br>已安装：${escapeHtml(data.install.targetDir)} · ${data.install.overwrite ? "覆盖安装" : "首次安装"}` : ""}
+      </div>
+      <div class="category-list" style="margin-top:12px">
+        ${deliveryChecklist.map((item, index) => `<div class="category-item"><div><b>${index + 1}. ${escapeHtml(item)}</b><span>${index < 2 ? "环境准备" : index < 4 ? "主题安装" : "上线验收"}</span></div><span class="badge ${hasInstall && index >= 3 ? "amber" : hasInstall || index < 2 ? "green" : ""}">${hasInstall && index >= 3 ? "待验收" : "准备项"}</span></div>`).join("")}
+      </div>
+    </section>
+    <section class="panel section site-editor-preview">
+      <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7H5V5h11"/></svg></span><div><h2>转换检查明细</h2><span>Header/Footer 输出为 template part，其余区块输出为 ACF block、pattern 与页面内容。</span></div></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>项目</th><th>WP 目标</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>
+            ${data.checks.map((check) => `
+              <tr>
+                <td><b>${escapeHtml(check.label)}</b><br><small>${escapeHtml(check.key)}</small></td>
+                <td>${escapeHtml(check.target || "-")}</td>
+                <td><span class="badge ${aiSiteWpStatusTone(check.status)}">${aiSiteWpStatusLabel(check.status)}</span></td>
+                <td>${escapeHtml(check.message)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="section-head" style="margin-top:16px"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg></span><div><h2>WP 元数据</h2><span>这些结构会被导出器转换为 ACF block、template part 和页面内容。</span></div></div></div>
+      <div class="category-list">
+        ${data.wpMetadata.sections.map((section) => `
+          <div class="category-item"><div><b>${escapeHtml(section.label)}</b><span>${escapeHtml(section.section_type)} · ${escapeHtml(section.layout_variant)} · ${escapeHtml(section.source_file)}</span></div><span class="badge">${escapeHtml(section.wp_role)}</span></div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+  qs<HTMLButtonElement>("#aiSiteWpCheckButton", canvas)?.addEventListener("click", (event) => void checkAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteWpExportButton", canvas)?.addEventListener("click", (event) => void exportAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteWpInstallButton", canvas)?.addEventListener("click", (event) => void installAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
+  qs<HTMLButtonElement>("#aiSiteWpDetailButton", canvas)?.addEventListener("click", () => activateNavView("ai-site-detail", renderAiSiteDetail));
+  return;
+  /*
   canvas.innerHTML = `
     <section class="panel section site-editor-workflow">
       <div class="section-head"><div class="section-title"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg></span><div><h2>转换控制台</h2><span>${escapeHtml(data.project.siteName)} · ${escapeHtml(data.wpMetadata.wp_mode)} · ${escapeHtml(data.wpMetadata.site_template)}</span></div></div></div>
@@ -1259,6 +1347,7 @@ function renderAiSiteWordPressPanel(data: AiSiteWpRebuildState) {
   qs<HTMLButtonElement>("#aiSiteWpExportButton", canvas)?.addEventListener("click", (event) => void exportAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteWpInstallButton", canvas)?.addEventListener("click", (event) => void installAiSiteWordPress(data.project.id, event.currentTarget as HTMLButtonElement));
   qs<HTMLButtonElement>("#aiSiteWpDetailButton", canvas)?.addEventListener("click", () => activateNavView("ai-site-detail", renderAiSiteDetail));
+  */
 }
 
 async function checkAiSiteWordPress(projectId: string, button?: HTMLButtonElement) {
@@ -1298,6 +1387,7 @@ async function exportAiSiteWordPress(projectId: string, button?: HTMLButtonEleme
 async function installAiSiteWordPress(projectId: string, button?: HTMLButtonElement) {
   const wordpressRoot = qs<HTMLInputElement>("#aiSiteWpRootInput")?.value.trim() || "";
   const themeSlug = qs<HTMLInputElement>("#aiSiteWpThemeSlugInput")?.value.trim() || "";
+  const overwrite = qs<HTMLInputElement>("#aiSiteWpOverwriteInput")?.checked || false;
   if (!wordpressRoot) {
     toast("请先填写本地 WordPress 根目录", "error");
     return;
@@ -1309,7 +1399,7 @@ async function installAiSiteWordPress(projectId: string, button?: HTMLButtonElem
   try {
     const result = await api<AiSiteWpRebuildState>(`/api/ai-site-builder/projects/${encodeURIComponent(projectId)}/wp-rebuild/install`, {
       method: "POST",
-      body: JSON.stringify({ wordpressRoot, themeSlug })
+      body: JSON.stringify({ wordpressRoot, themeSlug, overwrite })
     });
     renderAiSiteWordPressPanel(result);
     toast(`已安装到：${result.install?.targetDir || ""}`);
