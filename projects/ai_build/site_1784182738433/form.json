@@ -1,0 +1,36 @@
+{
+  "company_profile": {
+    "legal_name": "阿里云服务器",
+    "wordmark": "阿里云",
+    "tagline": "服务器",
+    "description": "哦哦哦哦哦阿里巴巴是个快乐的青年",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "ubuntu",
+      "centOS",
+      "Windows"
+    ],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "technology-clean",
+    "colors": [],
+    "keywords": [
+      "科技前沿、机械"
+    ],
+    "reference_sites": [],
+    "custom_notes": "加载动画丰富，体现品牌形象"
+  }
+}

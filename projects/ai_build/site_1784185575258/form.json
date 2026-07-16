@@ -1,0 +1,43 @@
+{
+  "company_profile": {
+    "legal_name": "Style Test",
+    "wordmark": "StyleFlow",
+    "tagline": "",
+    "description": "Industrial export supplier",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "Pump",
+      "Valve"
+    ],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "custom",
+    "colors": [
+      "#7C3AED",
+      "#22C55E",
+      "#FDF4FF",
+      "#3B0764",
+      "#111827"
+    ],
+    "keywords": [
+      "高端",
+      "科技",
+      "极简"
+    ],
+    "reference_sites": [],
+    "custom_notes": "希望页面有高级质感，减少传统蓝红工业风"
+  }
+}

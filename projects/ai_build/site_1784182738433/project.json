@@ -1,0 +1,108 @@
+{
+  "id": "site_1784182738433",
+  "taskName": "阿里云服务器 建站任务",
+  "siteName": "阿里云服务器",
+  "industry": "ubuntu",
+  "goal": "lead-generation",
+  "tone": "technology-clean",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "阿里云服务器",
+      "wordmark": "阿里云",
+      "tagline": "服务器",
+      "description": "哦哦哦哦哦阿里巴巴是个快乐的青年",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [
+        "ubuntu",
+        "centOS",
+        "Windows"
+      ],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "technology-clean",
+      "colors": [],
+      "keywords": [
+        "科技前沿、机械"
+      ],
+      "reference_sites": [],
+      "custom_notes": "加载动画丰富，体现品牌形象"
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "阿里云服务器",
+        "wordmark": "阿里云",
+        "tagline": "服务器",
+        "description": "哦哦哦哦哦阿里巴巴是个快乐的青年",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [
+          "ubuntu",
+          "centOS",
+          "Windows"
+        ],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "technology-clean",
+      "colors": [],
+      "keywords": [
+        "科技前沿、机械"
+      ],
+      "reference_sites": [],
+      "custom_notes": "加载动画丰富，体现品牌形象"
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_sales_shirley",
+  "teamId": "europe",
+  "createdAt": "2026-07-16T06:18:58.433Z"
+}

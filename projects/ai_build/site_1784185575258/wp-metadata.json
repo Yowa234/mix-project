@@ -1,28 +1,28 @@
 {
   "version": "1.1",
-  "project_id": "site_1783912857334",
-  "site_name": "InquiryCloud",
+  "project_id": "site_1784185575258",
+  "site_name": "Style Test",
   "site_template": "b2b_industrial",
   "wp_mode": "block-theme",
-  "updated_at": "2026-07-16T07:07:04.350Z",
+  "updated_at": "2026-07-16T07:06:15.616Z",
   "design_system": {
     "version": "ai-site-design-system.v2-xinhai-industrial",
-    "preset": "industrial-professional",
+    "preset": "custom",
     "palette": {
-      "brand": "#143A7B",
-      "accent": "#C8161C",
-      "brandDeep": "#091B39",
-      "brandWide": "#35568D",
+      "brand": "#7C3AED",
+      "accent": "#22C55E",
+      "brandDeep": "#3B0764",
+      "brandWide": "#8E56F0",
       "ink": "#16202E",
       "body": "#3C4858",
       "muted": "#6B7686",
       "line": "#E2E7EE",
-      "surface": "#F4F6FA",
+      "surface": "#FDF4FF",
       "steel": "#EAEEF4",
-      "dark": "#061329",
+      "dark": "#111827",
       "light": "#ffffff"
     },
-    "style_profile": "professional industrial; balanced; industrial geometry; industrial navy/steel bands with controlled accent details; B2B industrial rhythm with varied vertical sections and practical proof modules",
+    "style_profile": "technical futuristic; spacious; sharp geometry; dark-to-light technical gradients, subtle grid lines, data-like accents; layered dashboards, timeline rails, spec chips, glow-free technical surfaces",
     "registry_version": "section-variant-registry.v1"
   },
   "variant_registry": {
@@ -572,64 +572,56 @@
       "status": "locked",
       "locked": true,
       "order_index": 0,
-      "updated_at": "2026-07-16T07:07:04.340Z"
+      "updated_at": "2026-07-16T07:06:15.611Z"
     },
     {
       "section_key": "hero",
       "label": "Hero",
       "section_type": "hero",
-      "layout_variant": "darkened_photo_hero_slider",
-      "variant_title": "Darkened Photo Hero Slider",
+      "layout_variant": "technical_banner_focus",
+      "variant_title": "Technical Banner Focus",
       "variant": {
-        "id": "darkened_photo_hero_slider",
-        "title": "Darkened Photo Hero Slider",
-        "purpose": "High-impact first viewport with brand-specific headline, three background images, clear CTA pair, and later image-upload hooks.",
-        "wp_target": "blocks/hero-photo-slider",
+        "id": "technical_banner_focus",
+        "title": "Technical Banner Focus",
+        "purpose": "A calmer hero variant for precision or minimal styles with lighter overlay and tighter proof chips.",
+        "wp_target": "blocks/hero-technical-banner",
         "structure": [
-          "72vh photo stage",
-          "dark overlay",
-          "eyebrow",
-          "two-line H1",
+          "banner image",
+          "headline",
           "subtitle",
-          "Request a Proposal CTA",
-          "Learn More CTA",
-          "bottom-right slider controls"
+          "two CTAs",
+          "small proof chips"
         ],
         "interactions": [
-          "CSS radio fallback",
-          "6-second auto switch enhanced by theme JS",
-          "future hero background upload slots"
+          "button hover",
+          "optional static background upload slot"
         ],
         "editable_data": [
           "headline",
           "subtitle",
-          "eyebrow",
-          "button labels",
-          "background images"
+          "proof chips",
+          "background image"
         ],
         "visual_tokens": [
-          "brandDeep overlay",
-          "accent CTA",
-          "white text",
-          "imageTreatment: full-bleed darkened"
+          "surface",
+          "brand",
+          "accent",
+          "thin rules"
         ],
-        "animation": "background cross-fade and subtle CTA hover",
-        "responsive": "fixed 72vh stage; H1 max two visual lines; controls stay bottom-right on desktop and compact on mobile",
+        "animation": "light reveal only",
+        "responsive": "reflows into single-column banner on mobile",
         "avoid": [
-          "extra metrics",
-          "cards",
-          "side panels",
-          "product grids",
-          "generic Industrial... headline"
+          "dark heavy treatment when style asks for minimal precision",
+          "busy metrics strip"
         ]
       },
       "source_file": "sections/hero.html",
       "wp_role": "block",
-      "wp_target": "blocks/hero-photo-slider",
+      "wp_target": "blocks/hero-technical-banner",
       "status": "blueprint",
       "locked": false,
       "order_index": 1,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T07:06:15.612Z"
     },
     {
       "section_key": "products",
@@ -679,114 +671,103 @@
       "source_file": "sections/products.html",
       "wp_role": "block",
       "wp_target": "blocks/products-category-catalog",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 2,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T07:06:15.612Z"
     },
     {
       "section_key": "applications",
       "label": "Applications",
       "section_type": "applications",
-      "layout_variant": "vertical_application_lanes",
-      "variant_title": "Horizontal Scenario Cards",
+      "layout_variant": "industry_matrix",
+      "variant_title": "Industry Matrix",
       "variant": {
-        "id": "applications_horizontal_card_preview",
-        "title": "Horizontal Scenario Cards",
-        "purpose": "Scenario-driven application preview that separates buyer context from product catalog browsing.",
-        "wp_target": "blocks/applications-scenario-map",
+        "id": "industry_matrix",
+        "title": "Industry Matrix",
+        "purpose": "A structured matrix for industries, environments, recommended products, and RFQ notes.",
+        "wp_target": "blocks/applications-industry-matrix",
         "structure": [
-          "title block",
-          "horizontal scenario card row",
-          "pain point",
-          "suitable product chip",
-          "outcome",
-          "CTA"
+          "industry tabs",
+          "environment rows",
+          "recommended products",
+          "RFQ notes"
         ],
         "interactions": [
-          "horizontal scroll/snap",
-          "CTA links to contact/products",
-          "card hover focus"
+          "tab buttons",
+          "row hover",
+          "contact CTA"
         ],
         "editable_data": [
-          "application scenarios",
-          "pain points",
-          "product/category mapping",
-          "outcomes"
+          "industries",
+          "environments",
+          "product mapping"
         ],
         "visual_tokens": [
-          "continuous background",
-          "card surface",
-          "contrast-safe text",
-          "brand chips"
+          "table-like lines",
+          "brand tab",
+          "light rows"
         ],
-        "animation": "horizontal preview scroll and hover border accent",
-        "responsive": "desktop horizontal preview; mobile single-column or horizontal snap with readable cards",
+        "animation": "tab reveal only",
+        "responsive": "matrix becomes stacked cards on mobile",
         "avoid": [
-          "hard-split color blocks",
-          "gray text on dark blue",
-          "same product-card layout",
-          "decorative layers over links"
+          "wide table overflow",
+          "dense unreadable cells"
         ]
       },
       "source_file": "sections/applications.html",
       "wp_role": "block",
-      "wp_target": "blocks/applications-scenario-map",
+      "wp_target": "blocks/applications-industry-matrix",
       "status": "blueprint",
       "locked": false,
       "order_index": 3,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T07:06:15.613Z"
     },
     {
       "section_key": "about_us",
       "label": "About Us",
       "section_type": "about_us",
-      "layout_variant": "capability_stack_and_quality_process",
-      "variant_title": "Capability Stack + Quality Process",
+      "layout_variant": "timeline_factory_proof",
+      "variant_title": "Factory Proof Timeline",
       "variant": {
-        "id": "capability_stack_and_quality_process",
-        "title": "Capability Stack + Quality Process",
-        "purpose": "Institutional proof section showing capability, documentation, reliability, and process without becoming another product grid.",
-        "wp_target": "blocks/about-capability-stack",
+        "id": "timeline_factory_proof",
+        "title": "Factory Proof Timeline",
+        "purpose": "Chronological proof of growth, factory capability, inspection, and export readiness.",
+        "wp_target": "blocks/about-factory-timeline",
         "structure": [
-          "title block",
-          "capability stack",
-          "documentation/proof card",
-          "reliability note",
-          "quality/export process belt"
+          "intro",
+          "timeline",
+          "proof metrics",
+          "quality statement"
         ],
         "interactions": [
-          "CTA to contact",
-          "process item hover"
+          "timeline hover",
+          "contact CTA"
         ],
         "editable_data": [
-          "company profile",
-          "capability items",
-          "proof points",
-          "process steps"
+          "milestones",
+          "metrics",
+          "factory proof points"
         ],
         "visual_tokens": [
-          "continuous background",
-          "dark panel",
-          "white card",
-          "explicit text contrast"
+          "timeline rail",
+          "brand dots",
+          "light cards"
         ],
-        "animation": "calm reveal and process hover",
-        "responsive": "desktop asymmetric panels; mobile stacked panels with consistent spacing",
+        "animation": "timeline reveal",
+        "responsive": "timeline collapses into vertical cards",
         "avoid": [
-          "hard-split backgrounds",
-          "low-contrast dark text on blue",
-          "founder-story-only cards",
-          "oversized decorative badges"
+          "fake founder story",
+          "unsubstantiated oversized numbers"
         ]
       },
       "source_file": "sections/about_us.html",
       "wp_role": "block",
-      "wp_target": "blocks/about-capability-stack",
-      "status": "html_ready",
+      "wp_target": "blocks/about-factory-timeline",
+      "status": "blueprint",
       "locked": false,
       "order_index": 4,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T07:06:15.613Z"
     },
     {
       "section_key": "blog",
@@ -834,10 +815,10 @@
       "source_file": "sections/blog.html",
       "wp_role": "block",
       "wp_target": "blocks/recent-blogs-split",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 5,
-      "updated_at": "2026-07-16T07:07:04.342Z"
+      "updated_at": "2026-07-16T07:06:15.614Z"
     },
     {
       "section_key": "contact_us",
@@ -888,10 +869,10 @@
       "source_file": "sections/contact_us.html",
       "wp_role": "block",
       "wp_target": "blocks/contact-inquiry-form",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 6,
-      "updated_at": "2026-07-16T07:07:04.342Z"
+      "updated_at": "2026-07-16T07:06:15.614Z"
     },
     {
       "section_key": "footer",
@@ -942,7 +923,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 7,
-      "updated_at": "2026-07-16T07:07:04.342Z"
+      "updated_at": "2026-07-16T07:06:15.614Z"
     }
   ],
   "next_stage": {
