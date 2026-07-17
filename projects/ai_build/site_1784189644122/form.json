@@ -1,0 +1,36 @@
+{
+  "company_profile": {
+    "legal_name": "InquiryCloud",
+    "wordmark": "",
+    "tagline": "",
+    "description": "",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "Gate Valve"
+    ],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "custom",
+    "colors": [
+      "绿蓝白"
+    ],
+    "keywords": [
+      "复古、千禧年、年代感、老网页、可靠"
+    ],
+    "reference_sites": [],
+    "custom_notes": "布局页面复古，像是一个古早的网站"
+  }
+}

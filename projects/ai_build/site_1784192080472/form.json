@@ -1,0 +1,39 @@
+{
+  "company_profile": {
+    "legal_name": "天涯净水机",
+    "wordmark": "天涯",
+    "tagline": "老品牌净水机",
+    "description": "成立时间长，值得信赖",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "活性炭净水机",
+      "紫外线净水机",
+      "混合净水机"
+    ],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "custom",
+    "colors": [
+      "pink"
+    ],
+    "keywords": [
+      "cute",
+      "pure"
+    ],
+    "reference_sites": [],
+    "custom_notes": "禁用渐变色，奶系色块"
+  }
+}

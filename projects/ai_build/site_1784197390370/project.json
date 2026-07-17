@@ -1,0 +1,118 @@
+{
+  "id": "site_1784197390370",
+  "taskName": "SenZ离心机 建站任务",
+  "siteName": "SenZ离心机",
+  "industry": "小型离心机",
+  "goal": "lead-generation",
+  "tone": "minimal-international",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "SenZ离心机",
+      "wordmark": "SENZ",
+      "tagline": "离心机出口",
+      "description": "成立时间长，值得信赖",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "150x'x'x'x'x'x'x'x",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [
+        "小型离心机",
+        "大型离心机",
+        "超大型离心机"
+      ],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "minimal-international",
+      "colors": [
+        "绿色",
+        "灰色"
+      ],
+      "keywords": [
+        "牛油果色",
+        "柔和",
+        "圆角"
+      ],
+      "reference_sites": [],
+      "custom_notes": "禁用渐变色，奶系色块"
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "SenZ离心机",
+        "wordmark": "SENZ",
+        "tagline": "离心机出口",
+        "description": "成立时间长，值得信赖",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "150x'x'x'x'x'x'x'x",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [
+          "小型离心机",
+          "大型离心机",
+          "超大型离心机"
+        ],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "minimal-international",
+      "colors": [
+        "绿色",
+        "灰色"
+      ],
+      "keywords": [
+        "牛油果色",
+        "柔和",
+        "圆角"
+      ],
+      "reference_sites": [],
+      "custom_notes": "禁用渐变色，奶系色块"
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_sales_shirley",
+  "teamId": "europe",
+  "createdAt": "2026-07-16T10:23:10.370Z"
+}

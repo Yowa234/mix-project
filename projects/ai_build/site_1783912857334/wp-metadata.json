@@ -4,7 +4,7 @@
   "site_name": "InquiryCloud",
   "site_template": "b2b_industrial",
   "wp_mode": "block-theme",
-  "updated_at": "2026-07-16T07:07:04.350Z",
+  "updated_at": "2026-07-16T09:57:09.183Z",
   "design_system": {
     "version": "ai-site-design-system.v2-xinhai-industrial",
     "preset": "industrial-professional",
@@ -572,7 +572,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 0,
-      "updated_at": "2026-07-16T07:07:04.340Z"
+      "updated_at": "2026-07-16T09:57:09.177Z"
     },
     {
       "section_key": "hero",
@@ -626,10 +626,10 @@
       "source_file": "sections/hero.html",
       "wp_role": "block",
       "wp_target": "blocks/hero-photo-slider",
-      "status": "blueprint",
+      "status": "html_ready",
       "locked": false,
       "order_index": 1,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T09:57:09.177Z"
     },
     {
       "section_key": "products",
@@ -682,7 +682,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 2,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T09:57:09.178Z"
     },
     {
       "section_key": "applications",
@@ -735,7 +735,7 @@
       "status": "blueprint",
       "locked": false,
       "order_index": 3,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T09:57:09.178Z"
     },
     {
       "section_key": "about_us",
@@ -786,7 +786,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 4,
-      "updated_at": "2026-07-16T07:07:04.341Z"
+      "updated_at": "2026-07-16T09:57:09.179Z"
     },
     {
       "section_key": "blog",
@@ -834,10 +834,10 @@
       "source_file": "sections/blog.html",
       "wp_role": "block",
       "wp_target": "blocks/recent-blogs-split",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 5,
-      "updated_at": "2026-07-16T07:07:04.342Z"
+      "updated_at": "2026-07-16T09:57:09.179Z"
     },
     {
       "section_key": "contact_us",
@@ -891,7 +891,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 6,
-      "updated_at": "2026-07-16T07:07:04.342Z"
+      "updated_at": "2026-07-16T09:57:09.179Z"
     },
     {
       "section_key": "footer",
@@ -942,7 +942,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 7,
-      "updated_at": "2026-07-16T07:07:04.342Z"
+      "updated_at": "2026-07-16T09:57:09.181Z"
     }
   ],
   "next_stage": {

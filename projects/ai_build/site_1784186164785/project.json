@@ -1,10 +1,10 @@
 {
   "id": "site_1784186164785",
-  "taskName": "天涯净水机 建站任务",
-  "siteName": "天涯净水机",
-  "industry": "活性炭净水机",
+  "taskName": "SenZ离心机 建站任务",
+  "siteName": "SenZ离心机",
+  "industry": "小型离心机",
   "goal": "lead-generation",
-  "tone": "custom",
+  "tone": "minimal-international",
   "pages": [
     "首页",
     "产品中心",
@@ -14,22 +14,22 @@
   ],
   "schemaData": {
     "company_profile": {
-      "legal_name": "天涯净水机",
-      "wordmark": "天涯",
-      "tagline": "老品牌净水机",
+      "legal_name": "SenZ离心机",
+      "wordmark": "SENZ",
+      "tagline": "离心机出口",
       "description": "成立时间长，值得信赖",
       "logo_url": ""
     },
     "contact_info": {
-      "phone": "",
+      "phone": "150x'x'x'x'x'x'x'x",
       "email": "",
       "address": ""
     },
     "business_taxonomy": {
       "product_categories": [
-        "活性炭净水机",
-        "紫外线净水机",
-        "混合净水机"
+        "小型离心机",
+        "大型离心机",
+        "超大型离心机"
       ],
       "solutions": []
     },
@@ -39,15 +39,18 @@
       "facebook": ""
     },
     "style_requirements": {
-      "preset": "custom",
+      "preset": "minimal-international",
       "colors": [
-        "绿蓝白"
+        "绿色",
+        "灰色"
       ],
       "keywords": [
-        "复古、千禧年、年代感、老网页、可靠"
+        "牛油果色",
+        "柔和",
+        "圆角"
       ],
       "reference_sites": [],
-      "custom_notes": "布局页面复古，像是一个古早的网站"
+      "custom_notes": "禁用渐变色，奶系色块"
     }
   },
   "agentPayload": {
@@ -57,22 +60,22 @@
     "source": "goodjob_ai_site_builder",
     "website_data": {
       "company_profile": {
-        "legal_name": "天涯净水机",
-        "wordmark": "天涯",
-        "tagline": "老品牌净水机",
+        "legal_name": "SenZ离心机",
+        "wordmark": "SENZ",
+        "tagline": "离心机出口",
         "description": "成立时间长，值得信赖",
         "logo_url": ""
       },
       "contact_info": {
-        "phone": "",
+        "phone": "150x'x'x'x'x'x'x'x",
         "email": "",
         "address": ""
       },
       "business_taxonomy": {
         "product_categories": [
-          "活性炭净水机",
-          "紫外线净水机",
-          "混合净水机"
+          "小型离心机",
+          "大型离心机",
+          "超大型离心机"
         ],
         "solutions": []
       },
@@ -83,15 +86,18 @@
       }
     },
     "style_requirements": {
-      "preset": "custom",
+      "preset": "minimal-international",
       "colors": [
-        "绿蓝白"
+        "绿色",
+        "灰色"
       ],
       "keywords": [
-        "复古、千禧年、年代感、老网页、可靠"
+        "牛油果色",
+        "柔和",
+        "圆角"
       ],
       "reference_sites": [],
-      "custom_notes": "布局页面复古，像是一个古早的网站"
+      "custom_notes": "禁用渐变色，奶系色块"
     },
     "generation_requirements": {
       "target_pages": [

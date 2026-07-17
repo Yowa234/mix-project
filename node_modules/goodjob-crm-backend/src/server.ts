@@ -2523,9 +2523,9 @@ function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeStringArray(value: unknown) {
-  if (Array.isArray(value)) return value.map((item) => normalizeString(item)).filter(Boolean).slice(0, 24);
-  if (typeof value === "string") return value.split(/\n|,|，/).map((item) => item.trim()).filter(Boolean).slice(0, 24);
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap((item) => normalizeStringArray(item)).filter(Boolean).slice(0, 24);
+  if (typeof value === "string") return value.split(/[\n,;，；、|]+/u).map((item) => item.trim()).filter(Boolean).slice(0, 24);
   return [];
 }
 
@@ -2640,6 +2640,10 @@ function aiSiteDesignSystemFile(projectId: string) {
   return path.join(aiProjectDir(projectId), "design-system.json");
 }
 
+function aiSiteVariantRegistryFile(projectId: string) {
+  return path.join(aiProjectDir(projectId), "variant-registry.json");
+}
+
 function aiProjectMetaFile(projectId: string) {
   return path.join(aiProjectDir(projectId), "project.json");
 }
@@ -2696,11 +2700,41 @@ interface AiSiteCustomPageMeta {
   createdAt: string;
 }
 
+interface AiSiteSectionVariantSpec {
+  id: string;
+  title: string;
+  purpose: string;
+  wpTarget: string;
+  structure: string[];
+  interactions: string[];
+  editableData: string[];
+  visualTokens: string[];
+  animation: string;
+  responsive: string;
+  avoid: string[];
+}
+
+interface AiSiteSectionVariantMeta {
+  id: string;
+  title: string;
+  purpose: string;
+  wp_target: string;
+  structure: string[];
+  interactions: string[];
+  editable_data: string[];
+  visual_tokens: string[];
+  animation: string;
+  responsive: string;
+  avoid: string[];
+}
+
 interface AiSiteWpSectionMeta {
   section_key: string;
   label: string;
   section_type: string;
   layout_variant: string;
+  variant_title?: string;
+  variant?: AiSiteSectionVariantMeta;
   source_file: string;
   wp_role: "template-part" | "block" | "pattern" | "custom-page-section";
   wp_target: string;
@@ -2717,6 +2751,14 @@ interface AiSiteWpMetadata {
   site_template: string;
   wp_mode: "block-theme";
   updated_at: string;
+  design_system?: {
+    version: string;
+    preset: string;
+    palette: Record<string, string>;
+    style_profile: string;
+    registry_version: string;
+  };
+  variant_registry?: Record<string, AiSiteSectionVariantMeta[]>;
   sections: AiSiteWpSectionMeta[];
   next_stage: {
     page: string;
@@ -2808,6 +2850,69 @@ function cleanHexColor(value: string, fallback: string) {
   return color.toUpperCase();
 }
 
+function isHexColorString(value: string) {
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+}
+
+function splitAiSiteNaturalList(values: unknown[]) {
+  return values
+    .flatMap((value) => (typeof value === "string" ? value.split(/[\n,，;；、]+/u) : []))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function aiSiteTextIncludesAny(text: string, terms: string[]) {
+  const source = text.toLowerCase();
+  return terms.some((term) => source.includes(term.toLowerCase()));
+}
+
+function aiSiteStyleIntentFlags(text: string) {
+  return {
+    minimal: aiSiteTextIncludesAny(text, ["minimal", "clean", "simple", "white", "light", "\u6781\u7b80", "\u7b80\u6d01", "\u7559\u767d", "\u5e72\u51c0", "\u6e05\u723d"]),
+    tech: aiSiteTextIncludesAny(text, ["tech", "future", "cyber", "digital", "ai", "automation", "\u79d1\u6280", "\u672a\u6765", "\u667a\u80fd", "\u6570\u5b57", "\u8d5b\u535a", "\u81ea\u52a8\u5316"]),
+    premium: aiSiteTextIncludesAny(text, ["premium", "luxury", "high-end", "editorial", "\u9ad8\u7aef", "\u5962\u534e", "\u8d28\u611f", "\u54c1\u724c", "\u9ad8\u7ea7", "\u7f16\u8f91\u611f"]),
+    eco: aiSiteTextIncludesAny(text, ["eco", "green", "sustain", "environment", "\u73af\u4fdd", "\u7eff\u8272", "\u53ef\u6301\u7eed", "\u81ea\u7136"]),
+    bold: aiSiteTextIncludesAny(text, ["bold", "strong", "aggressive", "impact", "\u6fc0\u8fdb", "\u5f3a\u70c8", "\u51b2\u51fb", "\u91cd\u5de5", "\u786c\u6717", "\u5927\u80c6"]),
+    classic: aiSiteTextIncludesAny(text, ["classic", "traditional", "factory", "industrial-professional", "\u4f20\u7edf", "\u5de5\u5382", "\u7a33\u91cd"]),
+    retro: aiSiteTextIncludesAny(text, ["retro", "vintage", "y2k", "millennium", "old web", "web 1.0", "classic web", "\u590d\u53e4", "\u5343\u79a7", "\u5343\u79a7\u5e74", "\u5e74\u4ee3\u611f", "\u8001\u7f51\u9875", "\u53e4\u65e9", "\u6000\u65e7"])
+  };
+}
+
+function aiSiteNamedColorPalette(values: string[]) {
+  const text = values.join(" ").toLowerCase();
+  const definitions = [
+    { pattern: /green|emerald|teal|\u7eff|\u7eff\u8272|\u9752\u7eff|\u58a8\u7eff|\u7fe1\u7fe0/i, color: "#0F766E" },
+    { pattern: /blue|cyan|azure|\u84dd|\u84dd\u8272|\u5929\u84dd|\u6e56\u84dd|\u975b\u84dd/i, color: "#2563EB" },
+    { pattern: /white|ivory|cream|\u767d|\u767d\u8272|\u7c73\u767d|\u8c61\u7259/i, color: "#F8FAFC" },
+    { pattern: /black|charcoal|\u9ed1|\u9ed1\u8272|\u70ad\u9ed1/i, color: "#111827" },
+    { pattern: /red|crimson|\u7ea2|\u7ea2\u8272|\u8d64/i, color: "#DC2626" },
+    { pattern: /orange|\u6a59|\u6a59\u8272/i, color: "#F97316" },
+    { pattern: /yellow|gold|\u9ec4|\u9ec4\u8272|\u91d1|\u91d1\u8272/i, color: "#D97706" },
+    { pattern: /purple|violet|\u7d2b|\u7d2b\u8272/i, color: "#7C3AED" },
+    { pattern: /gray|grey|silver|\u7070|\u7070\u8272|\u94f6/i, color: "#64748B" },
+    { pattern: /绿|绿色|青绿|墨绿|翡翠|green|emerald|teal/u, color: "#0F766E" },
+    { pattern: /蓝|蓝色|天蓝|湖蓝|靛蓝|blue|cyan|azure/u, color: "#2563EB" },
+    { pattern: /白|白色|米白|象牙|white|ivory|cream/u, color: "#F8FAFC" },
+    { pattern: /黑|黑色|black|charcoal/u, color: "#111827" },
+    { pattern: /红|红色|red|crimson/u, color: "#DC2626" },
+    { pattern: /橙|橘|橙色|orange/u, color: "#F97316" },
+    { pattern: /黄|金|黄色|金色|yellow|gold/u, color: "#D97706" },
+    { pattern: /紫|紫色|purple|violet/u, color: "#7C3AED" },
+    { pattern: /灰|灰色|银|gray|grey|silver/u, color: "#64748B" }
+  ];
+  const colors: string[] = [];
+  for (const definition of definitions) {
+    if (definition.pattern.test(text) && !colors.includes(definition.color)) colors.push(definition.color);
+  }
+  return colors;
+}
+
+function resolveAiSitePaletteColors(colors: string[]) {
+  const naturalColors = splitAiSiteNaturalList(colors);
+  const explicitHex = naturalColors.filter(isHexColorString).map((color) => cleanHexColor(color, "#000000"));
+  return explicitHex.length ? explicitHex : aiSiteNamedColorPalette(naturalColors.length ? naturalColors : colors);
+}
+
 function hexToRgb(color: string) {
   const clean = cleanHexColor(color, "#000000").slice(1);
   return {
@@ -2843,46 +2948,64 @@ function aiSiteStyleProfile(project: AiSiteBuilderProject, palette: { brand: str
   const keywords = sectionArray(style.keywords);
   const referenceSites = sectionArray(style.reference_sites);
   const text = `${style.preset || project.tone || ""} ${keywords.join(" ")} ${style.custom_notes || ""}`.toLowerCase();
+  const intent = aiSiteStyleIntentFlags(text);
   const isMinimal = /minimal|clean|simple|white|light|极简|简洁|留白/.test(text);
   const isTech = /tech|future|cyber|digital|ai|automation|科技|未来|智能|数字/.test(text);
   const isPremium = /premium|luxury|high-end|editorial|高端|奢华|质感|品牌/.test(text);
   const isEco = /eco|green|sustain|environment|环保|绿色|可持续/.test(text);
   const isBold = /bold|strong|aggressive|impact|激进|强烈|冲击|重工业/.test(text);
   const isClassic = /classic|traditional|factory|industrial-professional|传统|工厂|稳重/.test(text);
-  const mood = isTech ? "technical futuristic" : isEco ? "clean sustainable" : isPremium ? "premium editorial" : isMinimal ? "minimal precision" : isBold ? "bold industrial" : "professional industrial";
-  const density = isMinimal || isPremium ? "spacious" : isTech || isBold ? "dense-but-layered" : "balanced";
-  const shape = isTech || isBold ? "sharp" : isMinimal || isEco ? "soft" : "industrial";
-  const background = isTech
+  const cnMinimal = /极简|简洁|留白|干净|清爽/.test(text);
+  const cnTech = /科技|未来|智能|数字|赛博|自动化/.test(text);
+  const cnPremium = /高端|奢华|质感|品牌|高级|编辑感/.test(text);
+  const cnEco = /环保|绿色|可持续|自然/.test(text);
+  const cnBold = /激进|强烈|冲击|重工|硬朗|大胆/.test(text);
+  const wantsMinimal = isMinimal || cnMinimal || intent.minimal;
+  const wantsTech = isTech || cnTech || intent.tech;
+  const wantsPremium = isPremium || cnPremium || intent.premium;
+  const wantsEco = isEco || cnEco || intent.eco;
+  const wantsBold = isBold || cnBold || intent.bold;
+  const wantsRetro = /retro|vintage|y2k|millennium|old\s*web|web\s*1\.0|classic\s*web|复古|千禧|千禧年|年代感|老网页|古早|怀旧|可靠/u.test(text);
+  const wantsRetroProfile = wantsRetro || intent.retro;
+  const mood = wantsRetroProfile ? "retro Y2K reliable web" : wantsTech ? "technical futuristic" : wantsEco ? "clean sustainable" : wantsPremium ? "premium editorial" : wantsMinimal ? "minimal precision" : wantsBold ? "bold industrial" : "professional industrial";
+  const density = wantsRetroProfile ? "compact-layered" : wantsMinimal || wantsPremium ? "spacious" : wantsTech || wantsBold ? "dense-but-layered" : "balanced";
+  const shape = wantsRetroProfile ? "boxed" : wantsTech || wantsBold ? "sharp" : wantsMinimal || wantsEco ? "soft" : "industrial";
+  const background = wantsTech
     ? "dark-to-light technical gradients, subtle grid lines, data-like accents"
-    : isEco
-      ? "light surfaces, green-tinted bands, natural whitespace, soft dividers"
-      : isPremium
-        ? "deep editorial contrast, large quiet whitespace, refined accent lines"
-        : isMinimal
-          ? "white and near-white bands, thin rules, sparse cards"
-          : isBold
-            ? "high-contrast dark bands, strong diagonal or stepped panels"
-            : "industrial navy/steel bands with controlled accent details";
-  const composition = isTech
+    : wantsRetroProfile
+      ? "green-blue-white old-web surfaces, visible borders, boxed panels, modest shadows, nostalgic but readable contrast"
+      : wantsEco
+        ? "light surfaces, green-tinted bands, natural whitespace, soft dividers"
+        : wantsPremium
+          ? "deep editorial contrast, large quiet whitespace, refined accent lines"
+          : wantsMinimal
+            ? "white and near-white bands, thin rules, sparse cards"
+            : wantsBold
+              ? "high-contrast dark bands, strong diagonal or stepped panels"
+              : "industrial navy/steel bands with controlled accent details";
+  const composition = wantsTech
     ? "layered dashboards, timeline rails, spec chips, glow-free technical surfaces"
-    : isEco
-      ? "breathing vertical sections, soft proof bands, rounded product/category panels"
-      : isPremium
-        ? "editorial asymmetry, oversized type, restrained cards, magazine-like feature blocks"
-        : isMinimal
-          ? "single-column clarity, whitespace-first layouts, thin dividers, compact proof rows"
-          : isBold
-            ? "large blocks, strong hierarchy, stepped grids, dark proof strips"
-            : "B2B industrial rhythm with varied vertical sections and practical proof modules";
-  const ctaStyle = isMinimal || isEco ? "clean rounded" : isTech || isBold ? "sharp high-contrast" : isPremium ? "refined editorial" : "industrial rectangular";
+    : wantsRetroProfile
+      ? "old-web inspired vertical rhythm with framed headers, bordered category groups, compact badges, and table-like proof modules"
+      : wantsEco
+        ? "breathing vertical sections, soft proof bands, rounded product/category panels"
+        : wantsPremium
+          ? "editorial asymmetry, oversized type, restrained cards, magazine-like feature blocks"
+          : wantsMinimal
+            ? "single-column clarity, whitespace-first layouts, thin dividers, compact proof rows"
+            : wantsBold
+              ? "large blocks, strong hierarchy, stepped grids, dark proof strips"
+              : "B2B industrial rhythm with varied vertical sections and practical proof modules";
+  const ctaStyle = wantsRetroProfile ? "boxed retro" : wantsMinimal || wantsEco ? "clean rounded" : wantsTech || wantsBold ? "sharp high-contrast" : wantsPremium ? "refined editorial" : "industrial rectangular";
   const avoid = [
     "do not force the old navy/red palette if form colors or style words point elsewhere",
     "do not repeat the same heading plus 3-card grid in every section",
-    isMinimal ? "avoid heavy dark blocks and noisy technical decoration" : "",
-    isTech ? "avoid beige, soft corporate SaaS cards, and generic factory brochure layout" : "",
-    isPremium ? "avoid crowded grids and cheap badge-heavy styling" : "",
-    isEco ? "avoid harsh black/red aggression unless supplied by user colors" : "",
-    isBold ? "avoid pale low-contrast minimal pages" : ""
+    wantsMinimal ? "avoid heavy dark blocks and noisy technical decoration" : "",
+    wantsTech ? "avoid beige, soft corporate SaaS cards, and generic factory brochure layout" : "",
+    wantsPremium ? "avoid crowded grids and cheap badge-heavy styling" : "",
+    wantsEco ? "avoid harsh black/red aggression unless supplied by user colors" : "",
+    wantsBold ? "avoid pale low-contrast minimal pages" : "",
+    wantsRetroProfile ? "avoid sleek modern SaaS cards, glassmorphism, and the default blue industrial template" : ""
   ].filter(Boolean);
   return {
     mood,
@@ -2903,21 +3026,41 @@ function aiSiteStyleProfile(project: AiSiteBuilderProject, palette: { brand: str
 function aiSiteDesignSystem(project: AiSiteBuilderProject) {
   const schema = normalizeAiSiteSchemaData(project.schemaData);
   const style = schema.style_requirements;
-  const colors = sectionArray(style.colors);
+  const rawColors = sectionArray(style.colors);
+  let colors = resolveAiSitePaletteColors(rawColors);
   const preset = (style.preset || project.tone || "industrial-professional").toLowerCase();
-  const styleText = `${preset} ${sectionArray(style.keywords).join(" ")} ${style.custom_notes || ""}`.toLowerCase();
-  const fallbackPalette = styleText.includes("minimal") || styleText.includes("clean")
+  const naturalKeywords = splitAiSiteNaturalList(sectionArray(style.keywords));
+  const styleText = `${preset} ${naturalKeywords.join(" ")} ${style.custom_notes || ""} ${rawColors.join(" ")}`.toLowerCase();
+  const intent = aiSiteStyleIntentFlags(styleText);
+  if (!colors.length && intent.retro) {
+    colors = ["#0F766E", "#2563EB", "#F8FAFC"];
+  }
+  if (!colors.length && /retro|vintage|y2k|millennium|old\s*web|web\s*1\.0|复古|千禧|千禧年|年代感|老网页|古早|怀旧/u.test(styleText)) {
+    colors = ["#0F766E", "#2563EB", "#F8FAFC"];
+  }
+  const fallbackPalette = /minimal|clean|极简|简洁|留白|干净|清爽/.test(styleText)
     ? ["#2563EB", "#0EA5E9", "#F8FAFC"]
-    : styleText.includes("tech") || styleText.includes("future") || styleText.includes("cyber")
+    : /tech|future|cyber|科技|未来|智能|数字|赛博|自动化/.test(styleText)
       ? ["#4F46E5", "#06B6D4", "#F5F3FF"]
-      : styleText.includes("eco") || styleText.includes("green") || styleText.includes("sustainable")
+      : /eco|green|sustainable|环保|绿色|可持续|自然/.test(styleText)
         ? ["#0F766E", "#F97316", "#F0FDFA"]
-        : styleText.includes("luxury") || styleText.includes("premium")
+        : /luxury|premium|high-end|editorial|高端|奢华|质感|品牌|高级|编辑感/.test(styleText)
           ? ["#111827", "#D97706", "#F8FAFC"]
           : ["#143A7B", "#C8161C", "#F4F6FA"];
-  const brand = cleanHexColor(colors[0] || "", fallbackPalette[0]);
-  const accent = cleanHexColor(colors[1] || "", fallbackPalette[1]);
-  const surface = cleanHexColor(colors[2] || "", fallbackPalette[2]);
+  const intentFallbackPalette = intent.minimal
+    ? ["#2563EB", "#0EA5E9", "#F8FAFC"]
+    : intent.tech
+      ? ["#4F46E5", "#06B6D4", "#F5F3FF"]
+      : intent.eco
+        ? ["#0F766E", "#F97316", "#F0FDFA"]
+        : intent.premium
+          ? ["#111827", "#D97706", "#F8FAFC"]
+          : intent.retro
+            ? ["#0F766E", "#2563EB", "#F8FAFC"]
+            : fallbackPalette;
+  const brand = cleanHexColor(colors[0] || "", intentFallbackPalette[0]);
+  const accent = cleanHexColor(colors[1] || "", intentFallbackPalette[1]);
+  const surface = cleanHexColor(colors[2] || "", intentFallbackPalette[2]);
   const brandDeep = cleanHexColor(colors[3] || "", mixHexColor(brand, "#000000", 0.54));
   const brandWide = mixHexColor(brand, "#FFFFFF", 0.14);
   const dark = cleanHexColor(colors[4] || "", mixHexColor(brandDeep, "#000000", 0.28));
@@ -2980,6 +3123,230 @@ function aiSiteDesignSystem(project: AiSiteBuilderProject) {
       "Avoid unscoped .container, .grid, .card, body, html, :root, header, footer selectors."
     ]
   };
+}
+
+function aiSiteSectionVariantRegistry(): Record<AiSiteKnownSectionKey, AiSiteSectionVariantSpec[]> {
+  return {
+    header: [{
+      id: "locked_fixed_header",
+      title: "Locked B2B Header",
+      purpose: "Global topbar, navigation, product dropdown, and inquiry CTA shared by every route.",
+      wpTarget: "template-parts/header.html",
+      structure: ["topbar contact/social strip", "brand wordmark", "fixed navigation", "Products dropdown from product_categories", "mobile menu button", "inquiry CTA"],
+      interactions: ["mobile menu toggle", "product dropdown hover/focus", "WP route links generated by route map"],
+      editableData: ["brand", "contact_info", "social_links", "product_categories", "nav labels"],
+      visualTokens: ["brand", "accent", "brandDeep", "line", "light"],
+      animation: "subtle dropdown and mobile menu only",
+      responsive: "desktop horizontal nav; mobile collapses into menu while labels never wrap",
+      avoid: ["CRM links", "logout/login controls", "hard-coded local domain", "duplicated page anchors in WP export"]
+    }],
+    hero: [{
+      id: "darkened_photo_hero_slider",
+      title: "Darkened Photo Hero Slider",
+      purpose: "High-impact first viewport with brand-specific headline, three background images, clear CTA pair, and later image-upload hooks.",
+      wpTarget: "blocks/hero-photo-slider",
+      structure: ["72vh photo stage", "dark overlay", "eyebrow", "two-line H1", "subtitle", "Request a Proposal CTA", "Learn More CTA", "bottom-right slider controls"],
+      interactions: ["CSS radio fallback", "6-second auto switch enhanced by theme JS", "future hero background upload slots"],
+      editableData: ["headline", "subtitle", "eyebrow", "button labels", "background images"],
+      visualTokens: ["brandDeep overlay", "accent CTA", "white text", "imageTreatment: full-bleed darkened"],
+      animation: "background cross-fade and subtle CTA hover",
+      responsive: "fixed 72vh stage; H1 max two visual lines; controls stay bottom-right on desktop and compact on mobile",
+      avoid: ["extra metrics", "cards", "side panels", "product grids", "generic Industrial... headline"]
+    }, {
+      id: "technical_banner_focus",
+      title: "Technical Banner Focus",
+      purpose: "A calmer hero variant for precision or minimal styles with lighter overlay and tighter proof chips.",
+      wpTarget: "blocks/hero-technical-banner",
+      structure: ["banner image", "headline", "subtitle", "two CTAs", "small proof chips"],
+      interactions: ["button hover", "optional static background upload slot"],
+      editableData: ["headline", "subtitle", "proof chips", "background image"],
+      visualTokens: ["surface", "brand", "accent", "thin rules"],
+      animation: "light reveal only",
+      responsive: "reflows into single-column banner on mobile",
+      avoid: ["dark heavy treatment when style asks for minimal precision", "busy metrics strip"]
+    }],
+    products: [{
+      id: "product_category_tabs_catalog_slider",
+      title: "Category Tabs Catalog Slider",
+      purpose: "Product-category-first browsing with card previews that later map cleanly to product CPT archive/query data.",
+      wpTarget: "blocks/products-category-catalog",
+      structure: ["Product Category heading", "intro copy", "category buttons", "active-category product cards", "left/right browsing arrows"],
+      interactions: ["data-product-category button switching", "radio fallback pages", "card inquiry links to contact"],
+      editableData: ["product_categories", "product CPT items", "product images", "category descriptions"],
+      visualTokens: ["surface cards", "brand active tab", "accent arrows", "product image ratio"],
+      animation: "tab switch and card hover lift",
+      responsive: "4-card desktop stage; 2-column tablet; 1-column mobile with arrows hidden",
+      avoid: ["plain 3-card grid", "spec matrix only", "hard-split backgrounds", "inert category spans", "href=#"]
+    }, {
+      id: "category_sidebar_grid",
+      title: "Sidebar Category Grid",
+      purpose: "Archive-like product browsing with category rail and dense product grid for larger catalogs.",
+      wpTarget: "blocks/products-sidebar-grid",
+      structure: ["left category rail", "right product grid", "featured category intro", "RFQ CTA"],
+      interactions: ["category filter buttons", "product card links", "sticky category rail on desktop"],
+      editableData: ["product_categories", "product CPT items", "featured category"],
+      visualTokens: ["brand sidebar", "light card grid", "accent hover"],
+      animation: "card hover and category active state",
+      responsive: "category rail becomes horizontal scroll on mobile",
+      avoid: ["small unreadable product cards", "one product per row on desktop"]
+    }],
+    applications: [{
+      id: "applications_horizontal_card_preview",
+      title: "Horizontal Scenario Cards",
+      purpose: "Scenario-driven application preview that separates buyer context from product catalog browsing.",
+      wpTarget: "blocks/applications-scenario-map",
+      structure: ["title block", "horizontal scenario card row", "pain point", "suitable product chip", "outcome", "CTA"],
+      interactions: ["horizontal scroll/snap", "CTA links to contact/products", "card hover focus"],
+      editableData: ["application scenarios", "pain points", "product/category mapping", "outcomes"],
+      visualTokens: ["continuous background", "card surface", "contrast-safe text", "brand chips"],
+      animation: "horizontal preview scroll and hover border accent",
+      responsive: "desktop horizontal preview; mobile single-column or horizontal snap with readable cards",
+      avoid: ["hard-split color blocks", "gray text on dark blue", "same product-card layout", "decorative layers over links"]
+    }, {
+      id: "industry_matrix",
+      title: "Industry Matrix",
+      purpose: "A structured matrix for industries, environments, recommended products, and RFQ notes.",
+      wpTarget: "blocks/applications-industry-matrix",
+      structure: ["industry tabs", "environment rows", "recommended products", "RFQ notes"],
+      interactions: ["tab buttons", "row hover", "contact CTA"],
+      editableData: ["industries", "environments", "product mapping"],
+      visualTokens: ["table-like lines", "brand tab", "light rows"],
+      animation: "tab reveal only",
+      responsive: "matrix becomes stacked cards on mobile",
+      avoid: ["wide table overflow", "dense unreadable cells"]
+    }],
+    about_us: [{
+      id: "capability_stack_and_quality_process",
+      title: "Capability Stack + Quality Process",
+      purpose: "Institutional proof section showing capability, documentation, reliability, and process without becoming another product grid.",
+      wpTarget: "blocks/about-capability-stack",
+      structure: ["title block", "capability stack", "documentation/proof card", "reliability note", "quality/export process belt"],
+      interactions: ["CTA to contact", "process item hover"],
+      editableData: ["company profile", "capability items", "proof points", "process steps"],
+      visualTokens: ["continuous background", "dark panel", "white card", "explicit text contrast"],
+      animation: "calm reveal and process hover",
+      responsive: "desktop asymmetric panels; mobile stacked panels with consistent spacing",
+      avoid: ["hard-split backgrounds", "low-contrast dark text on blue", "founder-story-only cards", "oversized decorative badges"]
+    }, {
+      id: "timeline_factory_proof",
+      title: "Factory Proof Timeline",
+      purpose: "Chronological proof of growth, factory capability, inspection, and export readiness.",
+      wpTarget: "blocks/about-factory-timeline",
+      structure: ["intro", "timeline", "proof metrics", "quality statement"],
+      interactions: ["timeline hover", "contact CTA"],
+      editableData: ["milestones", "metrics", "factory proof points"],
+      visualTokens: ["timeline rail", "brand dots", "light cards"],
+      animation: "timeline reveal",
+      responsive: "timeline collapses into vertical cards",
+      avoid: ["fake founder story", "unsubstantiated oversized numbers"]
+    }],
+    blog: [{
+      id: "industrial_editorial_digest",
+      title: "Industrial Editorial Digest",
+      purpose: "SEO-oriented knowledge block with one featured article and compact recent posts.",
+      wpTarget: "blocks/recent-blogs-split",
+      structure: ["RECENT BLOGS title", "large featured post", "More Blogs action", "dated article rows"],
+      interactions: ["article links", "more blogs archive link", "hover underline"],
+      editableData: ["news CPT items", "dates", "categories", "excerpt", "featured image"],
+      visualTokens: ["editorial whitespace", "brand headings", "date muted text", "image ratio"],
+      animation: "article hover and subtle reveal",
+      responsive: "desktop split editorial; mobile one-column list",
+      avoid: ["same product card grid", "fake news clutter", "large equal blocks only"]
+    }, {
+      id: "resource_center_index",
+      title: "Resource Center Index",
+      purpose: "Guide-style content index grouped by selection, maintenance, troubleshooting, and export documents.",
+      wpTarget: "blocks/blog-resource-index",
+      structure: ["intent filter chips", "guide cards", "latest insights"],
+      interactions: ["filter chips", "archive CTA"],
+      editableData: ["news CPT items", "intent tags"],
+      visualTokens: ["light cards", "accent chips", "thin dividers"],
+      animation: "chip hover and card lift",
+      responsive: "chips wrap; cards become one column",
+      avoid: ["too many cards above the fold"]
+    }],
+    contact_us: [{
+      id: "inquiry_command_center",
+      title: "Fixed Inquiry Command Center",
+      purpose: "Conversion-critical contact section with fixed left trust column and right visible inquiry form.",
+      wpTarget: "blocks/contact-inquiry-form",
+      structure: ["left trust/CTA column", "contact channels", "RFQ checklist", "right white form panel", "required fields", "SEND INQUIRY button"],
+      interactions: ["form controls", "mailto/tel fallback", "submit button hover", "future CF7 replacement"],
+      editableData: ["contact_info", "response promise", "form labels", "RFQ checklist"],
+      visualTokens: ["dark trust surface", "white form card", "accent submit", "contrast-safe text"],
+      animation: "form card reveal and button hover",
+      responsive: "desktop two columns; mobile stacks trust column before form",
+      avoid: ["CTA-only contact block", "map placeholder", "footer-style contact grid", "hidden form"]
+    }],
+    footer: [{
+      id: "locked_fixed_footer",
+      title: "Locked B2B Footer",
+      purpose: "Global footer with brand summary, product links, contact data, social links, and copyright.",
+      wpTarget: "template-parts/footer.html",
+      structure: ["brand summary", "capabilities", "product categories", "contact channels", "copyright bar"],
+      interactions: ["back-to-top link", "social links", "WP route links"],
+      editableData: ["brand", "company description", "product_categories", "contact_info", "social_links"],
+      visualTokens: ["dark footer", "accent icons", "light text"],
+      animation: "none beyond hover",
+      responsive: "four columns desktop; one column mobile",
+      avoid: ["oversized icons", "duplicated header nav", "CRM/system links"]
+    }]
+  };
+}
+
+function aiSiteSectionVariantMeta(spec: AiSiteSectionVariantSpec): AiSiteSectionVariantMeta {
+  return {
+    id: spec.id,
+    title: spec.title,
+    purpose: spec.purpose,
+    wp_target: spec.wpTarget,
+    structure: spec.structure,
+    interactions: spec.interactions,
+    editable_data: spec.editableData,
+    visual_tokens: spec.visualTokens,
+    animation: spec.animation,
+    responsive: spec.responsive,
+    avoid: spec.avoid
+  };
+}
+
+function aiSiteVariantRegistryMeta() {
+  const registry = aiSiteSectionVariantRegistry();
+  return Object.fromEntries(Object.entries(registry).map(([key, specs]) => [key, specs.map(aiSiteSectionVariantMeta)]));
+}
+
+function aiSiteDefaultVariantSpec(sectionKey: AiSiteSectionKey): AiSiteSectionVariantSpec {
+  const registry = aiSiteSectionVariantRegistry();
+  if ((aiSiteSectionKeys as readonly string[]).includes(sectionKey)) {
+    return registry[sectionKey as AiSiteKnownSectionKey]?.[0] || registry.hero[0];
+  }
+  return {
+    id: "custom_simple_page",
+    title: "Custom Simple Page",
+    purpose: "Editable custom page section that can be promoted to a WordPress pattern or block later.",
+    wpTarget: "patterns/custom-simple-page",
+    structure: ["custom page heading", "intro copy", "content band", "CTA row"],
+    interactions: ["CTA to contact"],
+    editableData: ["page title", "intro copy", "body copy", "CTA label"],
+    visualTokens: ["surface", "brand", "accent", "line"],
+    animation: "basic reveal only",
+    responsive: "single-column mobile-safe layout",
+    avoid: ["header/footer duplication", "CRM links", "full homepage shell"]
+  };
+}
+
+function aiSiteSelectVariantSpec(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey): AiSiteSectionVariantSpec {
+  const base = aiSiteDefaultVariantSpec(sectionKey);
+  if (!(aiSiteSectionKeys as readonly string[]).includes(sectionKey)) return base;
+  const registry = aiSiteSectionVariantRegistry()[sectionKey as AiSiteKnownSectionKey] || [base];
+  const styleProfile = aiSiteDesignSystem(project).styleProfile;
+  const text = `${styleProfile.mood} ${styleProfile.summary} ${styleProfile.customNotes} ${styleProfile.keywords.join(" ")}`.toLowerCase();
+  if (sectionKey === "hero" && /minimal|precision|clean|white|light/.test(text)) return registry.find((item) => item.id === "technical_banner_focus") || base;
+  if (sectionKey === "products" && /large catalog|dense|sidebar|archive|many product|many categories/.test(text)) return registry.find((item) => item.id === "category_sidebar_grid") || base;
+  if (sectionKey === "applications" && /matrix|technical|spec|table/.test(text)) return registry.find((item) => item.id === "industry_matrix") || base;
+  if (sectionKey === "about_us" && /timeline|history|factory proof|milestone/.test(text)) return registry.find((item) => item.id === "timeline_factory_proof") || base;
+  if (sectionKey === "blog" && /resource|knowledge base|guide|index/.test(text)) return registry.find((item) => item.id === "resource_center_index") || base;
+  return base;
 }
 
 const aiSiteThemePalettes = [
@@ -3355,6 +3722,7 @@ async function ensureAiSiteSandbox(project: AiSiteBuilderProject) {
   const blueprintText = await readFile(blueprintPath, "utf8").catch(() => "");
   if (!blueprintText || looksCorruptAiSiteText(blueprintText)) await writeFile(blueprintPath, JSON.stringify(cleanAiSiteBlueprint(project), null, 2), "utf8");
   await writeFile(aiSiteDesignSystemFile(project.id), JSON.stringify(aiSiteDesignSystem(project), null, 2), "utf8");
+  await writeFile(aiSiteVariantRegistryFile(project.id), JSON.stringify(aiSiteVariantRegistryMeta(), null, 2), "utf8");
   const orderPath = path.join(root, "order.json");
   if (!(await fileExists(orderPath))) await writeFile(orderPath, JSON.stringify(aiSiteSectionKeys, null, 2), "utf8");
   const headerPath = aiSectionFile(project.id, "header");
@@ -5654,7 +6022,7 @@ function aiSiteHtmlFromModelOutput(content: string, sectionKey: AiSiteSectionKey
   return stripUnsafeAiSiteHtml(content, sectionKey);
 }
 
-function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSectionKey) {
+function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSectionKey, project?: AiSiteBuilderProject) {
   if (aiSiteLockedSections.has(sectionKey)) return;
   const sectionId = sectionKey.replace(/_/g, "-");
   const expectedId = sectionKey === "hero" ? "(?:home|hero)" : sectionId;
@@ -5698,6 +6066,12 @@ function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSect
       throw new Error(`Generated ${sectionId}.html contains inert href="#" controls; use #contact-us or script-free radio label controls`);
     }
   }
+  if (sectionKey !== "hero" && !aiSiteLockedSections.has(sectionKey)) {
+    const linearGradientCount = (css.match(/linear-gradient\s*\(/gi) || []).length;
+    if (/radial-gradient\s*\(/i.test(css) || linearGradientCount > 1) {
+      throw new Error(`Generated ${sectionId}.html overuses decorative gradients; use solid/tinted surfaces and structured panels instead`);
+    }
+  }
   if (sectionKey === "products") {
     if (!/products-category-showcase/i.test(html)) throw new Error("Generated products.html must keep the products-category-showcase structure");
     if (!/<(button|label)\b[\s\S]*(products|category|pill|tab)/i.test(html)) throw new Error("Generated products.html must include clickable category controls");
@@ -5712,6 +6086,22 @@ function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSect
     if (!/about-us-capability-stack-and-quality-process/i.test(html)) throw new Error("Generated about-us.html must keep the capability stack and quality process structure");
     if (!/capability/i.test(html) || !/(quality|inspection|documentation|process)/i.test(html)) throw new Error("Generated about-us.html must include capability and quality/process proof content");
   }
+  if (project && !aiSiteLockedSections.has(sectionKey)) {
+    const design = aiSiteDesignSystem(project);
+    const userColors = [
+      design.palette.brand,
+      design.palette.accent,
+      design.palette.surface,
+      design.palette.brandDeep,
+      design.palette.dark
+    ].map((color) => color.toLowerCase());
+    const cssText = css.toLowerCase();
+    const usesPaletteLiteral = userColors.some((color) => cssText.includes(color));
+    const usesFrameworkToken = /var\(--(?:blue|red|blue-deep|bg-soft|footer|ink|body|mid|line)\b/i.test(css);
+    if (!usesPaletteLiteral && !usesFrameworkToken) {
+      throw new Error(`Generated ${sectionId}.html does not use the project palette or framework color tokens`);
+    }
+  }
   if (!/@media/i.test(css)) throw new Error(`Generated ${sectionId}.html CSS is missing responsive @media rules`);
   if (!/(clamp\(|minmax\(|auto-fit|grid-template-columns|flex-wrap)/i.test(css)) {
     throw new Error(`Generated ${sectionId}.html CSS is missing responsive layout primitives`);
@@ -5723,6 +6113,7 @@ function validateGeneratedAiSiteSectionHtml(html: string, sectionKey: AiSiteSect
 
 type AiSiteSectionLayoutStrategy = {
   family: string;
+  variant: AiSiteSectionVariantMeta;
   blueprintSignals: string[];
   composition: string[];
   requiredElements: string[];
@@ -5761,8 +6152,10 @@ function aiSiteSectionLayoutStrategy(project: AiSiteBuilderProject, sectionKey: 
   const categoryInstruction = categories.length
     ? `Use these category labels as real content anchors: ${categories.slice(0, 10).join(", ")}.`
     : "Create realistic industrial category labels from the company description.";
+  const variantSpec = aiSiteSelectVariantSpec(project, sectionKey);
+  const variant = aiSiteSectionVariantMeta(variantSpec);
 
-  const strategies: Record<AiSiteSectionKey, AiSiteSectionLayoutStrategy> = {
+  const strategies: Record<AiSiteSectionKey, Omit<AiSiteSectionLayoutStrategy, "variant">> = {
     header: {
       family: "locked_fixed_header",
       blueprintSignals: signals,
@@ -5857,7 +6250,7 @@ function aiSiteSectionLayoutStrategy(project: AiSiteBuilderProject, sectionKey: 
     }
   };
 
-  return strategies[sectionKey] || {
+  const selected = strategies[sectionKey] || {
     family: "custom_simple_page",
     blueprintSignals: signals,
     composition: [
@@ -5867,6 +6260,19 @@ function aiSiteSectionLayoutStrategy(project: AiSiteBuilderProject, sectionKey: 
     ],
     requiredElements: ["custom page heading", "intro copy", "one content band", "CTA row", "responsive single-column mobile layout"],
     avoid: ["full homepage shell", "header/footer duplication", "CRM links", "login/logout controls", "complex multi-section page"]
+  };
+  return {
+    ...selected,
+    family: variant.id,
+    variant,
+    composition: [
+      ...selected.composition,
+      `Variant contract (${variant.title}): ${variant.structure.join(" -> ")}.`,
+      `Variant interactions: ${variant.interactions.join("; ")}.`,
+      `Responsive contract: ${variant.responsive}.`
+    ],
+    requiredElements: [...new Set([...selected.requiredElements, ...variant.structure])],
+    avoid: [...new Set([...selected.avoid, ...variant.avoid])]
   };
 }
 
@@ -5899,16 +6305,20 @@ function aiSiteWpSectionType(sectionKey: AiSiteSectionKey) {
 
 function buildAiSiteWpSectionMeta(project: AiSiteBuilderProject, sectionKey: AiSiteSectionKey, orderIndex: number, customPages: AiSiteCustomPageMeta[], existing?: Partial<AiSiteWpSectionMeta>): AiSiteWpSectionMeta {
   const label = aiSiteSectionLabel(sectionKey, customPages);
-  const layoutVariant = existing?.layout_variant || aiSiteSectionLayoutStrategy(project, sectionKey).family;
+  const strategy = aiSiteSectionLayoutStrategy(project, sectionKey);
+  const variant = strategy.variant;
+  const layoutVariant = existing?.layout_variant || strategy.family;
   const locked = aiSiteLockedSections.has(sectionKey);
   return {
     section_key: sectionKey,
     label,
     section_type: aiSiteWpSectionType(sectionKey),
     layout_variant: layoutVariant,
+    variant_title: variant.title,
+    variant,
     source_file: `sections/${sectionKey}.html`,
     wp_role: existing?.wp_role || aiSiteWpRole(sectionKey),
-    wp_target: existing?.wp_target || aiSiteWpTarget(sectionKey, layoutVariant),
+    wp_target: existing?.wp_target || variant.wp_target || aiSiteWpTarget(sectionKey, layoutVariant),
     status: existing?.status || (locked ? "locked" : "blueprint"),
     locked,
     order_index: orderIndex,
@@ -5920,13 +6330,22 @@ async function readAiSiteWpMetadata(project: AiSiteBuilderProject, order: AiSite
   const existing = await readJsonFile<Partial<AiSiteWpMetadata> | null>(aiSiteWpMetadataFile(project.id), null);
   const existingSections = new Map((existing?.sections || []).map((item) => [item.section_key, item]));
   const sections = order.map((sectionKey, index) => buildAiSiteWpSectionMeta(project, sectionKey, index, customPages, existingSections.get(sectionKey)));
+  const designSystem = aiSiteDesignSystem(project);
   const metadata: AiSiteWpMetadata = {
-    version: "1.0",
+    version: "1.1",
     project_id: project.id,
     site_name: project.siteName,
     site_template: existing?.site_template || "b2b_industrial",
     wp_mode: "block-theme",
     updated_at: new Date().toISOString(),
+    design_system: {
+      version: designSystem.version,
+      preset: designSystem.preset,
+      palette: designSystem.palette,
+      style_profile: designSystem.styleProfile.summary,
+      registry_version: "section-variant-registry.v1"
+    },
+    variant_registry: aiSiteVariantRegistryMeta(),
     sections,
     next_stage: {
       page: "WordPress重构",
@@ -5950,6 +6369,13 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
   const layoutStrategy = aiSiteSectionLayoutStrategy(project, sectionKey);
   const sectionId = sectionKey.replace(/_/g, "-");
   const sectionLabel = aiSiteSectionLabel(sectionKey);
+  const variantContract = `Variant registry contract: use variant "${layoutStrategy.variant.id}" (${layoutStrategy.variant.title}). Preserve this structure order: ${layoutStrategy.variant.structure.join(" -> ")}. Enrich only through visual tokens (${layoutStrategy.variant.visual_tokens.join(", ")}), spacing, surfaces, component details, micro-animation, and copy; do not invent a different section type.`;
+  const paletteContract = `Palette contract: the user-selected palette is mandatory. Use brand ${designSystem.palette.brand}, accent ${designSystem.palette.accent}, surface ${designSystem.palette.surface}, brandDeep ${designSystem.palette.brandDeep}, and dark ${designSystem.palette.dark} as literal hex values or via framework tokens var(--blue), var(--red), var(--bg-soft), var(--blue-deep), var(--footer). Do not keep default #244aa5/#143A7B/#C8161C/#f97316 unless those exact colors are in the user palette.`;
+  const styleExecutionContract = `Style execution contract: user style requirements override the default industrial template. Follow style_profile mood "${styleProfile.mood}", density "${styleProfile.density}", geometry "${styleProfile.shape}", background "${styleProfile.background}", composition "${styleProfile.composition}", CTA "${styleProfile.ctaStyle}", and custom notes "${styleProfile.customNotes || "none"}". If the style mentions retro, Y2K, vintage, old web, millennium, 复古, 千禧, 老网页, or 古早, use boxed old-web surfaces, visible borders, compact typography, nostalgic green/blue/white treatments, and do not output the sleek blue industrial template.`;
+  const styleExecutionContractV2 = `Strict style contract v2: user colors, keywords, and custom notes are first-class requirements. Apply the style visibly to at least four layers: section background or surface, card/panel treatment, heading/eyebrow treatment, CTA/button shape, borders/dividers, image treatment, or micro-interaction. Do not satisfy the style by changing only one button color. Raw style input: ${JSON.stringify(schema.style_requirements)}.`;
+  const gradientDisciplineContract = sectionKey === "hero"
+    ? "Gradient rule: Hero may use dark image overlays only; keep the user palette visible in CTA, badge, slider controls, and overlay tint."
+    : "Gradient discipline: do not use broad decorative multi-stop gradients, radial-gradient blobs, glassmorphism, or large diagonal color washes as the main style. Use solid/tinted surfaces, borders, quiet shadows, image areas, chips, and structured panels. At most one subtle two-color linear-gradient is allowed, and it must not create a cheap color wash or broken half-band.";
   if (sectionKey === "hero") {
     const company = schema.company_profile;
     const heroBrief = {
@@ -5968,6 +6394,11 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "First child inside the section must be one scoped <style>. Every selector must start with #home.",
       repairReason ? `Previous output failed validation: ${repairReason}` : "",
       userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      variantContract,
+      paletteContract,
+      styleExecutionContract,
+      styleExecutionContractV2,
+      gradientDisciplineContract,
       "Hero composition: 3 external industrial photo backgrounds; height about 72vh; dark overlay so white text is clearly readable.",
       "Theme color rule: use the palette from Brief JSON as literal hex colors inside the scoped CSS. The overlay gradient, eyebrow badge, primary CTA, arrow hover/focus state, and status indicator must visibly reflect brand/accent/brandDeep. Do not rely only on CSS variables and do not fall back to the old navy/red palette unless the palette actually matches it.",
       "Style rule: follow Brief JSON style_profile for mood, density, geometry, CTA style, and background treatment while keeping the required hero contract.",
@@ -5999,6 +6430,11 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "First child inside the section must be one scoped <style>. Every selector must start with #products.",
       repairReason ? `Previous output failed validation: ${repairReason}` : "",
       userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      variantContract,
+      paletteContract,
+      styleExecutionContract,
+      styleExecutionContractV2,
+      gradientDisciplineContract,
       "Layout must match this top-to-bottom order: Product Category heading, one explanation paragraph, category pill buttons, current category product catalog cards, left/right browsing arrows.",
       "Style rule: follow Brief JSON style_profile for mood, density, geometry, card treatment, CTA shape, and background treatment. Keep global consistency but avoid copying the same visual formula as Hero or other sections.",
       "Cards: show 4 large product cards in the first view. Each card needs a square or near-square product image area, uppercase product name, and a small bottom-right inquiry arrow.",
@@ -6029,6 +6465,11 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "First child inside the section must be one scoped <style>. Every selector must start with #applications.",
       repairReason ? `Previous output failed validation: ${repairReason}` : "",
       userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      variantContract,
+      paletteContract,
+      styleExecutionContract,
+      styleExecutionContractV2,
+      gradientDisciplineContract,
       "Layout contract: top readable title block, then a horizontal preview row of 3-5 application cards. Each card maps operating environment -> buyer pain point -> suitable product/category -> outcome.",
       "Structure contract: use <article> for each application card. Cards should be wide, visually distinct, and arranged with grid-auto-flow:column, overflow-x:auto, scroll-snap, or a responsive grid that reads horizontally on desktop.",
       "Preserve Applications direction: this is not a vertical process lane and not a generic feature grid. It must look like a horizontal application card preview.",
@@ -6058,6 +6499,11 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "First child inside the section must be one scoped <style>. Every selector must start with #about-us.",
       repairReason ? `Previous output failed validation: ${repairReason}` : "",
       userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      variantContract,
+      paletteContract,
+      styleExecutionContract,
+      styleExecutionContractV2,
+      gradientDisciplineContract,
       "Layout contract: readable title block, capability stack panel, documentation/proof card, reliability card, and a quality/export process belt.",
       "Background safety: do not use hard-split linear-gradient backgrounds such as dark 34% then light 34%; use one continuous background plus deliberate dark panels and white cards.",
       "Contrast safety: every heading on dark panels must explicitly use white or very light color. Body text on dark panels must use rgba(255,255,255,.76+) or equivalent. Gray text may only sit on white/light surfaces.",
@@ -6088,6 +6534,11 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
       "First child inside the section must be one scoped <style>. Every selector must start with #contact-us.",
       repairReason ? `Previous output failed validation: ${repairReason}` : "",
       userInstruction ? `User directional instruction: ${userInstruction}` : "",
+      variantContract,
+      paletteContract,
+      styleExecutionContract,
+      styleExecutionContractV2,
+      gradientDisciplineContract,
       "Non-negotiable conversion contract: this section must contain a real visible <form> inquiry panel. Do not replace it with cards, checklist, email links, or CTA-only content.",
       "Fixed desktop layout: left trust/CTA column, right white inquiry form panel. Mobile layout: stack left content first, form second.",
       "Left column must include: START YOUR PROJECT eyebrow, one strong heading, one concise paragraph, phone/email/location channels when available, and a short RFQ/response promise checklist.",
@@ -6110,6 +6561,11 @@ function buildAiSiteSectionPrompt(project: AiSiteBuilderProject, sectionKey: AiS
     "Section-specific layout strategy JSON: " + JSON.stringify(layoutStrategy),
     userInstruction ? `User directional instruction: ${userInstruction}` : "",
     repairReason ? `Previous output failed validation: ${repairReason}` : "",
+    variantContract,
+    paletteContract,
+    styleExecutionContract,
+    styleExecutionContractV2,
+    gradientDisciplineContract,
     "Root: one fragment only. No doctype/html/head/body/script/on* handlers/CRM/login/logout/app links.",
     "Fixed framework: the page shell already provides topbar/header/footer, inline SVG sprite, .container/.ai-wrap, .ai-section, .ai-section-head, .ai-grid, .ai-card, .ai-btn, and responsive spacing. Keep those contracts but vary the section's visual language through scoped CSS.",
     "Style preference contract: treat the form style_requirements and Design system styleProfile as first-class instructions. Use its palette, mood, density, geometry, background treatment, CTA style, custom notes, keywords, and avoid list. Do not force the old navy/red industrial look unless the styleProfile actually asks for it.",
@@ -6159,13 +6615,13 @@ async function generateAiSiteSectionHtml(project: AiSiteBuilderProject, sectionK
   const generatedContent = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, "", effectiveInstruction), 9000);
   try {
     const html = aiSiteHtmlFromModelOutput(generatedContent, sectionKey);
-    validateGeneratedAiSiteSectionHtml(html, sectionKey);
+    validateGeneratedAiSiteSectionHtml(html, sectionKey, project);
     return html;
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Generated HTML failed validation";
     const repaired = await callAiModel(config, buildAiSiteSectionPrompt(project, sectionKey, reason, effectiveInstruction), 9000);
     const html = aiSiteHtmlFromModelOutput(repaired, sectionKey);
-    validateGeneratedAiSiteSectionHtml(html, sectionKey);
+    validateGeneratedAiSiteSectionHtml(html, sectionKey, project);
     return html;
   }
   if (!aiSiteModelReady(settings)) throw new Error("请先在 AI建站 中完成接口设置与大模型检查");
@@ -6429,7 +6885,7 @@ app.get("/api/ai-site-builder/projects/:id/editor", requireAuth, asyncRoute(asyn
     let generated = exists;
     if (exists && !aiSiteLockedSections.has(key)) {
       try {
-        validateGeneratedAiSiteSectionHtml(html, key);
+        validateGeneratedAiSiteSectionHtml(html, key, project);
       } catch {
         generated = false;
       }
@@ -6563,20 +7019,21 @@ app.get("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, a
   await ensureAiSiteSandbox(project);
   const customPages = await readAiSiteCustomPages(project);
   const file = aiSectionFile(project.id, sectionKey);
+  const designSystem = aiSiteDesignSystem(project);
   if (!(await fileExists(file)) && !aiSiteLockedSections.has(sectionKey)) {
-    res.json({ sectionKey, html: defaultAiSectionHtml(sectionKey, project, false, customPages), generated: false });
+    res.json({ sectionKey, html: defaultAiSectionHtml(sectionKey, project, false, customPages), generated: false, designSystem });
     return;
   }
   const html = await readFile(file, "utf8");
   let generated = true;
   if (!aiSiteLockedSections.has(sectionKey)) {
     try {
-      validateGeneratedAiSiteSectionHtml(html, sectionKey);
+      validateGeneratedAiSiteSectionHtml(html, sectionKey, project);
     } catch {
       generated = false;
     }
   }
-  res.json({ sectionKey, html, generated });
+  res.json({ sectionKey, html, generated, designSystem });
 }));
 
 app.put("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, asyncRoute(async (req, res) => {
@@ -6594,7 +7051,7 @@ app.put("/api/ai-site-builder/projects/:id/sections/:sectionKey", requireAuth, a
   let generated = true;
   if (!aiSiteLockedSections.has(sectionKey)) {
     try {
-      validateGeneratedAiSiteSectionHtml(body.html || "", sectionKey);
+      validateGeneratedAiSiteSectionHtml(body.html || "", sectionKey, project);
     } catch {
       generated = false;
     }
