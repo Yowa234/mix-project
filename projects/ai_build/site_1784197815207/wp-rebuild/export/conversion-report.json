@@ -1,0 +1,117 @@
+{
+  "exportedAt": "2026-07-17T03:18:27.464Z",
+  "projectId": "site_1784197815207",
+  "themeSlug": "senz",
+  "summary": {
+    "pass": 15,
+    "warning": 0,
+    "error": 0
+  },
+  "checks": [
+    {
+      "key": "header",
+      "label": "Header",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "template-parts/header.html"
+    },
+    {
+      "key": "hero",
+      "label": "Hero",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/hero-technical-banner"
+    },
+    {
+      "key": "products",
+      "label": "Products",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/products-category-catalog"
+    },
+    {
+      "key": "applications",
+      "label": "Applications",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/applications-scenario-map"
+    },
+    {
+      "key": "about_us",
+      "label": "About Us",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/about-capability-stack"
+    },
+    {
+      "key": "blog",
+      "label": "Blog",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/recent-blogs-split"
+    },
+    {
+      "key": "contact_us",
+      "label": "Contact Us",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "blocks/contact-inquiry-form"
+    },
+    {
+      "key": "footer",
+      "label": "Footer",
+      "status": "pass",
+      "message": "HTML source and WP metadata are ready.",
+      "target": "template-parts/footer.html"
+    },
+    {
+      "key": "ai_build_root",
+      "label": "AI build storage",
+      "status": "pass",
+      "message": "Project storage is resolved to D:\\Code\\project-mix\\GoodJob\\projects\\ai_build.",
+      "target": "D:\\Code\\project-mix\\GoodJob\\projects\\ai_build"
+    },
+    {
+      "key": "wp_routes",
+      "label": "WordPress route blueprint",
+      "status": "pass",
+      "message": "Prepared 5 static pages and 4 CPT route groups for multi-route assembly.",
+      "target": "theme/_data/routes.json"
+    },
+    {
+      "key": "wp_collection_product",
+      "label": "Products seed data",
+      "status": "pass",
+      "message": "Prepared 9 product seed records; 9 include editable detail content.",
+      "target": "theme/_data/collections.json:product"
+    },
+    {
+      "key": "wp_collection_service",
+      "label": "Services seed data",
+      "status": "pass",
+      "message": "Prepared 4 service seed records; 4 include editable detail content.",
+      "target": "theme/_data/collections.json:service"
+    },
+    {
+      "key": "wp_collection_case",
+      "label": "Cases seed data",
+      "status": "pass",
+      "message": "Prepared 4 case seed records; 4 include editable detail content.",
+      "target": "theme/_data/collections.json:case"
+    },
+    {
+      "key": "wp_collection_news",
+      "label": "News seed data",
+      "status": "pass",
+      "message": "Prepared 8 news seed records; 8 include editable detail content.",
+      "target": "theme/_data/collections.json:news"
+    },
+    {
+      "key": "wp_templates",
+      "label": "WordPress template set",
+      "status": "pass",
+      "message": "Export will create 18 block templates covering home, archives, taxonomies, singles, search, and 404.",
+      "target": "theme/templates"
+    }
+  ]
+}

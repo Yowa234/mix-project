@@ -1,0 +1,86 @@
+{
+  "key": "group_goodjob_block_products",
+  "title": "GoodJob Block - Products",
+  "fields": [
+    {
+      "key": "field_goodjob_products_eyebrow",
+      "label": "Eyebrow",
+      "name": "eyebrow",
+      "type": "text",
+      "default_value": "Products",
+      "wrapper": {
+        "width": "33"
+      }
+    },
+    {
+      "key": "field_goodjob_products_title",
+      "label": "Title",
+      "name": "title",
+      "type": "text",
+      "default_value": "Product Category",
+      "wrapper": {
+        "width": "67"
+      }
+    },
+    {
+      "key": "field_goodjob_products_intro",
+      "label": "Intro",
+      "name": "intro",
+      "type": "textarea",
+      "rows": 3,
+      "default_value": "Explore SENZ centrifuge ranges built for pilot batches, continuous production, and high-volume separation with practical capacity, stable operation, and direct inquiry entry points."
+    },
+    {
+      "key": "field_goodjob_products_primary_label",
+      "label": "Primary Button Label",
+      "name": "primary_label",
+      "type": "text",
+      "default_value": "Request a Proposal",
+      "wrapper": {
+        "width": "50"
+      }
+    },
+    {
+      "key": "field_goodjob_products_primary_url",
+      "label": "Primary Button URL",
+      "name": "primary_url",
+      "type": "url",
+      "default_value": "/contact-us/",
+      "wrapper": {
+        "width": "50"
+      }
+    },
+    {
+      "key": "field_goodjob_products_image",
+      "label": "Image",
+      "name": "image",
+      "type": "image",
+      "return_format": "array",
+      "preview_size": "medium",
+      "instructions": "Recommended upload size depends on the block: hero 1920x780, product 800x700, blog/case 800x600."
+    },
+    {
+      "key": "field_goodjob_products_html_source",
+      "label": "Advanced HTML Source",
+      "name": "html_source",
+      "type": "textarea",
+      "rows": 12,
+      "instructions": "Optional. Leave empty to use structured fields or theme fallback. Use only when the exact generated section needs manual HTML editing."
+    }
+  ],
+  "location": [
+    [
+      {
+        "param": "block",
+        "operator": "==",
+        "value": "acf/products"
+      }
+    ]
+  ],
+  "menu_order": 2,
+  "position": "normal",
+  "style": "default",
+  "label_placement": "top",
+  "instruction_placement": "label",
+  "active": true
+}

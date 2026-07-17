@@ -1,0 +1,24 @@
+.goodjob-product-detail{background:#fff;color:#101828}
+.goodjob-product-detail__breadcrumb{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto;padding:24px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#667085;font-size:14px}
+.goodjob-product-detail__breadcrumb a{color:var(--blue,#244aa5);text-decoration:none}
+.goodjob-product-detail__hero{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto;display:grid;grid-template-columns:minmax(360px,.9fr) minmax(0,1fr);gap:clamp(34px,5vw,76px);align-items:center;padding:clamp(18px,3vw,38px) 0 clamp(54px,7vw,92px)}
+.goodjob-product-detail__media{background:#f4f7fb;border:1px solid #d9e1ec;aspect-ratio:1/1;display:grid;place-items:center;padding:clamp(18px,3vw,42px)}
+.goodjob-product-detail__media img{width:100%;height:100%;object-fit:contain;display:block}
+.goodjob-product-detail__terms{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+.goodjob-product-detail__terms a{background:#eef4ff;color:var(--blue,#244aa5);border:1px solid #cdddf8;padding:7px 10px;font-size:12px;text-transform:uppercase;font-weight:900;text-decoration:none}
+.goodjob-product-detail__summary h1{margin:0 0 18px;color:#050b18;font-size:clamp(38px,5vw,68px);line-height:1.02;letter-spacing:0}
+.goodjob-product-detail__summary p{margin:0;color:#536273;font-size:clamp(16px,1.3vw,19px);line-height:1.75;max-width:720px}
+.goodjob-product-detail__actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+.goodjob-product-detail__primary,.goodjob-product-detail__ghost{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 20px;text-decoration:none;font-weight:900}
+.goodjob-product-detail__primary{background:var(--blue,#244aa5);color:#fff}.goodjob-product-detail__ghost{background:#fff;color:#101828;border:1px solid #cfd8e6}
+.goodjob-product-detail__body{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:0 auto;display:grid;grid-template-columns:360px minmax(0,1fr);gap:clamp(30px,5vw,72px);align-items:start;padding:0 0 clamp(64px,8vw,108px)}
+.goodjob-product-detail__specs{background:#f6f8fb;border-top:5px solid var(--blue,#244aa5);padding:clamp(22px,3vw,34px);position:sticky;top:112px}
+.goodjob-product-detail__specs h2{margin:0 0 20px;font-size:24px;color:#101828}
+.goodjob-product-detail__specs dl{margin:0;display:grid;gap:0}.goodjob-product-detail__specs div{border-bottom:1px solid #dce4ee;padding:13px 0}
+.goodjob-product-detail__specs dt{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#667085;font-weight:900}.goodjob-product-detail__specs dd{margin:5px 0 0;color:#101828;line-height:1.45}
+.goodjob-product-detail__rfq{margin-top:24px;background:#fff;border:1px solid #dde5ef;padding:18px}.goodjob-product-detail__rfq strong{display:block;margin-bottom:10px}.goodjob-product-detail__rfq ul{margin:0;padding-left:18px;color:#536273;line-height:1.65}
+.goodjob-product-detail__content{min-width:0;color:#263241;font-size:17px;line-height:1.78}.goodjob-product-detail__content h2,.goodjob-product-detail__content h3{color:#101828;line-height:1.18}.goodjob-product-detail__content table{width:100%;border-collapse:collapse;margin:22px 0}.goodjob-product-detail__content th,.goodjob-product-detail__content td{border:1px solid #dde5ef;padding:12px;text-align:left}
+.goodjob-product-detail__related{background:#f6f8fb;padding:clamp(52px,7vw,86px) clamp(18px,4vw,54px)}.goodjob-product-detail__related-head,.goodjob-product-detail__related-grid{width:min(1440px,100%);margin:auto}.goodjob-product-detail__related-head span{color:var(--blue,#244aa5);font-weight:900;text-transform:uppercase;font-size:12px;letter-spacing:.1em}.goodjob-product-detail__related-head h2{margin:8px 0 28px;font-size:clamp(28px,3.5vw,44px)}
+.goodjob-product-detail__related-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.goodjob-product-detail__related-grid article{background:#fff;border:1px solid #dce4ee;padding:16px}.goodjob-product-detail__related-grid img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#f4f7fb}.goodjob-product-detail__related-grid h3{font-size:18px;line-height:1.25}.goodjob-product-detail__related-grid a{color:#101828;text-decoration:none}
+@media(max-width:980px){.goodjob-product-detail__hero,.goodjob-product-detail__body{grid-template-columns:1fr}.goodjob-product-detail__specs{position:static}.goodjob-product-detail__related-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.goodjob-product-detail__hero,.goodjob-product-detail__body,.goodjob-product-detail__breadcrumb{width:min(100% - 32px,680px)}.goodjob-product-detail__actions a{width:100%}.goodjob-product-detail__related-grid{grid-template-columns:1fr}}

@@ -4,7 +4,7 @@
   "site_name": "阿里云服务器",
   "site_template": "b2b_industrial",
   "wp_mode": "block-theme",
-  "updated_at": "2026-07-16T07:07:09.409Z",
+  "updated_at": "2026-07-17T03:53:36.461Z",
   "design_system": {
     "version": "ai-site-design-system.v2-xinhai-industrial",
     "preset": "technology-clean",
@@ -572,7 +572,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 0,
-      "updated_at": "2026-07-16T07:07:09.407Z"
+      "updated_at": "2026-07-17T03:53:36.453Z"
     },
     {
       "section_key": "hero",
@@ -621,7 +621,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 1,
-      "updated_at": "2026-07-16T07:07:09.407Z"
+      "updated_at": "2026-07-17T03:53:36.453Z"
     },
     {
       "section_key": "products",
@@ -671,10 +671,10 @@
       "source_file": "sections/products.html",
       "wp_role": "block",
       "wp_target": "blocks/products-category-catalog",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 2,
-      "updated_at": "2026-07-16T07:07:09.407Z"
+      "updated_at": "2026-07-17T03:53:36.453Z"
     },
     {
       "section_key": "applications",
@@ -718,10 +718,10 @@
       "source_file": "sections/applications.html",
       "wp_role": "block",
       "wp_target": "blocks/applications-industry-matrix",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 3,
-      "updated_at": "2026-07-16T07:07:09.408Z"
+      "updated_at": "2026-07-17T03:53:36.453Z"
     },
     {
       "section_key": "about_us",
@@ -764,10 +764,10 @@
       "source_file": "sections/about_us.html",
       "wp_role": "block",
       "wp_target": "blocks/about-factory-timeline",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 4,
-      "updated_at": "2026-07-16T07:07:09.408Z"
+      "updated_at": "2026-07-17T03:53:36.454Z"
     },
     {
       "section_key": "blog",
@@ -815,10 +815,10 @@
       "source_file": "sections/blog.html",
       "wp_role": "block",
       "wp_target": "blocks/recent-blogs-split",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 5,
-      "updated_at": "2026-07-16T07:07:09.408Z"
+      "updated_at": "2026-07-17T03:53:36.459Z"
     },
     {
       "section_key": "contact_us",
@@ -869,10 +869,10 @@
       "source_file": "sections/contact_us.html",
       "wp_role": "block",
       "wp_target": "blocks/contact-inquiry-form",
-      "status": "html_ready",
+      "status": "blueprint",
       "locked": false,
       "order_index": 6,
-      "updated_at": "2026-07-16T07:07:09.408Z"
+      "updated_at": "2026-07-17T03:53:36.459Z"
     },
     {
       "section_key": "footer",
@@ -923,7 +923,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 7,
-      "updated_at": "2026-07-16T07:07:09.408Z"
+      "updated_at": "2026-07-17T03:53:36.460Z"
     }
   ],
   "next_stage": {

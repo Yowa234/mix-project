@@ -1,0 +1,32 @@
+{
+  "site_name": "SenZ离心机",
+  "company": {
+    "legal_name": "SenZ离心机",
+    "wordmark": "SENZ",
+    "tagline": "离心机出口",
+    "description": "成立时间长，值得信赖",
+    "logo_url": ""
+  },
+  "contact": {
+    "phone": "150x'x'x'x'x'x'x'x",
+    "email": "",
+    "address": ""
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "minimal-international",
+    "colors": [
+      "绿色",
+      "奶绿色"
+    ],
+    "keywords": [
+      "动画丰富华丽牛油果色柔和圆角"
+    ],
+    "reference_sites": [],
+    "custom_notes": "禁用渐变色，奶系色块，大色块"
+  }
+}

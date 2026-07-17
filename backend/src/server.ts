@@ -4057,11 +4057,238 @@ function buildAiSiteWpBlockJson(section: AiSiteWpSectionMeta) {
   };
 }
 
+function buildAiSiteWpProductsHomeRender(section: AiSiteWpSectionMeta, fragment: string) {
+  const fallbackTitle = aiSiteWpTextFromHtml(fragment, "title") || "Product Category";
+  const fallbackIntro = aiSiteWpTextFromHtml(fragment, "body") || "Browse export-ready industrial products by category, compare typical models, and open a direct inquiry from the catalog.";
+  return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$html_source = function_exists('get_field') ? get_field('html_source') : '';
+if (is_string($html_source) && trim($html_source) !== '') {
+    echo $html_source; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    return;
+}
+
+$title = function_exists('get_field') ? (get_field('title') ?: ${aiSitePhpString(fallbackTitle)}) : ${aiSitePhpString(fallbackTitle)};
+$intro = function_exists('get_field') ? (get_field('intro') ?: ${aiSitePhpString(fallbackIntro)}) : ${aiSitePhpString(fallbackIntro)};
+$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: 'View All Products') : 'View All Products';
+$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: get_post_type_archive_link('product')) : get_post_type_archive_link('product');
+$terms = get_terms(array('taxonomy' => 'product_cat', 'hide_empty' => false, 'number' => 8));
+if (is_wp_error($terms) || !is_array($terms)) {
+    $terms = array();
+}
+$products = new WP_Query(array(
+    'post_type' => 'product',
+    'post_status' => 'publish',
+    'posts_per_page' => 8,
+    'orderby' => 'menu_order date',
+    'order' => 'DESC',
+));
+?>
+<section id="products" class="ai-section goodjob-home-products goodjob-cpt-products">
+  <style>
+  #products.goodjob-home-products{background:#f5f7fb;padding:clamp(58px,7vw,96px) clamp(18px,4vw,54px);color:#101828}
+  #products .goodjob-home-products__wrap{width:min(1440px,100%);margin:auto}
+  #products .goodjob-home-products__head{text-align:center;margin:0 auto 26px;max-width:860px}
+  #products .goodjob-home-products__head span{display:inline-flex;margin-bottom:10px;color:var(--blue,#244aa5);font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
+  #products .goodjob-home-products__head h2{margin:0 0 12px;font-size:clamp(32px,4vw,52px);line-height:1.06;color:#101828}
+  #products .goodjob-home-products__head p{margin:0;color:#667085;font-size:clamp(15px,1.2vw,18px);line-height:1.72}
+  #products .goodjob-home-products__terms{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:0 0 30px}
+  #products .goodjob-home-products__terms a{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;background:#fff;border:1px solid #d9e1ec;color:#101828;text-decoration:none;font-weight:800}
+  #products .goodjob-home-products__terms a:hover{background:var(--blue,#244aa5);border-color:var(--blue,#244aa5);color:#fff}
+  #products .goodjob-home-products__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
+  #products .goodjob-home-product{background:#fff;border:1px solid #d9e1ec;min-width:0;text-align:center;transition:transform .22s ease,box-shadow .22s ease}
+  #products .goodjob-home-product:hover{transform:translateY(-3px);box-shadow:0 18px 34px rgba(16,32,60,.12)}
+  #products .goodjob-home-product__media{position:relative;display:block;aspect-ratio:1/1;background:#f7f8fb;overflow:hidden}
+  #products .goodjob-home-product__media img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .32s ease}
+  #products .goodjob-home-product:hover img{transform:scale(1.035)}
+  #products .goodjob-home-product__arrow{position:absolute;right:18px;top:24%;width:56px;height:56px;border-radius:50%;background:var(--blue,#244aa5);color:#fff;display:grid;place-items:center;font-size:30px;box-shadow:0 0 0 7px rgba(255,255,255,.86);opacity:0;transform:translateX(10px);transition:.22s ease}
+  #products .goodjob-home-product:hover .goodjob-home-product__arrow{opacity:1;transform:none}
+  #products .goodjob-home-product h3{margin:0;min-height:78px;padding:16px 16px 18px;display:grid;place-items:center;font-size:18px;line-height:1.18;font-weight:700}
+  #products .goodjob-home-product h3 a{color:#101828;text-decoration:none}
+  #products .goodjob-home-products__actions{display:flex;justify-content:center;margin-top:30px}
+  #products .goodjob-home-products__actions a{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;background:var(--blue,#244aa5);color:#fff;text-decoration:none;font-weight:900}
+  #products .goodjob-home-products__empty{padding:24px;background:#fff;border:1px dashed #cbd5e1;color:#667085;text-align:center}
+  @media(max-width:1100px){#products .goodjob-home-products__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:640px){#products.goodjob-home-products{padding:42px 16px}#products .goodjob-home-products__grid{grid-template-columns:1fr}#products .goodjob-home-product__arrow{opacity:1;transform:none;width:48px;height:48px;font-size:26px}}
+  </style>
+  <div class="goodjob-home-products__wrap">
+    <div class="goodjob-home-products__head">
+      <span>Product Category</span>
+      <h2><?php echo esc_html($title); ?></h2>
+      <p><?php echo esc_html($intro); ?></p>
+    </div>
+    <?php if (!empty($terms)) : ?>
+      <nav class="goodjob-home-products__terms" aria-label="Product categories">
+        <?php foreach ($terms as $term) :
+          $term_link = get_term_link($term);
+          if (is_wp_error($term_link)) {
+              continue;
+          }
+        ?>
+          <a href="<?php echo esc_url($term_link); ?>"><?php echo esc_html($term->name); ?></a>
+        <?php endforeach; ?>
+      </nav>
+    <?php endif; ?>
+    <?php if ($products->have_posts()) : ?>
+      <div class="goodjob-home-products__grid">
+        <?php while ($products->have_posts()) : $products->the_post();
+          $image_url = get_the_post_thumbnail_url(get_the_ID(), 'large');
+          if (!$image_url) {
+              $image_url = (string) get_post_meta(get_the_ID(), 'goodjob_image', true);
+          }
+          if (!$image_url) {
+              $image_url = 'https://placehold.co/640x520/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+          }
+        ?>
+          <article class="goodjob-home-product">
+            <a class="goodjob-home-product__media" href="<?php the_permalink(); ?>">
+              <img src="<?php echo esc_url($image_url); ?>" alt="<?php the_title_attribute(); ?>" loading="lazy" decoding="async">
+              <span class="goodjob-home-product__arrow" aria-hidden="true">&#8594;</span>
+            </a>
+            <h3><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
+          </article>
+        <?php endwhile; wp_reset_postdata(); ?>
+      </div>
+    <?php else : ?>
+      <p class="goodjob-home-products__empty">No products are published yet. Add Products in the WordPress admin panel.</p>
+    <?php endif; ?>
+    <div class="goodjob-home-products__actions">
+      <a href="<?php echo esc_url($primary_url ?: get_post_type_archive_link('product')); ?>"><?php echo esc_html($primary_label); ?></a>
+    </div>
+  </div>
+</section>`;
+}
+
+function buildAiSiteWpBlogHomeRender(section: AiSiteWpSectionMeta, fragment: string) {
+  const fallbackTitle = aiSiteWpTextFromHtml(fragment, "title") || "Recent Blogs";
+  const fallbackIntro = aiSiteWpTextFromHtml(fragment, "body") || "Read practical product guides, maintenance notes, and export buying insights from the latest News CPT content.";
+  return `<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+$html_source = function_exists('get_field') ? get_field('html_source') : '';
+if (is_string($html_source) && trim($html_source) !== '') {
+    echo $html_source; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    return;
+}
+
+$title = function_exists('get_field') ? (get_field('title') ?: ${aiSitePhpString(fallbackTitle)}) : ${aiSitePhpString(fallbackTitle)};
+$intro = function_exists('get_field') ? (get_field('intro') ?: ${aiSitePhpString(fallbackIntro)}) : ${aiSitePhpString(fallbackIntro)};
+$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: 'More Blogs') : 'More Blogs';
+$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: get_post_type_archive_link('news')) : get_post_type_archive_link('news');
+$news_query = new WP_Query(array(
+    'post_type' => 'news',
+    'post_status' => 'publish',
+    'posts_per_page' => 5,
+    'orderby' => 'date',
+    'order' => 'DESC',
+));
+$featured_id = 0;
+?>
+<section id="blog" class="ai-section goodjob-home-blog goodjob-cpt-blog">
+  <style>
+  #blog.goodjob-home-blog{background:#fff;padding:clamp(62px,8vw,108px) clamp(18px,5vw,72px);color:#101828}
+  #blog .goodjob-home-blog__wrap{width:min(1440px,100%);margin:auto;display:grid;grid-template-columns:minmax(0,.9fr) minmax(360px,1fr);gap:clamp(30px,5vw,72px);align-items:start}
+  #blog .goodjob-home-blog__intro span{display:inline-flex;margin-bottom:12px;color:var(--blue,#244aa5);font-weight:900;letter-spacing:.12em;text-transform:uppercase;font-size:12px}
+  #blog .goodjob-home-blog__intro h2{margin:0 0 16px;color:#101828;font-size:clamp(34px,4.4vw,60px);line-height:1.02;text-transform:uppercase}
+  #blog .goodjob-home-blog__intro p{margin:0 0 26px;color:#667085;font-size:clamp(15px,1.2vw,18px);line-height:1.74;max-width:620px}
+  #blog .goodjob-featured-post{border:1px solid #d9e1ec;background:#f7f8fb;overflow:hidden}
+  #blog .goodjob-featured-post__media{display:block;aspect-ratio:16/9;background:#eef2f7;overflow:hidden}
+  #blog .goodjob-featured-post__media img{width:100%;height:100%;object-fit:cover;display:block}
+  #blog .goodjob-featured-post__body{padding:clamp(20px,3vw,30px);background:#fff}
+  #blog .goodjob-featured-post time,#blog .goodjob-blog-row time{display:block;color:#98a2b3;font-size:14px;margin-bottom:10px}
+  #blog .goodjob-featured-post h3{margin:0 0 12px;font-size:clamp(24px,2.6vw,34px);line-height:1.12}
+  #blog .goodjob-featured-post h3 a,#blog .goodjob-blog-row h3 a{color:var(--blue,#244aa5);text-decoration:none}
+  #blog .goodjob-featured-post p,#blog .goodjob-blog-row p{margin:0;color:#344054;line-height:1.68}
+  #blog .goodjob-blog-list__head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+  #blog .goodjob-blog-list__head h3{margin:0;color:#101828;font-size:clamp(24px,2.8vw,36px);line-height:1;text-transform:uppercase}
+  #blog .goodjob-blog-list__head a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;background:var(--blue,#244aa5);color:#fff;text-decoration:none;font-weight:900}
+  #blog .goodjob-blog-rows{display:grid;gap:0}
+  #blog .goodjob-blog-row{display:grid;grid-template-columns:132px minmax(0,1fr);gap:18px;padding:22px 0;border-bottom:1px solid #e4e7ec}
+  #blog .goodjob-blog-row__media{display:block;aspect-ratio:4/3;background:#f3f5f8;overflow:hidden;border:1px solid #e4e7ec}
+  #blog .goodjob-blog-row__media img{width:100%;height:100%;object-fit:cover;display:block}
+  #blog .goodjob-blog-row h3{margin:0 0 9px;font-size:21px;line-height:1.18}
+  #blog .goodjob-home-blog__empty{grid-column:1/-1;padding:24px;background:#f7f9fc;border:1px dashed #cbd5e1;color:#667085}
+  @media(max-width:980px){#blog .goodjob-home-blog__wrap{grid-template-columns:1fr}#blog .goodjob-blog-list__head{align-items:flex-start;flex-direction:column}}
+  @media(max-width:560px){#blog.goodjob-home-blog{padding:42px 16px}#blog .goodjob-blog-row{grid-template-columns:1fr}#blog .goodjob-blog-list__head a{width:100%}}
+  </style>
+  <?php if ($news_query->have_posts()) : ?>
+    <div class="goodjob-home-blog__wrap">
+      <div class="goodjob-home-blog__intro">
+        <span>Recent Blogs</span>
+        <h2><?php echo esc_html($title); ?></h2>
+        <p><?php echo esc_html($intro); ?></p>
+        <?php $news_query->the_post(); $featured_id = get_the_ID();
+          $image_url = get_the_post_thumbnail_url(get_the_ID(), 'large');
+          if (!$image_url) {
+              $image_url = (string) get_post_meta(get_the_ID(), 'goodjob_image', true);
+          }
+          if (!$image_url) {
+              $image_url = 'https://placehold.co/960x540/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+          }
+        ?>
+        <article class="goodjob-featured-post">
+          <a class="goodjob-featured-post__media" href="<?php the_permalink(); ?>">
+            <img src="<?php echo esc_url($image_url); ?>" alt="<?php the_title_attribute(); ?>" loading="lazy" decoding="async">
+          </a>
+          <div class="goodjob-featured-post__body">
+            <time datetime="<?php echo esc_attr(get_the_date('c')); ?>"><?php echo esc_html(get_the_date('Y-m-d')); ?></time>
+            <h3><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
+            <p><?php echo esc_html(wp_trim_words(get_the_excerpt(), 28)); ?></p>
+          </div>
+        </article>
+      </div>
+      <div class="goodjob-home-blog__list">
+        <div class="goodjob-blog-list__head">
+          <h3>More Blogs</h3>
+          <a href="<?php echo esc_url($primary_url ?: get_post_type_archive_link('news')); ?>"><?php echo esc_html($primary_label); ?></a>
+        </div>
+        <div class="goodjob-blog-rows">
+          <?php while ($news_query->have_posts()) : $news_query->the_post();
+            if (get_the_ID() === $featured_id) {
+                continue;
+            }
+            $row_image = get_the_post_thumbnail_url(get_the_ID(), 'medium_large');
+            if (!$row_image) {
+                $row_image = (string) get_post_meta(get_the_ID(), 'goodjob_image', true);
+            }
+            if (!$row_image) {
+                $row_image = 'https://placehold.co/420x300/f4f7fb/244aa5?text=' . rawurlencode(get_the_title());
+            }
+          ?>
+            <article class="goodjob-blog-row">
+              <a class="goodjob-blog-row__media" href="<?php the_permalink(); ?>">
+                <img src="<?php echo esc_url($row_image); ?>" alt="<?php the_title_attribute(); ?>" loading="lazy" decoding="async">
+              </a>
+              <div>
+                <time datetime="<?php echo esc_attr(get_the_date('c')); ?>"><?php echo esc_html(get_the_date('Y-m-d')); ?></time>
+                <h3><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h3>
+                <p><?php echo esc_html(wp_trim_words(get_the_excerpt(), 20)); ?></p>
+              </div>
+            </article>
+          <?php endwhile; wp_reset_postdata(); ?>
+        </div>
+      </div>
+    </div>
+  <?php else : ?>
+    <p class="goodjob-home-blog__empty">No blog posts are published yet. Add News items in the WordPress admin panel.</p>
+  <?php endif; ?>
+</section>`;
+}
+
 function buildAiSiteWpBlockRender(section: AiSiteWpSectionMeta, fragment: string) {
+  if (section.section_key === "products") return buildAiSiteWpProductsHomeRender(section, fragment);
+  if (section.section_key === "blog") return buildAiSiteWpBlogHomeRender(section, fragment);
   const blockSlug = aiSiteWpBlockSlug(section.section_key);
   const sectionId = section.section_key === "hero" ? "home" : section.section_key.replace(/_/g, "-");
   const fallbackTitle = aiSiteWpTextFromHtml(fragment, "title") || section.label;
   const fallbackIntro = aiSiteWpTextFromHtml(fragment, "body") || `${section.label} section content generated by GoodJob AI Website Factory.`;
+  const fallbackPrimaryLabel = section.section_key === "contact_us" ? "Send Inquiry" : "Request a Proposal";
+  const fallbackPrimaryUrl = "/contact-us/";
   const defaultHtml = aiSitePhpNowdoc(`GOODJOB_${blockSlug}_HTML`, fragment);
   return `<?php
 if (!defined('ABSPATH')) {
@@ -4078,18 +4305,51 @@ if (is_string($html_source) && trim($html_source) !== '') {
 $eyebrow = function_exists('get_field') ? (get_field('eyebrow') ?: ${aiSitePhpString(section.label)}) : ${aiSitePhpString(section.label)};
 $title = function_exists('get_field') ? (get_field('title') ?: ${aiSitePhpString(fallbackTitle)}) : ${aiSitePhpString(fallbackTitle)};
 $intro = function_exists('get_field') ? (get_field('intro') ?: ${aiSitePhpString(fallbackIntro)}) : ${aiSitePhpString(fallbackIntro)};
-$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: 'Request a Proposal') : 'Request a Proposal';
-$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: '/contact-us/') : '/contact-us/';
+$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: ${aiSitePhpString(fallbackPrimaryLabel)}) : ${aiSitePhpString(fallbackPrimaryLabel)};
+$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: ${aiSitePhpString(fallbackPrimaryUrl)}) : ${aiSitePhpString(fallbackPrimaryUrl)};
 $image = function_exists('get_field') ? get_field('image') : null;
 $image_url = is_array($image) && !empty($image['url']) ? $image['url'] : '';
-if (!$image_url) {
+$has_structured_edits = $image_url
+    || $eyebrow !== ${aiSitePhpString(section.label)}
+    || $title !== ${aiSitePhpString(fallbackTitle)}
+    || $intro !== ${aiSitePhpString(fallbackIntro)}
+    || $primary_label !== ${aiSitePhpString(fallbackPrimaryLabel)}
+    || $primary_url !== ${aiSitePhpString(fallbackPrimaryUrl)};
+if (!$has_structured_edits) {
     echo $default_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    return;
+}
+if (!$image_url) {
+    $editable_html = $default_html;
+    if ($eyebrow !== ${aiSitePhpString(section.label)}) {
+        $editable_html = preg_replace_callback("/<(span|div)\\\\b([^>]*class=[\\"'][^\\"']*(?:eyebrow|badge|tag)[^\\"']*[\\"'][^>]*)>.*?<\\\\/\\\\1>/is", function ($matches) use ($eyebrow) {
+            return '<' . $matches[1] . $matches[2] . '>' . esc_html($eyebrow) . '</' . $matches[1] . '>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if ($title !== ${aiSitePhpString(fallbackTitle)}) {
+        $editable_html = preg_replace_callback('/<h([1-3])\\b([^>]*)>.*?<\\/h\\1>/is', function ($matches) use ($title) {
+            return '<h' . $matches[1] . $matches[2] . '>' . esc_html($title) . '</h' . $matches[1] . '>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if ($intro !== ${aiSitePhpString(fallbackIntro)}) {
+        $editable_html = preg_replace_callback('/<p\\b([^>]*)>.*?<\\/p>/is', function ($matches) use ($intro) {
+            return '<p' . $matches[1] . '>' . esc_html($intro) . '</p>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if ($primary_label !== ${aiSitePhpString(fallbackPrimaryLabel)} || $primary_url !== ${aiSitePhpString(fallbackPrimaryUrl)}) {
+        $editable_html = preg_replace_callback("/<a\\\\b([^>]*?)href=([\\"']).*?\\\\2([^>]*)>.*?<\\\\/a>/is", function ($matches) use ($primary_label, $primary_url) {
+            return '<a' . $matches[1] . 'href="' . esc_url($primary_url) . '"' . $matches[3] . '>' . esc_html($primary_label) . '</a>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    echo $editable_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     return;
 }
 ?>
 <section class="ai-section goodjob-acf-block goodjob-acf-block-<?php echo esc_attr('${blockSlug}'); ?>" id="<?php echo esc_attr('${sectionId}'); ?>">
   <div class="ai-wrap goodjob-acf-block__inner">
-    <div class="goodjob-acf-block__media"><img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy" decoding="async"></div>
+    <?php if ($image_url) : ?>
+      <div class="goodjob-acf-block__media"><img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy" decoding="async"></div>
+    <?php endif; ?>
     <div class="goodjob-acf-block__content">
       <span class="ai-eyebrow"><?php echo esc_html($eyebrow); ?></span>
       <h2><?php echo esc_html($title); ?></h2>
@@ -4134,7 +4394,7 @@ function buildAiSiteWpPageBlock(section: AiSiteWpSectionMeta, fragment: string) 
     },
     mode: "preview"
   };
-  return `<!-- wp:acf/${blockSlug} ${JSON.stringify(attrs)} -->\n${fragment}\n<!-- /wp:acf/${blockSlug} -->`;
+  return `<!-- wp:acf/${blockSlug} ${JSON.stringify(attrs)} /-->`;
 }
 
 function buildAiSiteWpCollections(project: AiSiteBuilderProject) {
@@ -5406,13 +5666,27 @@ function goodjob_ai_site_data_signature() {
     return md5(implode('|', $hashes));
 }
 
+function goodjob_ai_site_is_legacy_generated_page_content($content) {
+    $content = (string) $content;
+    if ($content === '') {
+        return false;
+    }
+    if (strpos($content, 'wp:template-part') !== false && strpos($content, 'wp:acf/') !== false) {
+        return true;
+    }
+    if (strpos($content, 'wp:acf/') !== false && preg_match('/<!--\\s+wp:acf\\/[a-z0-9-]+\\s+[^>]*-->\\s*<(section|header|footer)\\b/i', $content)) {
+        return true;
+    }
+    return false;
+}
+
 function goodjob_ai_site_seed_pages($force = false) {
     $pages = goodjob_ai_site_read_json('_data/pages.json');
     foreach ($pages as $page) {
         $slug = sanitize_title($page['slug'] ?? $page['title'] ?? 'home');
         $existing = get_page_by_path($slug);
         $existing_content = $existing ? trim((string) $existing->post_content) : '';
-        $is_legacy_generated_shell = $existing_content && strpos($existing_content, 'wp:template-part') !== false && strpos($existing_content, 'wp:acf/') !== false;
+        $is_legacy_generated_shell = goodjob_ai_site_is_legacy_generated_page_content($existing_content);
         if ($existing && !$force && $existing_content !== '' && !$is_legacy_generated_shell) {
             continue;
         }

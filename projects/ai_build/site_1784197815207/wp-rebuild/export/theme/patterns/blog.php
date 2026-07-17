@@ -1,0 +1,129 @@
+<?php
+/**
+ * Title: Blog
+ * Slug: senz/blog
+ * Categories: goodjob-ai-site
+ */
+?>
+<section id="blog" class="ai-section blog-industrial-editorial-digest">
+  <style>
+    #blog{background:#fff;color:#073633}
+    #blog .blog-wrap{width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:auto;padding:clamp(28px,4vw,52px) 0}
+    #blog .blog-head{margin-bottom:clamp(22px,3vw,34px)}
+    #blog .blog-eyebrow{display:inline-block;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#0F766E;padding:8px 12px;border:1px solid rgba(15,118,110,.16);border-radius:999px;background:#F8FAFC}
+    #blog .blog-title-row{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-top:14px;padding-bottom:18px;border-bottom:1px solid rgba(7,54,51,.12)}
+    #blog h2{margin:0;font-size:clamp(28px,4vw,44px);line-height:1.08;color:#052725;max-width:10ch}
+    #blog .blog-intro{margin:14px 0 0;max-width:760px;font-size:15px;line-height:1.7;color:rgba(7,54,51,.78)}
+    #blog .blog-more{display:inline-flex;align-items:center;gap:10px;padding:11px 16px;border-radius:999px;border:1px solid rgba(15,118,110,.18);background:#fff;color:#0F766E;text-decoration:none;transition:.2s ease}
+    #blog .blog-more:hover{border-color:#0EA5E9;color:#052725}
+    #blog .blog-featured{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.9fr);gap:clamp(18px,3vw,28px);padding:clamp(18px,2.6vw,26px) 0;border-bottom:1px solid rgba(7,54,51,.12)}
+    #blog .blog-feature-media{aspect-ratio:16/9;border-radius:24px;background:#EAF5F0;overflow:hidden;border:1px solid rgba(15,118,110,.1)}
+    #blog .blog-feature-media img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.92)}
+    #blog .blog-feature-copy{display:flex;flex-direction:column;justify-content:center;gap:14px;padding:6px 0}
+    #blog .blog-meta{display:flex;flex-wrap:wrap;gap:10px 12px;font-size:13px;color:rgba(7,54,51,.58)}
+    #blog .blog-tag{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:#F8FAFC;border:1px solid rgba(15,118,110,.1);color:#0F766E}
+    #blog .blog-feature-copy h3{margin:0;font-size:clamp(24px,3vw,34px);line-height:1.18;color:#052725}
+    #blog .blog-feature-copy p{margin:0;max-width:54ch;font-size:15px;line-height:1.72;color:rgba(7,54,51,.8)}
+    #blog .blog-link{display:inline-flex;align-items:center;gap:10px;color:#0F766E;text-decoration:none;font-weight:600;transition:.2s ease}
+    #blog .blog-link:hover{text-decoration:underline;text-underline-offset:4px;color:#052725}
+    #blog .blog-rows{display:grid;grid-template-columns:1fr;gap:0;margin-top:6px}
+    #blog .blog-row{display:grid;grid-template-columns:140px minmax(0,1fr) auto;align-items:start;gap:18px;padding:18px 0;border-bottom:1px solid rgba(7,54,51,.1)}
+    #blog .blog-date{font-size:13px;color:rgba(7,54,51,.52);padding-top:2px}
+    #blog .blog-row-main{display:grid;gap:8px}
+    #blog .blog-row-main h4{margin:0;font-size:18px;line-height:1.35;color:#052725}
+    #blog .blog-row-main p{margin:0;font-size:14px;line-height:1.65;color:rgba(7,54,51,.76);max-width:64ch}
+    #blog .blog-path{display:flex;flex-wrap:wrap;gap:8px}
+    #blog .blog-chip{font-size:12px;color:#0F766E;background:#F8FAFC;border:1px solid rgba(15,118,110,.1);border-radius:999px;padding:6px 9px}
+    #blog .blog-row-action{align-self:center}
+    #blog .blog-cta{margin-top:22px;padding:18px 20px;border-radius:22px;background:#F8FAFC;border:1px solid rgba(15,118,110,.12);display:flex;align-items:center;justify-content:space-between;gap:18px}
+    #blog .blog-cta strong{display:block;font-size:17px;color:#052725;margin-bottom:4px}
+    #blog .blog-cta span{font-size:14px;line-height:1.6;color:rgba(7,54,51,.74)}
+    #blog .blog-cta .ai-btn{display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:#0F766E;color:#fff;text-decoration:none;border:1px solid #0F766E;transition:.2s ease}
+    #blog .blog-cta .ai-btn:hover{background:#052725;border-color:#052725}
+    @media (max-width:760px){
+      #blog .blog-title-row{align-items:flex-start;flex-direction:column}
+      #blog .blog-featured{grid-template-columns:1fr}
+      #blog .blog-row{grid-template-columns:1fr;gap:10px}
+      #blog .blog-row-action{align-self:start}
+      #blog .blog-cta{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+  <div class="blog-wrap ai-wrap">
+    <div class="blog-head ai-section-head">
+      <span class="blog-eyebrow">Recent Blogs</span>
+      <div class="blog-title-row">
+        <div>
+          <h2>Industrial knowledge for faster buying decisions</h2>
+          <p class="blog-intro">Explore practical guides across three product families, from component selection and lifecycle maintenance to troubleshooting and market shifts shaping industrial sourcing.</p>
+        </div>
+        <a class="blog-more" href="#">More Blogs <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a>
+      </div>
+    </div>
+
+    <article class="blog-featured ai-card">
+      <div class="blog-feature-media">
+        <img src="https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&w=1200&q=80" alt="Engineers reviewing industrial component selection guide">
+      </div>
+      <div class="blog-feature-copy">
+        <div class="blog-meta">
+          <span>May 16, 2025</span>
+          <span class="blog-tag">Selection Guide</span>
+          <span class="blog-tag">Product Knowledge</span>
+        </div>
+        <h3>How to choose the right industrial component for load, cycle life, and operating environment</h3>
+        <p>Compare material options, sealing levels, tolerance classes, and maintenance intervals before you request a quote. Built for buyers who need fewer revisions and more confident specification reviews.</p>
+        <a class="blog-link" href="#">Read featured guide <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a>
+      </div>
+    </article>
+
+    <div class="blog-rows" aria-label="Recent articles">
+      <article class="blog-row">
+        <div class="blog-date">Apr 28, 2025</div>
+        <div class="blog-row-main">
+          <div class="blog-path"><span class="blog-chip">Maintenance Tips</span><span class="blog-chip">Downtime Reduction</span></div>
+          <h4><a class="blog-link" href="#">Preventive maintenance checklist: what to inspect before small issues become line stoppages</a></h4>
+          <p>Routine checks for wear, contamination, fastening stability, and temperature drift across critical assemblies.</p>
+        </div>
+        <div class="blog-row-action"><a class="blog-link" href="#">View <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a></div>
+      </article>
+
+      <article class="blog-row">
+        <div class="blog-date">Apr 12, 2025</div>
+        <div class="blog-row-main">
+          <div class="blog-path"><span class="blog-chip">Troubleshooting</span><span class="blog-chip">Application Fit</span></div>
+          <h4><a class="blog-link" href="#">Common failure causes in industrial systems and how to identify root issues faster</a></h4>
+          <p>Learn the difference between installation error, overload, lubrication gaps, and unsuitable environmental protection.</p>
+        </div>
+        <div class="blog-row-action"><a class="blog-link" href="#">View <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a></div>
+      </article>
+
+      <article class="blog-row">
+        <div class="blog-date">Mar 30, 2025</div>
+        <div class="blog-row-main">
+          <div class="blog-path"><span class="blog-chip">Market Insight</span><span class="blog-chip">Sourcing Strategy</span></div>
+          <h4><a class="blog-link" href="#">Industrial sourcing trends in 2025: lead time pressure, certification demand, and buyer priorities</a></h4>
+          <p>See what procurement teams are asking for now, including traceability, lifecycle value, and stable export support.</p>
+        </div>
+        <div class="blog-row-action"><a class="blog-link" href="#">View <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a></div>
+      </article>
+
+      <article class="blog-row">
+        <div class="blog-date">Mar 14, 2025</div>
+        <div class="blog-row-main">
+          <div class="blog-path"><span class="blog-chip">Buyer FAQ</span><span class="blog-chip">Specification Review</span></div>
+          <h4><a class="blog-link" href="#">RFQ data checklist: the drawing, performance, and compliance details that speed up quoting</a></h4>
+          <p>A concise path for technical buyers to reduce back-and-forth and receive more accurate commercial proposals.</p>
+        </div>
+        <div class="blog-row-action"><a class="blog-link" href="#">View <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a></div>
+      </article>
+    </div>
+
+    <div class="blog-cta">
+      <div>
+        <strong>Need advice on product matching or replacement planning?</strong>
+        <span>Talk with our team for article-based recommendations, model guidance, and phone support for urgent applications.</span>
+      </div>
+      <a class="ai-btn" href="tel:+1234567890">Call for expert help <svg aria-hidden="true"><use href="#icon-send"></use></svg></a>
+    </div>
+  </div>
+</section>
