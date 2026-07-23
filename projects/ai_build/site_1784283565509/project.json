@@ -1,0 +1,126 @@
+{
+  "id": "site_1784283565509",
+  "taskName": "Senz Heavy Machinery Separation Technology Co., Ltd. 建站任务",
+  "siteName": "Senz Heavy Machinery Separation Technology Co., Ltd.",
+  "industry": "Decanter Centrifuges",
+  "goal": "lead-generation",
+  "tone": "industrial-professional",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "Senz Heavy Machinery Separation Technology Co., Ltd.",
+      "wordmark": "SENZ MACHINERY",
+      "tagline": "Industrial Decanter Centrifuge & Separation Systems Manufacturer Since 1989",
+      "description": "A leading high-precision separation machinery factory specializing in heavy-duty decanter centrifuges, dewatering systems, and customized industrial separation solutions for mining, oil, and wastewater treatment.",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [
+        "Decanter Centrifuges",
+        "Three-Phase Disc Separators",
+        "Sludge Dewatering Systems",
+        "Oil-Water Separation Skids",
+        "Centrifuge Spare Parts"
+      ],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "industrial-professional",
+      "colors": [
+        "主色：工程暖橙色（#F77F00）",
+        "辅助色：深邃碳灰（#212529）",
+        "背景色：纯白与浅灰交替"
+      ],
+      "keywords": [
+        "硬核",
+        "高精度",
+        "极度可信",
+        "国际化"
+      ],
+      "reference_sites": [],
+      "custom_notes": "首页首屏（Hero Section）背景要求使用暗色重工业质感的大图，文字用白/橙高亮；\n\n产品列表卡片在悬浮（Hover）时需有橙色边框渐变以及向上微升的 3D 浮动效果；\n\n强调高精度，在参数表格上使用规整的网格双线设计。"
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "Senz Heavy Machinery Separation Technology Co., Ltd.",
+        "wordmark": "SENZ MACHINERY",
+        "tagline": "Industrial Decanter Centrifuge & Separation Systems Manufacturer Since 1989",
+        "description": "A leading high-precision separation machinery factory specializing in heavy-duty decanter centrifuges, dewatering systems, and customized industrial separation solutions for mining, oil, and wastewater treatment.",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [
+          "Decanter Centrifuges",
+          "Three-Phase Disc Separators",
+          "Sludge Dewatering Systems",
+          "Oil-Water Separation Skids",
+          "Centrifuge Spare Parts"
+        ],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "industrial-professional",
+      "colors": [
+        "主色：工程暖橙色（#F77F00）",
+        "辅助色：深邃碳灰（#212529）",
+        "背景色：纯白与浅灰交替"
+      ],
+      "keywords": [
+        "硬核",
+        "高精度",
+        "极度可信",
+        "国际化"
+      ],
+      "reference_sites": [],
+      "custom_notes": "首页首屏（Hero Section）背景要求使用暗色重工业质感的大图，文字用白/橙高亮；\n\n产品列表卡片在悬浮（Hover）时需有橙色边框渐变以及向上微升的 3D 浮动效果；\n\n强调高精度，在参数表格上使用规整的网格双线设计。"
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_sales_shirley",
+  "teamId": "europe",
+  "createdAt": "2026-07-17T10:19:25.509Z"
+}

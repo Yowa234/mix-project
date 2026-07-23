@@ -1,0 +1,31 @@
+{
+  "site_name": "海洋研究所",
+  "company": {
+    "legal_name": "海洋研究所",
+    "wordmark": "Ocean",
+    "tagline": "科研",
+    "description": "",
+    "logo_url": ""
+  },
+  "contact": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "technology-clean",
+    "colors": [],
+    "keywords": [
+      "海洋",
+      "科研",
+      "高科技"
+    ],
+    "reference_sites": [],
+    "custom_notes": "海洋、波浪、动画丰富、浪花、颜色丰富/科研"
+  }
+}

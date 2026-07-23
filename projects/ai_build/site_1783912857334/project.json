@@ -42,13 +42,21 @@
     },
     "style_requirements": {
       "preset": "industrial-professional",
-      "colors": [],
+      "colors": [
+        "#1D4ED8",
+        "#D97706",
+        "#EFF6FF",
+        "#1E3A8A",
+        "#111827"
+      ],
       "keywords": [
         "professional",
         "export-ready",
         "trustworthy"
       ],
-      "reference_sites": [],
+      "reference_sites": [
+        "https://www.fluidovalve.com/"
+      ],
       "custom_notes": ""
     }
   },
@@ -107,6 +115,50 @@
       ],
       "output_mode": "project_task_draft",
       "handoff_target": "agent"
+    },
+    "reference_design_context": "Reference design context contract: use these analyzed sites only as layout/style inspiration. Do not copy exact text, images, code, logos, or brand-owned visual assets.\nReference 1: Gate Valve, Gate Valve Parts, Gate Valve Component - Fluido (https://www.fluidovalve.com/)\n- Positioning: Qingdao Fluido Industrial Co., Ltd. is a professional manufacturer and exporter of valves, oem metal products, and pipe fittings etc. Our company provides reliable and guaranteed quality products.\n- Extracted palette clues: RGB(255, 255, 255), #03499E, #EF8303, #333, #666666, #F7F7F7, RGBA(0, 0, 0, 0), #1F44A0\n- Navigation/content labels: 0086-0532-8855 0858 / info@fluidovalve.com / GET A QUOTE / Home / Valves / Gate Valve / Butterfly Valve / Check Valve &Strainer / Ball Valve / Globe Valve\n- Heading rhythm: Product Category / F4 Resilient Seat Flanged Gate Valve / F5 Resilient Seat Flanged Gate Valve / Socket End Resilient Gate Valve / Non-Rising Stem Resilient Seated Gate Valve / Rising Stem Resilient Seated Gate Valve\n- Section/layout signals: globalsojs-header / globalsojs-styles / globalsojs-footer / schema_markup / c_current_page / c_page_route / search-toggle / search-close / formId601 / project_5337_form_submit_index_1 / header-inner-style / sectionId1byy8ry\n- Layout notes: Header includes a clear navigation/top information area. Navigation likely uses dropdown or mega-menu behavior. Hero area appears visually prominent, possibly image or slider driven. Contact/inquiry conversion path is visible. Layout uses grid/flex card groupings rather than plain text flow. Site likely uses motion/slider interactions; keep generated motion lightweight and export-safe.\n- Typography clues: var(--bs-h-font-sans-serif) / Arial / var(--bs-body-font-family)",
+    "reference_sites_analysis": {
+      "version": "ai-site-reference-sites.v1",
+      "updatedAt": "2026-07-17T09:43:50.015Z",
+      "sites": [
+        {
+          "url": "https://www.fluidovalve.com/",
+          "status": "ready",
+          "title": "Gate Valve, Gate Valve Parts, Gate Valve Component - Fluido",
+          "colors": [
+            "RGB(255, 255, 255)",
+            "#03499E",
+            "#EF8303",
+            "#333",
+            "#666666",
+            "#F7F7F7",
+            "RGBA(0, 0, 0, 0)",
+            "#1F44A0",
+            "RGB(0, 0, 0)",
+            "#333333"
+          ],
+          "sectionHints": [
+            "globalsojs-header",
+            "globalsojs-styles",
+            "globalsojs-footer",
+            "schema_markup",
+            "c_current_page",
+            "c_page_route",
+            "search-toggle",
+            "search-close",
+            "formId601",
+            "project_5337_form_submit_index_1",
+            "header-inner-style",
+            "sectionId1byy8ry",
+            "sectionIds0ub1ta",
+            "sectionId871ectb",
+            "sectionIdh18ykor",
+            "sectionIdis2pdal",
+            "sectionId03h1c5u",
+            "sectionIdk3a43kq"
+          ]
+        }
+      ]
     }
   },
   "status": "draft_reserved",

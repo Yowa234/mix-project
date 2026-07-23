@@ -1,0 +1,124 @@
+{
+  "id": "site_1784284030989",
+  "taskName": "EcoFlow Grid Energy Solutions Group 建站任务",
+  "siteName": "EcoFlow Grid Energy Solutions Group",
+  "industry": "Commercial Energy Storage (BESS)",
+  "goal": "lead-generation",
+  "tone": "industrial-professional",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "EcoFlow Grid Energy Solutions Group",
+      "wordmark": "EcoFlow Grid",
+      "tagline": "Empowering Global Commercial & Industrial Energy Storage Systems",
+      "description": "We engineer and manufacture next-generation LFP battery energy storage systems (BESS) and smart microgrid control solutions to accelerate global zero-carbon transition.",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [
+        "Commercial Energy Storage (BESS)",
+        "Smart Microgrid Inverters",
+        "LFP Battery Rack Systems",
+        "EMS Energy Management Software"
+      ],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "industrial-professional",
+      "colors": [
+        "主色：极光生态绿（#06D6A0）",
+        "辅助色：冷钛蓝（#118AB2）",
+        "基底色：科技深邃蓝灰（#073B4C）"
+      ],
+      "keywords": [
+        "绿色未来",
+        "极简流线型",
+        "碳中和",
+        "ESG审计合规"
+      ],
+      "reference_sites": [],
+      "custom_notes": "网页整体采用大面积留白与呼吸感，段落行高（line-height）设为 1.8；\n\n部分卡片背景使用半透明毛玻璃特效（background: rgba(255,255,255,0.05); backdrop-filter: blur(10px);）；\n\n首页数字指标块（如 100+ GWh, 50+ Countries）需要有放大的数字排版，突出业绩规模。"
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "EcoFlow Grid Energy Solutions Group",
+        "wordmark": "EcoFlow Grid",
+        "tagline": "Empowering Global Commercial & Industrial Energy Storage Systems",
+        "description": "We engineer and manufacture next-generation LFP battery energy storage systems (BESS) and smart microgrid control solutions to accelerate global zero-carbon transition.",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [
+          "Commercial Energy Storage (BESS)",
+          "Smart Microgrid Inverters",
+          "LFP Battery Rack Systems",
+          "EMS Energy Management Software"
+        ],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "industrial-professional",
+      "colors": [
+        "主色：极光生态绿（#06D6A0）",
+        "辅助色：冷钛蓝（#118AB2）",
+        "基底色：科技深邃蓝灰（#073B4C）"
+      ],
+      "keywords": [
+        "绿色未来",
+        "极简流线型",
+        "碳中和",
+        "ESG审计合规"
+      ],
+      "reference_sites": [],
+      "custom_notes": "网页整体采用大面积留白与呼吸感，段落行高（line-height）设为 1.8；\n\n部分卡片背景使用半透明毛玻璃特效（background: rgba(255,255,255,0.05); backdrop-filter: blur(10px);）；\n\n首页数字指标块（如 100+ GWh, 50+ Countries）需要有放大的数字排版，突出业绩规模。"
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_sales_shirley",
+  "teamId": "europe",
+  "createdAt": "2026-07-17T10:27:10.989Z"
+}

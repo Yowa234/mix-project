@@ -6,9 +6,21 @@
     "model": "gpt-5.4",
     "baseUrl": "https://www.packyapi.com/v1",
     "apiKey": "sk-SkeWcmJpY7He6Aj1c8VyZOHl8DhIh9cIc4VKF18RxMpVxvyl",
-    "enabled": false,
-    "lastTestStatus": "untested",
-    "lastTestMessage": "未检查",
-    "updatedAt": "2026-07-15T08:27:36.251Z"
+    "enabled": true,
+    "lastTestStatus": "passed",
+    "lastTestMessage": "OpenAI 连接测试通过",
+    "updatedAt": "2026-07-22T10:35:00.217Z"
+  },
+  {
+    "ownerId": "u_admin",
+    "teamId": "europe",
+    "provider": "openai",
+    "model": "gpt-5.4",
+    "baseUrl": "https://www.packyapi.com/v1",
+    "apiKey": "sk-SkeWcmJpY7He6Aj1c8VyZOHl8DhIh9cIc4VKF18RxMpVxvyl",
+    "enabled": true,
+    "lastTestStatus": "passed",
+    "lastTestMessage": "OpenAI connection test passed",
+    "updatedAt": "2026-07-23T04:27:30.722Z"
   }
 ]

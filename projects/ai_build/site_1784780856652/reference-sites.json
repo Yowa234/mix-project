@@ -1,0 +1,71 @@
+{
+  "version": "ai-site-reference-sites.v1",
+  "updatedAt": "2026-07-23T06:06:14.934Z",
+  "sites": [
+    {
+      "url": "https://www.leadscloud.com/",
+      "finalUrl": "https://www.leadscloud.com/",
+      "status": "ready",
+      "fetchedAt": "2026-07-23T06:06:13.825Z",
+      "title": "询盘云,外贸CRM,谷歌SEO,WhatsApp客户管理软件,Marketing CRM -询盘云",
+      "description": "询盘云系统打通外贸客户旅程的全部触点，包括网站、Facebook Messenger、在线客服、邮件、WhatsApp、销售物料等，帮助外贸企业搭建独立站SEO能力、社媒营销能力和精细化的私域运营体系。",
+      "headings": [
+        "发展成就未来",
+        "获得联想之星、险峰长青 天使轮投资",
+        "获得火山石Pre-A轮投资 老股东全部跟投",
+        "获得元璟资本A轮投资 联想之星和火山石跟投",
+        "获得云启资本、火山石投资 B轮投资",
+        "获得上海临港科创投资 B+轮投资"
+      ],
+      "navLabels": [
+        "价格",
+        "在线免费申请",
+        "400-180-1511",
+        "免费在线申请",
+        "首页",
+        "产品服务",
+        "Marketing CRM",
+        "全旅程客户管理",
+        "WhatsApp",
+        "邮件管理",
+        "企业微信",
+        "网站智能交互",
+        "Instagram",
+        "智能物料"
+      ],
+      "sectionHints": [
+        "rocket-lazyrender-inline-css",
+        "page",
+        "menuPc",
+        "menuWap",
+        "tags",
+        "certify",
+        "kill-ie",
+        "header",
+        "header-box",
+        "header-black",
+        "header-nav-bt",
+        "nav-bt",
+        "nav-box",
+        "btn-nav",
+        "banner",
+        "banner-text"
+      ],
+      "colors": [
+        "#CCC"
+      ],
+      "typographyHints": [],
+      "layoutNotes": [
+        "Header includes a clear navigation/top information area.",
+        "Hero area appears visually prominent, possibly image or slider driven.",
+        "Layout uses grid/flex card groupings rather than plain text flow.",
+        "Site likely uses motion/slider interactions; keep generated motion lightweight and export-safe."
+      ],
+      "warnings": [
+        "Few colors were discoverable from inline HTML; screenshot analysis may improve this later.",
+        "Use as inspiration only. Do not copy exact text, images, code, logos, or brand assets."
+      ]
+    }
+  ],
+  "brief": "Reference design context contract: use these analyzed sites only as layout/style inspiration. Do not copy exact text, images, code, logos, or brand-owned visual assets.\nReference 1: 询盘云,外贸CRM,谷歌SEO,WhatsApp客户管理软件,Marketing CRM -询盘云 (https://www.leadscloud.com/)\n- Positioning: 询盘云系统打通外贸客户旅程的全部触点，包括网站、Facebook Messenger、在线客服、邮件、WhatsApp、销售物料等，帮助外贸企业搭建独立站SEO能力、社媒营销能力和精细化的私域运营体系。\n- Extracted palette clues: #CCC\n- Navigation/content labels: 价格 / 在线免费申请 / 400-180-1511 / 免费在线申请 / 首页 / 产品服务 / Marketing CRM / 全旅程客户管理 / WhatsApp / 邮件管理\n- Heading rhythm: 发展成就未来 / 获得联想之星、险峰长青 天使轮投资 / 获得火山石Pre-A轮投资 老股东全部跟投 / 获得元璟资本A轮投资 联想之星和火山石跟投 / 获得云启资本、火山石投资 B轮投资 / 获得上海临港科创投资 B+轮投资\n- Section/layout signals: rocket-lazyrender-inline-css / page / menuPc / menuWap / tags / certify / kill-ie / header / header-box / header-black / header-nav-bt / nav-bt\n- Layout notes: Header includes a clear navigation/top information area. Hero area appears visually prominent, possibly image or slider driven. Layout uses grid/flex card groupings rather than plain text flow. Site likely uses motion/slider interactions; keep generated motion lightweight and export-safe."
+}

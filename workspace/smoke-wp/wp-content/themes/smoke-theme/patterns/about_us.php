@@ -1,8 +1,0 @@
-<?php
-/**
- * Title: About Us
- * Slug: goodjob-ai-site/about_us
- * Categories: goodjob-ai-site
- */
-?>
-<section class="ai-section placeholder" id="about-us"><div class="ai-wrap"><div class="ai-section-head"><span class="ai-eyebrow">Blueprint</span><h2 class="ai-section-title">About Us</h2><p class="ai-section-sub">Introduce 未命名网站 with manufacturing capability, quality control, export service process, and long-term reliability.</p></div><div class="ai-grid"><article class="ai-card"><h3>About Us 1</h3><p>Introduce 未命名网站 with manufacturing capability, quality control, export service process, and long-term reliability.</p></article><article class="ai-card"><h3>About Us 2</h3><p>Introduce 未命名网站 with manufacturing capability, quality control, export service process, and long-term reliability.</p></article><article class="ai-card"><h3>About Us 3</h3><p>Introduce 未命名网站 with manufacturing capability, quality control, export service process, and long-term reliability.</p></article></div></div></section>

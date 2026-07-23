@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "Scenario Paths Built Around Buyer Intent",
+      "default_value": "Export-ready parts matched to real operating environments",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "Each application card previews one buyer situation, the product route that supports it, and the outcome your sales team should guide toward."
+      "default_value": "InquiryCloud supports production buyers with practical fits for fluid control, machine builds, enclosures, and repeatable precision assemblies."
     },
     {
       "key": "field_goodjob_applications_primary_label",

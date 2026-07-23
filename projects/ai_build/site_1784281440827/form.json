@@ -1,0 +1,36 @@
+{
+  "company_profile": {
+    "legal_name": "Gate Value",
+    "wordmark": "Value",
+    "tagline": "Gate Value company",
+    "description": "Gate Value company",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "1 Gate Value",
+      "2 Gate Value",
+      "3 Gate Value"
+    ],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "custom",
+    "colors": [],
+    "keywords": [],
+    "reference_sites": [
+      "https://www.fluidovalve.com/"
+    ],
+    "custom_notes": ""
+  }
+}

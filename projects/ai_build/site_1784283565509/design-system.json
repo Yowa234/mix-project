@@ -1,0 +1,111 @@
+{
+  "version": "ai-site-design-system.v2-xinhai-industrial",
+  "preset": "industrial-professional",
+  "styleProfile": {
+    "mood": "premium editorial",
+    "density": "spacious",
+    "shape": "sharp",
+    "background": "deep editorial contrast, large quiet whitespace, refined accent lines",
+    "composition": "editorial asymmetry, oversized type, restrained cards, magazine-like feature blocks",
+    "ctaStyle": "sharp high-contrast",
+    "keywords": [
+      "硬核",
+      "高精度",
+      "极度可信",
+      "国际化"
+    ],
+    "customNotes": "首页首屏（Hero Section）背景要求使用暗色重工业质感的大图，文字用白/橙高亮；\n\n产品列表卡片在悬浮（Hover）时需有橙色边框渐变以及向上微升的 3D 浮动效果；\n\n强调高精度，在参数表格上使用规整的网格双线设计。",
+    "referenceSites": [],
+    "avoid": [
+      "do not force the old navy/red palette if form colors or style words point elsewhere",
+      "do not repeat the same heading plus 3-card grid in every section",
+      "avoid crowded grids and cheap badge-heavy styling",
+      "avoid pale low-contrast minimal pages"
+    ],
+    "palette": {
+      "brand": "#F8FAFC",
+      "accent": "#F97316",
+      "surface": "#64748B",
+      "brandDeep": "#727374",
+      "brandWide": "#F9FBFC",
+      "dark": "#525354"
+    },
+    "summary": "premium editorial; spacious; sharp geometry; deep editorial contrast, large quiet whitespace, refined accent lines; editorial asymmetry, oversized type, restrained cards, magazine-like feature blocks"
+  },
+  "palette": {
+    "brand": "#F8FAFC",
+    "accent": "#F97316",
+    "brandDeep": "#727374",
+    "brandWide": "#F9FBFC",
+    "ink": "#16202E",
+    "body": "#3C4858",
+    "muted": "#6B7686",
+    "line": "#E2E7EE",
+    "surface": "#64748B",
+    "steel": "#EAEEF4",
+    "dark": "#525354",
+    "light": "#ffffff"
+  },
+  "typography": {
+    "family": "Barlow, Inter, Arial, sans-serif",
+    "displayFamily": "Barlow Semi Condensed, Barlow, Arial, sans-serif",
+    "h1": "clamp(40px,5.4vw,72px)",
+    "h2": "clamp(30px,3.6vw,46px)",
+    "body": "clamp(16px,1.2vw,17px)",
+    "lineHeight": "1.72"
+  },
+  "layout": {
+    "wrapper": "width:min(1280px,calc(100vw - clamp(32px,6vw,120px)));margin:auto",
+    "sectionPadding": "96px 0 desktop, 64px 0 mobile",
+    "gap": "clamp(18px,3vw,32px)",
+    "grid": "repeat(auto-fit,minmax(min(280px,100%),1fr))",
+    "mobileBreakpoint": "760px",
+    "tabletBreakpoint": "1080px",
+    "wideBreakpoint": "1200px",
+    "fixedModules": [
+      "topbar",
+      "sticky-header",
+      "hero-slider-look",
+      "hero-stats-strip",
+      "section-head",
+      "card-grid",
+      "cta-band",
+      "footer"
+    ]
+  },
+  "components": {
+    "cardRadius": "2px",
+    "cardBorder": "1px solid #E2E7EE",
+    "shadow": "0 24px 60px rgba(16,32,60,.16)",
+    "buttonRadius": "2px",
+    "primaryButton": "sharp high-contrast CTA with arrow icon",
+    "secondaryButton": "transparent or white outlined rectangular CTA"
+  },
+  "icons": {
+    "sprite": "inline SVG symbols injected by framework",
+    "allowedIds": [
+      "icon-location",
+      "icon-phone",
+      "icon-mail",
+      "icon-linkedin",
+      "icon-youtube",
+      "icon-facebook",
+      "icon-arrow-right",
+      "icon-cube",
+      "icon-globe",
+      "icon-expertise",
+      "icon-building",
+      "icon-check",
+      "icon-send"
+    ]
+  },
+  "rules": [
+    "Use the same palette and spacing tokens in every section, but vary section composition according to the style profile.",
+    "Style profile: premium editorial; spacious; sharp geometry; deep editorial contrast, large quiet whitespace, refined accent lines; editorial asymmetry, oversized type, restrained cards, magazine-like feature blocks",
+    "Every generated business section must include one scoped style tag as its first child.",
+    "Selectors must be prefixed with the current section id.",
+    "Use semantic section/article/list markup that can become a WordPress block.",
+    "Use <svg><use href=\"#icon-name\"></use></svg> for framework icons instead of inventing new icon paths.",
+    "Avoid unscoped .container, .grid, .card, body, html, :root, header, footer selectors."
+  ]
+}

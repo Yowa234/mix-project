@@ -1,0 +1,120 @@
+{
+  "id": "site_1784780856652",
+  "taskName": "询盘运 建站任务",
+  "siteName": "询盘运",
+  "industry": "Wordpress",
+  "goal": "lead-generation",
+  "tone": "custom",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "询盘运",
+      "wordmark": "InquireCloud",
+      "tagline": "专注询盘优化的公司",
+      "description": "侧重于Google SEO、GEO、WordPress等技术",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [
+        "Wordpress",
+        "ChatGPT",
+        "GEO",
+        "SEO"
+      ],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "custom",
+      "colors": [
+        "亮橙色",
+        "灰色"
+      ],
+      "keywords": [
+        "商业专业面向客户B2B活力鲜艳"
+      ],
+      "reference_sites": [
+        "https://www.leadscloud.com/"
+      ],
+      "custom_notes": "活力、动画丰富、颜色鲜艳、样式丰富、和谐、高级网页、高质量"
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "询盘运",
+        "wordmark": "InquireCloud",
+        "tagline": "专注询盘优化的公司",
+        "description": "侧重于Google SEO、GEO、WordPress等技术",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [
+          "Wordpress",
+          "ChatGPT",
+          "GEO",
+          "SEO"
+        ],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "custom",
+      "colors": [
+        "亮橙色",
+        "灰色"
+      ],
+      "keywords": [
+        "商业专业面向客户B2B活力鲜艳"
+      ],
+      "reference_sites": [
+        "https://www.leadscloud.com/"
+      ],
+      "custom_notes": "活力、动画丰富、颜色鲜艳、样式丰富、和谐、高级网页、高质量"
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_admin",
+  "teamId": "europe",
+  "createdAt": "2026-07-23T04:27:36.652Z"
+}

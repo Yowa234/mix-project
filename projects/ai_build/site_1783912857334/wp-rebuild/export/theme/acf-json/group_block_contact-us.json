@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "Talk to a team focused on SEO-driven B2B inquiry growth",
+      "default_value": "Talk to an export-ready team focused on higher-quality B2B inquiries.",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "询盘云 helps foreign trade companies improve website performance, sharpen inquiry conversion, and support practical RFQ workflows for international buyers. Share your market, target products, and business goals, and we will prepare a focused proposal built for ex"
+      "default_value": "InquiryCloud supports manufacturers in CNC Machining Parts, Valve Components, Sheet Metal Fabrication, and Automation Hardware with SEO-led inquiry optimization. Share your target product, buyer market, or quoting challenge, and we will recommend a practical c"
     },
     {
       "key": "field_goodjob_contact_us_primary_label",

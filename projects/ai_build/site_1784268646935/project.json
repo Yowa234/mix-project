@@ -1,0 +1,114 @@
+{
+  "id": "site_1784268646935",
+  "taskName": "海洋研究所 建站任务",
+  "siteName": "海洋研究所",
+  "industry": "海洋鱼类",
+  "goal": "lead-generation",
+  "tone": "technology-clean",
+  "pages": [
+    "首页",
+    "产品中心",
+    "解决方案",
+    "成功案例",
+    "联系我们"
+  ],
+  "schemaData": {
+    "company_profile": {
+      "legal_name": "海洋研究所",
+      "wordmark": "Ocean",
+      "tagline": "科研",
+      "description": "",
+      "logo_url": ""
+    },
+    "contact_info": {
+      "phone": "",
+      "email": "",
+      "address": ""
+    },
+    "business_taxonomy": {
+      "product_categories": [
+        "海洋鱼类",
+        "海洋植物",
+        "海洋水质",
+        "海洋资源"
+      ],
+      "solutions": []
+    },
+    "social_links": {
+      "linkedin": "",
+      "youtube": "",
+      "facebook": ""
+    },
+    "style_requirements": {
+      "preset": "technology-clean",
+      "colors": [],
+      "keywords": [
+        "海洋",
+        "科研",
+        "高科技"
+      ],
+      "reference_sites": [],
+      "custom_notes": "海洋、波浪、动画丰富、浪花、颜色丰富/科研"
+    }
+  },
+  "agentPayload": {
+    "task_type": "ai_website_build",
+    "schema_version": "data-schema.v1",
+    "locale": "zh-CN",
+    "source": "goodjob_ai_site_builder",
+    "website_data": {
+      "company_profile": {
+        "legal_name": "海洋研究所",
+        "wordmark": "Ocean",
+        "tagline": "科研",
+        "description": "",
+        "logo_url": ""
+      },
+      "contact_info": {
+        "phone": "",
+        "email": "",
+        "address": ""
+      },
+      "business_taxonomy": {
+        "product_categories": [
+          "海洋鱼类",
+          "海洋植物",
+          "海洋水质",
+          "海洋资源"
+        ],
+        "solutions": []
+      },
+      "social_links": {
+        "linkedin": "",
+        "youtube": "",
+        "facebook": ""
+      }
+    },
+    "style_requirements": {
+      "preset": "technology-clean",
+      "colors": [],
+      "keywords": [
+        "海洋",
+        "科研",
+        "高科技"
+      ],
+      "reference_sites": [],
+      "custom_notes": "海洋、波浪、动画丰富、浪花、颜色丰富/科研"
+    },
+    "generation_requirements": {
+      "target_pages": [
+        "首页",
+        "产品中心",
+        "解决方案",
+        "成功案例",
+        "联系我们"
+      ],
+      "output_mode": "project_task_draft",
+      "handoff_target": "agent"
+    }
+  },
+  "status": "draft_reserved",
+  "ownerId": "u_sales_shirley",
+  "teamId": "europe",
+  "createdAt": "2026-07-17T06:10:46.935Z"
+}

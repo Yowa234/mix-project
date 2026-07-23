@@ -1,0 +1,395 @@
+{
+  "product": {
+    "label": "Products",
+    "taxonomy": "Product Categories",
+    "items": [
+      {
+        "title": "ubuntu Standard Export Model",
+        "desc": "阿里云 supplies ubuntu options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "ubuntu",
+        "image": "https://placehold.co/640x520/f6f8fb/244aa5?text=ubuntu",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/244aa5?text=ubuntu",
+          "https://placehold.co/640x520/eef4ff/1f57b7?text=ubuntu+Detail",
+          "https://placehold.co/640x520/f8fafc/2f6fc6?text=ubuntu+Application"
+        ],
+        "sku": "GJ-001",
+        "material": "Carbon steel",
+        "application": "OEM assembly",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>ubuntu Standard Export Model Overview</h2>\n<p>阿里云 supplies ubuntu options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>ubuntu</td></tr>\n<tr><th>Material</th><td>Carbon steel</td></tr>\n<tr><th>Application</th><td>OEM assembly</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "centOS Precision OEM Series",
+        "desc": "阿里云 supplies centos options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "centOS",
+        "image": "https://placehold.co/640x520/f6f8fb/1f57b7?text=centOS",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/1f57b7?text=centOS",
+          "https://placehold.co/640x520/eef4ff/2f6fc6?text=centOS+Detail",
+          "https://placehold.co/640x520/f8fafc/315f9f?text=centOS+Application"
+        ],
+        "sku": "GJ-002",
+        "material": "Stainless steel",
+        "application": "Process equipment",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>centOS Precision OEM Series Overview</h2>\n<p>阿里云 supplies centos options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>centOS</td></tr>\n<tr><th>Material</th><td>Stainless steel</td></tr>\n<tr><th>Application</th><td>Process equipment</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "Windows Heavy Duty Assembly",
+        "desc": "阿里云 supplies windows options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "Windows",
+        "image": "https://placehold.co/640x520/f6f8fb/2f6fc6?text=Windows",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/2f6fc6?text=Windows",
+          "https://placehold.co/640x520/eef4ff/315f9f?text=Windows+Detail",
+          "https://placehold.co/640x520/f8fafc/4878d0?text=Windows+Application"
+        ],
+        "sku": "GJ-003",
+        "material": "Aluminum alloy",
+        "application": "Automation line",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>Windows Heavy Duty Assembly Overview</h2>\n<p>阿里云 supplies windows options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>Windows</td></tr>\n<tr><th>Material</th><td>Aluminum alloy</td></tr>\n<tr><th>Application</th><td>Automation line</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "ubuntu Custom Manufacturing Unit",
+        "desc": "阿里云 supplies ubuntu options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "ubuntu",
+        "image": "https://placehold.co/640x520/f6f8fb/315f9f?text=ubuntu",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/315f9f?text=ubuntu",
+          "https://placehold.co/640x520/eef4ff/4878d0?text=ubuntu+Detail",
+          "https://placehold.co/640x520/f8fafc/113a7c?text=ubuntu+Application"
+        ],
+        "sku": "GJ-004",
+        "material": "Custom alloy",
+        "application": "Maintenance replacement",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>ubuntu Custom Manufacturing Unit Overview</h2>\n<p>阿里云 supplies ubuntu options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>ubuntu</td></tr>\n<tr><th>Material</th><td>Custom alloy</td></tr>\n<tr><th>Application</th><td>Maintenance replacement</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "centOS Industrial Supply Version",
+        "desc": "阿里云 supplies centos options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "centOS",
+        "image": "https://placehold.co/640x520/f6f8fb/4878d0?text=centOS",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/4878d0?text=centOS",
+          "https://placehold.co/640x520/eef4ff/113a7c?text=centOS+Detail",
+          "https://placehold.co/640x520/f8fafc/244aa5?text=centOS+Application"
+        ],
+        "sku": "GJ-005",
+        "material": "Carbon steel",
+        "application": "OEM assembly",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>centOS Industrial Supply Version Overview</h2>\n<p>阿里云 supplies centos options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>centOS</td></tr>\n<tr><th>Material</th><td>Carbon steel</td></tr>\n<tr><th>Application</th><td>OEM assembly</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "Windows High Stability Project Type",
+        "desc": "阿里云 supplies windows options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "Windows",
+        "image": "https://placehold.co/640x520/f6f8fb/113a7c?text=Windows",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/113a7c?text=Windows",
+          "https://placehold.co/640x520/eef4ff/244aa5?text=Windows+Detail",
+          "https://placehold.co/640x520/f8fafc/1f57b7?text=Windows+Application"
+        ],
+        "sku": "GJ-006",
+        "material": "Stainless steel",
+        "application": "Process equipment",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>Windows High Stability Project Type Overview</h2>\n<p>阿里云 supplies windows options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>Windows</td></tr>\n<tr><th>Material</th><td>Stainless steel</td></tr>\n<tr><th>Application</th><td>Process equipment</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "ubuntu Inspection Ready Series",
+        "desc": "阿里云 supplies ubuntu options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "ubuntu",
+        "image": "https://placehold.co/640x520/f6f8fb/244aa5?text=ubuntu",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/244aa5?text=ubuntu",
+          "https://placehold.co/640x520/eef4ff/1f57b7?text=ubuntu+Detail",
+          "https://placehold.co/640x520/f8fafc/2f6fc6?text=ubuntu+Application"
+        ],
+        "sku": "GJ-007",
+        "material": "Aluminum alloy",
+        "application": "Automation line",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>ubuntu Inspection Ready Series Overview</h2>\n<p>阿里云 supplies ubuntu options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>ubuntu</td></tr>\n<tr><th>Material</th><td>Aluminum alloy</td></tr>\n<tr><th>Application</th><td>Automation line</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "centOS Distributor Stock Option",
+        "desc": "阿里云 supplies centos options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "centOS",
+        "image": "https://placehold.co/640x520/f6f8fb/1f57b7?text=centOS",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/1f57b7?text=centOS",
+          "https://placehold.co/640x520/eef4ff/2f6fc6?text=centOS+Detail",
+          "https://placehold.co/640x520/f8fafc/315f9f?text=centOS+Application"
+        ],
+        "sku": "GJ-008",
+        "material": "Custom alloy",
+        "application": "Maintenance replacement",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>centOS Distributor Stock Option Overview</h2>\n<p>阿里云 supplies centos options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>centOS</td></tr>\n<tr><th>Material</th><td>Custom alloy</td></tr>\n<tr><th>Application</th><td>Maintenance replacement</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      },
+      {
+        "title": "Windows Standard Export Model",
+        "desc": "阿里云 supplies windows options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.",
+        "category": "Windows",
+        "image": "https://placehold.co/640x520/f6f8fb/2f6fc6?text=Windows",
+        "images": [
+          "https://placehold.co/640x520/f6f8fb/2f6fc6?text=Windows",
+          "https://placehold.co/640x520/eef4ff/315f9f?text=Windows+Detail",
+          "https://placehold.co/640x520/f8fafc/4878d0?text=Windows+Application"
+        ],
+        "sku": "GJ-009",
+        "material": "Carbon steel",
+        "application": "OEM assembly",
+        "lead_time": "15-35 days after drawing or sample confirmation",
+        "export_docs": "Commercial invoice, packing list, certificate, inspection record",
+        "content": "<h2>Windows Standard Export Model Overview</h2>\n<p>阿里云 supplies windows options for industrial fluid control projects, with model confirmation, inspection records, export packing, and responsive RFQ support.</p>\n<h3>Typical Specifications</h3>\n<table><tbody>\n<tr><th>Category</th><td>Windows</td></tr>\n<tr><th>Material</th><td>Carbon steel</td></tr>\n<tr><th>Application</th><td>OEM assembly</td></tr>\n<tr><th>Lead Time</th><td>15-35 days after drawing or sample confirmation</td></tr>\n<tr><th>Export Documents</th><td>Commercial invoice, packing list, certificate, inspection record</td></tr>\n</tbody></table>\n<h3>Inquiry Checklist</h3>\n<ul><li>Drawing, sample photo, or target model</li><li>Quantity and delivery market</li><li>Material, surface treatment, and tolerance requirements</li></ul>"
+      }
+    ]
+  },
+  "service": {
+    "label": "Services",
+    "taxonomy": "Service Categories",
+    "items": [
+      {
+        "title": "Application Matching",
+        "desc": "Match products to operating conditions, buyer requirements, and target markets.",
+        "category": "Pre-sales",
+        "image": "https://placehold.co/800x550/eef4ff/244aa5?text=Application+Matching",
+        "images": [
+          "https://placehold.co/800x550/eef4ff/244aa5?text=Application+Matching",
+          "https://placehold.co/800x550/f8fafc/1f57b7?text=Selection+Notes"
+        ],
+        "deliverables": "Selection notes, model shortlist, inquiry checklist",
+        "content": "<h2>Application Matching</h2><p>We translate buyer requirements into product selections, technical questions, and a sourcing path that can be confirmed quickly.</p><ul><li>Operating condition review</li><li>Model and material shortlist</li><li>RFQ checklist for faster quotation</li></ul>"
+      },
+      {
+        "title": "Export Documentation",
+        "desc": "Support datasheets, certificates, packing details, and shipment documents.",
+        "category": "Export",
+        "image": "https://placehold.co/800x550/f4f7fb/315f9f?text=Export+Documentation",
+        "images": [
+          "https://placehold.co/800x550/f4f7fb/315f9f?text=Export+Documentation",
+          "https://placehold.co/800x550/eef4ff/244aa5?text=Packing+Details"
+        ],
+        "deliverables": "Datasheets, certificates, packing list, shipment notes",
+        "content": "<h2>Export Documentation</h2><p>Documentation is prepared around foreign trade expectations so procurement, customs, and buyer approval steps move with fewer avoidable delays.</p><ul><li>Datasheet and certificate preparation</li><li>Packing and label information</li><li>Shipment document coordination</li></ul>"
+      },
+      {
+        "title": "Distributor Support",
+        "desc": "Prepare catalogs, technical content, and inquiry follow-up materials for channel partners.",
+        "category": "Channel",
+        "image": "https://placehold.co/800x550/eef2f7/2f6fc6?text=Distributor+Support",
+        "images": [
+          "https://placehold.co/800x550/eef2f7/2f6fc6?text=Distributor+Support",
+          "https://placehold.co/800x550/f8fafc/315f9f?text=Catalog+Planning"
+        ],
+        "deliverables": "Catalog structure, product copy, inquiry follow-up scripts",
+        "content": "<h2>Distributor Support</h2><p>Channel partners receive structured product information, localized selling points, and practical follow-up materials for repeated inquiry handling.</p><ul><li>Catalog and category planning</li><li>Sales copy and FAQ support</li><li>Repeat inquiry workflow</li></ul>"
+      },
+      {
+        "title": "After-sales Coordination",
+        "desc": "Keep repeat orders, revisions, replenishment, and warranty communication organized.",
+        "category": "Support",
+        "image": "https://placehold.co/800x550/f6f8fb/113a7c?text=After+Sales+Support",
+        "images": [
+          "https://placehold.co/800x550/f6f8fb/113a7c?text=After+Sales+Support",
+          "https://placehold.co/800x550/eef4ff/4878d0?text=Revision+Records"
+        ],
+        "deliverables": "Revision record, replenishment plan, after-sales communication log",
+        "content": "<h2>After-sales Coordination</h2><p>After the first order, we keep replacement, revision, and replenishment communication organized so buyers can reorder with confidence.</p><ul><li>Revision and reorder tracking</li><li>Warranty communication support</li><li>Repeat shipment coordination</li></ul>"
+      }
+    ]
+  },
+  "case": {
+    "label": "Cases",
+    "taxonomy": "Case Categories",
+    "items": [
+      {
+        "title": "ubuntu Export Project 1",
+        "desc": "阿里云 delivered ubuntu support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.",
+        "category": "Factory Upgrade",
+        "image": "https://placehold.co/800x600/eef4ff/244aa5?text=ubuntu+Case",
+        "images": [
+          "https://placehold.co/800x600/eef4ff/244aa5?text=ubuntu+Case",
+          "https://placehold.co/800x600/f8fafc/1f57b7?text=ubuntu+Site+Detail",
+          "https://placehold.co/800x600/eef2f7/2f6fc6?text=Europe+Delivery"
+        ],
+        "region": "Europe",
+        "challenge": "The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.",
+        "solution": "阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.",
+        "result": "The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.",
+        "content": "<h2>Project Background</h2><p>阿里云 delivered ubuntu support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.</p><h3>Challenge</h3><p>The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.</p><h3>Solution</h3><p>阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.</p><h3>Result</h3><p>The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.</p>"
+      },
+      {
+        "title": "centOS Export Project 2",
+        "desc": "阿里云 delivered centos support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.",
+        "category": "Distributor Program",
+        "image": "https://placehold.co/800x600/eef4ff/1f57b7?text=centOS+Case",
+        "images": [
+          "https://placehold.co/800x600/eef4ff/1f57b7?text=centOS+Case",
+          "https://placehold.co/800x600/f8fafc/2f6fc6?text=centOS+Site+Detail",
+          "https://placehold.co/800x600/eef2f7/315f9f?text=Middle+East+Delivery"
+        ],
+        "region": "Middle East",
+        "challenge": "The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.",
+        "solution": "阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.",
+        "result": "The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.",
+        "content": "<h2>Project Background</h2><p>阿里云 delivered centos support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.</p><h3>Challenge</h3><p>The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.</p><h3>Solution</h3><p>阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.</p><h3>Result</h3><p>The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.</p>"
+      },
+      {
+        "title": "Windows Export Project 3",
+        "desc": "阿里云 delivered windows support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.",
+        "category": "OEM Supply",
+        "image": "https://placehold.co/800x600/eef4ff/2f6fc6?text=Windows+Case",
+        "images": [
+          "https://placehold.co/800x600/eef4ff/2f6fc6?text=Windows+Case",
+          "https://placehold.co/800x600/f8fafc/315f9f?text=Windows+Site+Detail",
+          "https://placehold.co/800x600/eef2f7/4878d0?text=South+America+Delivery"
+        ],
+        "region": "South America",
+        "challenge": "The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.",
+        "solution": "阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.",
+        "result": "The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.",
+        "content": "<h2>Project Background</h2><p>阿里云 delivered windows support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.</p><h3>Challenge</h3><p>The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.</p><h3>Solution</h3><p>阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.</p><h3>Result</h3><p>The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.</p>"
+      },
+      {
+        "title": "ubuntu Export Project 4",
+        "desc": "阿里云 delivered ubuntu support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.",
+        "category": "Process Optimization",
+        "image": "https://placehold.co/800x600/eef4ff/315f9f?text=ubuntu+Case",
+        "images": [
+          "https://placehold.co/800x600/eef4ff/315f9f?text=ubuntu+Case",
+          "https://placehold.co/800x600/f8fafc/4878d0?text=ubuntu+Site+Detail",
+          "https://placehold.co/800x600/eef2f7/113a7c?text=Southeast+Asia+Delivery"
+        ],
+        "region": "Southeast Asia",
+        "challenge": "The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.",
+        "solution": "阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.",
+        "result": "The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.",
+        "content": "<h2>Project Background</h2><p>阿里云 delivered ubuntu support for an overseas industrial customer, combining technical review, stable quality checks, and responsive export communication.</p><h3>Challenge</h3><p>The buyer needed clearer technical confirmation, predictable documents, and a faster quotation path.</p><h3>Solution</h3><p>阿里云 organized the inquiry details, checked product requirements, and prepared export-ready communication for ubuntu.</p><h3>Result</h3><p>The project moved from inquiry to confirmed specification with fewer repeated questions and a cleaner handoff.</p>"
+      }
+    ]
+  },
+  "news": {
+    "label": "News",
+    "taxonomy": "News Categories",
+    "items": [
+      {
+        "title": "What Is a ubuntu and How Does It Work?",
+        "desc": "Practical notes for sourcing ubuntu in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Selection Guides",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=ubuntu",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=ubuntu",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=ubuntu+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=ubuntu+Notes"
+        ],
+        "date": "2026-07-21",
+        "content": "<h2>What Is a ubuntu and How Does It Work?</h2><p>Practical notes for sourcing ubuntu in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "centOS Selection Guide for Industrial Piping Projects",
+        "desc": "Practical notes for sourcing centos in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Maintenance",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=centOS",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=centOS",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=centOS+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=centOS+Notes"
+        ],
+        "date": "2026-07-18",
+        "content": "<h2>centOS Selection Guide for Industrial Piping Projects</h2><p>Practical notes for sourcing centos in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "Resilient Seated vs Metal Seated Windows: Key Differences",
+        "desc": "Practical notes for sourcing windows in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Materials",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=Windows",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=Windows",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=Windows+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=Windows+Notes"
+        ],
+        "date": "2026-07-15",
+        "content": "<h2>Resilient Seated vs Metal Seated Windows: Key Differences</h2><p>Practical notes for sourcing windows in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "ubuntu Maintenance Checklist for Export Buyers",
+        "desc": "Practical notes for sourcing ubuntu in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Export Notes",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=ubuntu",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=ubuntu",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=ubuntu+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=ubuntu+Notes"
+        ],
+        "date": "2026-07-12",
+        "content": "<h2>ubuntu Maintenance Checklist for Export Buyers</h2><p>Practical notes for sourcing ubuntu in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "How to Prepare an RFQ for centOS Suppliers",
+        "desc": "Practical notes for sourcing centos in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Selection Guides",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=centOS",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=centOS",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=centOS+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=centOS+Notes"
+        ],
+        "date": "2026-07-09",
+        "content": "<h2>How to Prepare an RFQ for centOS Suppliers</h2><p>Practical notes for sourcing centos in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "Windows Materials, Pressure Ratings, and Inspection Notes",
+        "desc": "Practical notes for sourcing windows in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Maintenance",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=Windows",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=Windows",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=Windows+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=Windows+Notes"
+        ],
+        "date": "2026-07-06",
+        "content": "<h2>Windows Materials, Pressure Ratings, and Inspection Notes</h2><p>Practical notes for sourcing windows in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "Common ubuntu Applications in Fluid Control Systems",
+        "desc": "Practical notes for sourcing ubuntu in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Materials",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=ubuntu",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=ubuntu",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=ubuntu+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=ubuntu+Notes"
+        ],
+        "date": "2026-07-03",
+        "content": "<h2>Common ubuntu Applications in Fluid Control Systems</h2><p>Practical notes for sourcing ubuntu in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      },
+      {
+        "title": "How Packaging and Documentation Affect centOS Delivery",
+        "desc": "Practical notes for sourcing centos in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.",
+        "category": "Export Notes",
+        "image": "https://placehold.co/640x360/e9edf4/244aa5?text=centOS",
+        "images": [
+          "https://placehold.co/640x360/e9edf4/244aa5?text=centOS",
+          "https://placehold.co/640x360/f4f7fb/1f57b7?text=centOS+Guide",
+          "https://placehold.co/640x360/eef4ff/315f9f?text=centOS+Notes"
+        ],
+        "date": "2026-06-30",
+        "content": "<h2>How Packaging and Documentation Affect centOS Delivery</h2><p>Practical notes for sourcing centos in international industrial procurement, covering selection logic, documentation, inspection, and inquiry preparation.</p><h3>What buyers should confirm first</h3><ul><li>Operating environment and technical standard</li><li>Quantity, packaging, and delivery market</li><li>Inspection, certificate, and documentation needs</li></ul><h3>How 阿里云 supports the inquiry</h3><p>We turn early inquiry information into a clearer RFQ path so technical review, quotation, and export coordination can happen faster.</p>"
+      }
+    ]
+  }
+}

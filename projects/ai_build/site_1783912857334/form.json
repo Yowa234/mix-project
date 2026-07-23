@@ -27,13 +27,21 @@
   },
   "style_requirements": {
     "preset": "industrial-professional",
-    "colors": [],
+    "colors": [
+      "#1D4ED8",
+      "#D97706",
+      "#EFF6FF",
+      "#1E3A8A",
+      "#111827"
+    ],
     "keywords": [
       "professional",
       "export-ready",
       "trustworthy"
     ],
-    "reference_sites": [],
+    "reference_sites": [
+      "https://www.fluidovalve.com/"
+    ],
     "custom_notes": ""
   }
 }

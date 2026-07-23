@@ -1,0 +1,17 @@
+.goodjob-blog-page{background:#fff;color:#101828}
+.goodjob-blog-hero{position:relative;min-height:255px;display:grid;place-items:start center;padding-top:8px;background:linear-gradient(rgba(0,0,0,.52),rgba(0,0,0,.52)),url("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1800&q=80") center 42%/cover no-repeat;color:#fff}
+.goodjob-blog-hero h1{position:relative;margin:0;font-size:38px;line-height:1.1;color:#fff;font-weight:800}
+.goodjob-blog-breadcrumb{background:#f0f0f0;min-height:72px;display:flex;align-items:center;gap:14px;padding:0 max(24px,calc((100vw - 1570px)/2 + 24px));font-size:19px}
+.goodjob-blog-breadcrumb a{color:#111827;text-decoration:none}.goodjob-blog-breadcrumb span:last-child{color:var(--blue,#244aa5);text-transform:capitalize}
+.goodjob-blog-list{width:min(1550px,calc(100vw - clamp(32px,8vw,180px)));margin:0 auto;padding:clamp(56px,7vw,78px) 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:62px;row-gap:54px}
+.goodjob-blog-item{display:grid;grid-template-columns:minmax(180px,245px) minmax(0,1fr);gap:24px;padding-bottom:28px;border-bottom:1px solid #e7e7e7;align-items:start}
+.goodjob-blog-item__media{display:block;border:1px solid #ddd;background:#f6f7f9;padding:6px;aspect-ratio:2/1;overflow:hidden}
+.goodjob-blog-item__media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease}
+.goodjob-blog-item:hover .goodjob-blog-item__media img{transform:scale(1.04)}
+.goodjob-blog-item__body{min-width:0}.goodjob-blog-item h2{margin:0 0 14px;font-size:24px;line-height:1.16;color:var(--blue,#244aa5)}
+.goodjob-blog-item h2 a{color:inherit;text-decoration:none}.goodjob-blog-item time{display:block;margin-bottom:18px;color:#9aa0a6;font-size:18px}
+.goodjob-blog-item time::before{content:"▣";font-size:14px;margin-right:6px;color:#a7adb4}.goodjob-blog-item p{margin:0;color:#050b18;font-size:18px;line-height:1.55}
+.goodjob-blog-item__button{float:right;margin-top:18px;display:inline-flex;align-items:center;justify-content:center;min-width:140px;min-height:38px;background:var(--blue,#244aa5);color:#fff;text-decoration:none;font-size:16px}
+.goodjob-blog-empty{grid-column:1/-1;padding:28px;background:#f7f9fc;border:1px dashed #cbd5e1;color:#667085}
+@media(max-width:1180px){.goodjob-blog-list{grid-template-columns:1fr;width:min(100% - 48px,860px)}}
+@media(max-width:640px){.goodjob-blog-hero{min-height:190px}.goodjob-blog-breadcrumb{min-height:60px;font-size:16px;padding:0 20px}.goodjob-blog-list{width:min(100% - 32px,680px);padding:40px 0}.goodjob-blog-item{grid-template-columns:1fr}.goodjob-blog-item__button{float:none;width:100%}}

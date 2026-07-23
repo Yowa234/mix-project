@@ -108,7 +108,7 @@ GoodJob CRM 是一款面向外贸销售团队的网页版客户管理软件，�
 
 核心组件：
 
-- 快速新增待办：支持自然语言输入，如“明天 10 点跟进 Nordic Tools 报价”。
+- 快速新增待办：支持自然语言输入，如“明天 10 点跟进重点客户报价”。
 - 筛选视图：今天、逾期、我负责、客户跟进、资料/考试。
 - 任务字段：优先级、截止时间、负责人、关联客户/商机/资料/考试/OCR 线索、子任务进度。
 - 任务状态：未完成、已完成、逾期、高影响金额。
@@ -236,8 +236,34 @@ npm run dev
 启用 MySQL 持久化：
 
 ```bash
-CRM_STORE=mysql DATABASE_URL="mysql://user:password@127.0.0.1:3306/goodjob_crm" npm run dev
+CRM_STORE=mysql CRM_SEED_DEVELOPMENT_DATA=false DATABASE_URL="mysql://user:password@127.0.0.1:3306/goodjob_crm" npm run dev
 ```
+
+MySQL 模式默认不会写入演示账号或演示业务数据。只有隔离的开发数据库需要演示数据时，才显式设置 `CRM_SEED_DEVELOPMENT_DATA=true`；不要在公测或生产数据库启用该开关。
+
+智能获客 Worker 默认使用 MySQL 权威状态和轮询执行。服务器已安装 Redis 时，可选配置：
+
+```bash
+PROSPECT_EXECUTION_DB_LOCK_TIMEOUT_MS=5000
+PROSPECT_CANDIDATE_DB_LOCK_TIMEOUT_MS=5000
+REDIS_URL=redis://127.0.0.1:6379/0
+PROSPECT_QUEUE_REQUIRED=false
+PROSPECT_QUEUE_SYNC_MS=5000
+```
+
+执行内核的 Run、任务、租约、Ledger 和原始来源状态通过独立 MySQL 事务通道写入；每次事务先回读数据库权威状态，并使用 `PROSPECT_EXECUTION_DB_LOCK_TIMEOUT_MS` 控制数据库互斥锁等待上限。候选清洗结果通过另一条独立事务通道写入，每次先回读最新网站候选，并使用 `PROSPECT_CANDIDATE_DB_LOCK_TIMEOUT_MS` 控制互斥锁等待上限；该通道只写 `website_opportunities`，不会改动线索、客户、商机或待办。启用 Redis 后，BullMQ 只负责即时唤醒、延迟重试信号和死信镜像，Redis 不保存团队、业务员、查询条件、密钥或 Provider 原始数据。MySQL 仍是唯一业务事实来源；Redis 临时不可用时自动回退到原有轮询。只有要求 Redis 不可用就禁止启动时，才设置 `PROSPECT_QUEUE_REQUIRED=true`。
+
+当前生产 Store 仍保持单后端实例约束：候选清洗管道、全局 Provider 限流和独立 Worker 生命周期尚未全部改造成跨进程原子路径，不能仅靠开启 Redis 或 MySQL 执行事务通道横向启动多个 API/Worker 进程。
+
+生产环境还必须配置至少 32 位的独立密钥：
+
+- `PROVIDER_CREDENTIAL_KEY`：加密自动搜客数据源连接密钥。
+- `TRADE_OBSERVATION_CURSOR_SECRET`：签名贸易观测列表分页游标。
+- `MARKET_OPPORTUNITY_CURSOR_SECRET`：签名市场机会事实列表分页游标。
+- `ORGANIZATION_IDENTITY_MASTER_SECRET`：派生企业强身份处理、查询、加密和完整性密钥。
+- `PROSPECT_SOURCE_RAW_ENVELOPE_SECRET`：解密 Provider 原始记录信封。
+
+以上密钥之间以及它们与 `JWT_SECRET` 之间都不要共用。一键部署脚本会分别生成并持久化；升级部署会优先沿用已有值，避免历史密文、完整性摘要或有效游标因服务重启而失效。
 
 若未配置 MySQL，系统自动使用内存模式。健康检查：
 
@@ -344,6 +370,24 @@ MySQL 核心表：
 - PATCH /api/tools/ocr/jobs/{id}/fields
 - POST /api/tools/ocr/jobs/{id}/sync-lead
 
+### 7.1 Swagger API 调试
+
+部署后访问：
+
+```text
+https://你的域名/api/docs/
+```
+
+Swagger 文档默认启用，但必须先使用管理员或超级管理员账号登录 CRM。未登录用户和普通业务员无法读取文档页面或 OpenAPI JSON。
+
+- 页面入口：`/api/docs/`
+- OpenAPI JSON：`/api/docs/openapi.json`
+- 浏览器 Cookie 调试：自动携带登录会话，写请求自动附加 CSRF Token
+- Bearer 调试：调用 `/api/auth/login` 取得 `token`，在 Swagger 的 Authorize 中填写
+- 关闭文档：部署时设置 `ENABLE_API_DOCS=false`
+
+生产环境不要绕过管理员限制，也不要将管理员 Token 或生产密码写入 Swagger 示例、代码或 SVN。
+
 ## 8. 可用性与美观确认
 
 已按以下标准设计：
@@ -360,6 +404,5 @@ MySQL 核心表：
 
 ## 9. 文件说明
 
-- `index.html`：可直接打开的网页版交互原型。
-- `figma-use-script.js`：用于 Figma MCP `use_figma` 的画布生成脚本。
+- `frontend/index.html`：Vite 应用页面骨架，业务数据由后端接口加载。
 - `README.md`：产品、功能辩论、架构与页面说明。

@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "Industrial SEO content that attracts qualified B2B buyers",
+      "default_value": "Practical guides for industrial buyers",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "Explore practical guides built for export manufacturers and overseas sales teams: from website selection criteria and inquiry conversion structure to maintenance checks, troubleshooting, and market insight for global lead generation."
+      "default_value": "Selection logic, maintenance routines, troubleshooting notes, and export market updates to help sourcing teams compare industrial product families with less risk."
     },
     {
       "key": "field_goodjob_blog_primary_label",

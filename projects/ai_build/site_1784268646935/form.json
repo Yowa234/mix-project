@@ -1,0 +1,39 @@
+{
+  "company_profile": {
+    "legal_name": "海洋研究所",
+    "wordmark": "Ocean",
+    "tagline": "科研",
+    "description": "",
+    "logo_url": ""
+  },
+  "contact_info": {
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "business_taxonomy": {
+    "product_categories": [
+      "海洋鱼类",
+      "海洋植物",
+      "海洋水质",
+      "海洋资源"
+    ],
+    "solutions": []
+  },
+  "social_links": {
+    "linkedin": "",
+    "youtube": "",
+    "facebook": ""
+  },
+  "style_requirements": {
+    "preset": "technology-clean",
+    "colors": [],
+    "keywords": [
+      "海洋",
+      "科研",
+      "高科技"
+    ],
+    "reference_sites": [],
+    "custom_notes": "海洋、波浪、动画丰富、浪花、颜色丰富/科研"
+  }
+}

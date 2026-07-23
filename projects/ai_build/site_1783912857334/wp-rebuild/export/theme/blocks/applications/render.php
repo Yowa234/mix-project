@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) {
 }
 
 $default_html = <<<'GOODJOB_APPLICATIONS_HTML'
-<section id="applications" class="ai-section applications-horizontal-card-preview"><style>#applications{position:relative;background:linear-gradient(135deg,#0b1f35,#123a5d);padding:clamp(56px,7vw,96px) 0;color:#fff;overflow:hidden}#applications *{box-sizing:border-box}#applications:before{content:"";position:absolute;inset:auto -8% -28% 42%;height:60%;background:rgba(255,255,255,.08);transform:skewY(-5deg);pointer-events:none;z-index:0}#applications .applications-wrap{position:relative;z-index:1;width:min(1440px,calc(100vw - clamp(32px,6vw,120px)));margin:auto}#applications .applications-head{display:grid;grid-template-columns:minmax(0,.85fr) minmax(260px,.45fr);gap:clamp(18px,4vw,58px);align-items:end;margin-bottom:clamp(28px,4vw,48px)}#applications .applications-eyebrow{display:inline-flex;width:max-content;margin-bottom:12px;color:#fbbf24;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}#applications h2{margin:0;color:#fff;font-size:clamp(34px,4.2vw,58px);line-height:1.05;letter-spacing:0}#applications .applications-head p{margin:0;color:rgba(255,255,255,.78);font-size:clamp(15px,1.2vw,18px);line-height:1.72}#applications .applications-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(285px,370px);gap:clamp(16px,2.3vw,28px);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding:4px 4px 18px}#applications .applications-row::-webkit-scrollbar{height:9px}#applications .applications-row::-webkit-scrollbar-thumb{background:rgba(255,255,255,.34)}#applications .applications-card{scroll-snap-align:start;min-width:0;background:#fff;border:1px solid rgba(255,255,255,.12);box-shadow:0 22px 58px rgba(0,0,0,.18);padding:clamp(22px,2.6vw,30px);display:grid;gap:14px;align-content:start;color:#0b1f35}#applications .applications-index{display:grid;place-items:center;width:42px;height:42px;background:#f97316;color:#fff;font-weight:900}#applications .applications-card h3{margin:0;color:#0b1f35;font-size:clamp(20px,1.9vw,26px);line-height:1.18}#applications .applications-card p{margin:0;color:#536273;line-height:1.66;font-size:15px}#applications .applications-chip{width:max-content;max-width:100%;padding:8px 11px;background:#eef6ff;color:#0f4c81;border:1px solid #cfe3f7;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.06em;overflow-wrap:anywhere}#applications .applications-card strong{display:block;margin-top:2px;color:#0b1f35;line-height:1.45}#applications .applications-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:clamp(22px,3vw,34px)}#applications .applications-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 18px;background:#f97316;color:#fff;text-decoration:none;font-weight:900;position:relative;z-index:2}#applications .applications-btn svg{width:18px;height:18px}#applications .applications-note{color:rgba(255,255,255,.76);font-weight:700}@media(max-width:900px){#applications .applications-head{grid-template-columns:1fr;align-items:start}#applications .applications-row{grid-auto-columns:minmax(260px,82vw)}}@media(max-width:640px){#applications{padding:46px 0}#applications .applications-wrap{width:min(100% - 32px,680px)}#applications h2{font-size:34px}#applications .applications-row{gap:14px;padding-bottom:14px}#applications .applications-actions a{width:100%}}</style><div class="applications-wrap"><div class="applications-head"><div><span class="applications-eyebrow">Applications</span><h2>Scenario Paths Built Around Buyer Intent</h2></div><p>Each application card previews one buyer situation, the product route that supports it, and the outcome your sales team should guide toward.</p></div><div class="applications-row"><article class="applications-card"><span class="applications-index">01</span><h3>Search Visibility</h3><p>Buyers search by application and specification, but thin category pages miss long-tail industrial demand.</p><div class="applications-chip">SEO website optimization</div><strong>Capture higher-intent organic visits before competitors intercept the search.</strong></article><article class="applications-card"><span class="applications-index">02</span><h3>Inquiry Conversion</h3><p>Visitors need clearer trust signals, RFQ prompts, and product-fit guidance before they contact sales.</p><div class="applications-chip">Inquiry path refinement</div><strong>Turn more visits into qualified requests with clearer next-step prompts.</strong></article><article class="applications-card"><span class="applications-index">03</span><h3>Product Selection</h3><p>Complex catalogs make it hard for overseas buyers to choose the right technical route quickly.</p><div class="applications-chip">Product architecture</div><strong>Shorten the path from browsing to product-match inquiry.</strong></article><article class="applications-card"><span class="applications-index">04</span><h3>Distributor Support</h3><p>Regional partners need consistent product proof, documentation, and response paths.</p><div class="applications-chip">Export partner support</div><strong>Support faster partner evaluation with structured proof and contact routes.</strong></article></div><div class="applications-actions"><a class="applications-btn" href="/contact-us/">Discuss Your Application <svg aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a><span class="applications-note">Horizontal preview cards stay readable across desktop and mobile.</span></div></div></section>
+<section id="applications" class="ai-section applications-horizontal-card-preview"><style>#applications{padding:clamp(40px,6vw,72px) 0;background:linear-gradient(180deg,#091B39 0,#061329 100%);color:#fff;position:relative}#applications *{box-sizing:border-box}#applications .wrap{width:min(1200px,92%);margin:0 auto}#applications .title{display:grid;gap:12px;margin-bottom:22px}#applications .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid rgba(255,255,255,.16);background:#143A7B;color:#fff;font:700 12px/1.2 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase}#applications h2{margin:0;font:700 clamp(28px,4vw,40px)/1.1 Arial,sans-serif}#applications .lede{max-width:760px;margin:0;color:#d9e3f2;font:400 15px/1.6 Arial,sans-serif}#applications .row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(280px,1fr);gap:18px;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:8px}#applications article{scroll-snap-align:start;background:#F4F6FA;color:#16202E;border:1px solid #E2E7EE;border-top:3px solid #C8161C;padding:18px;display:grid;gap:14px;min-height:100%;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease;box-shadow:0 10px 24px rgba(0,0,0,.12)}#applications article:hover{transform:translateY(-3px);border-color:#143A7B;box-shadow:0 14px 30px rgba(0,0,0,.18)}#applications .scene{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #E2E7EE}#applications .scene strong{font:700 17px/1.3 Arial,sans-serif;color:#091B39}#applications .tag{padding:6px 9px;background:#EAEEF4;border:1px solid #E2E7EE;color:#143A7B;font:700 11px/1.2 Arial,sans-serif;text-transform:uppercase;letter-spacing:.06em}#applications .label{font:700 11px/1.2 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#C8161C}#applications p{margin:0;color:#3C4858;font:400 14px/1.6 Arial,sans-serif}#applications .chips{display:flex;flex-wrap:wrap;gap:8px}#applications .chip{padding:7px 10px;background:#143A7B;color:#fff;font:700 12px/1.2 Arial,sans-serif;border:1px solid #091B39}#applications .outcome{padding:12px;background:#fff;border:1px solid #E2E7EE;color:#16202E}#applications .cta{display:inline-flex;align-items:center;justify-content:center;margin-top:8px;padding:12px 16px;background:linear-gradient(180deg,#C8161C 0,#a71016 100%);color:#fff;text-decoration:none;font:700 13px/1 Arial,sans-serif;text-transform:uppercase;letter-spacing:.04em;border:1px solid #7f0f14}#applications .cta:hover{filter:brightness(1.05)}#applications .row::-webkit-scrollbar{height:8px}#applications .row::-webkit-scrollbar-thumb{background:#35568D}#applications .row::-webkit-scrollbar-track{background:rgba(255,255,255,.08)}@media(max-width:760px){#applications{padding:34px 0}#applications .row{grid-auto-columns:minmax(86%,1fr)}#applications article{padding:16px}#applications .scene{align-items:flex-start;flex-direction:column}}</style><div class="wrap"><div class="title"><span class="eyebrow">Applications</span><h2>Export-ready parts matched to real operating environments</h2><p class="lede">InquiryCloud supports production buyers with practical fits for fluid control, machine builds, enclosures, and repeatable precision assemblies.</p></div><div class="row"><article><div class="scene"><strong>Process lines & valve skids</strong><span class="tag">Corrosion + sealing</span></div><div><div class="label">Pain point</div><p>Leak risk, unstable tolerances, and delayed replacement parts can stop throughput.</p></div><div><div class="label">Suitable product</div><div class="chips"><span class="chip">Valve Components</span><span class="chip">CNC Machining Parts</span></div></div><div class="outcome"><div class="label">Outcome</div><p>Reliable fit-up, faster maintenance planning, and steadier line uptime.</p></div><a class="cta" href="/contact-us/">Discuss Your Application</a></article><article><div class="scene"><strong>OEM machine assemblies</strong><span class="tag">Repeatability</span></div><div><div class="label">Pain point</div><p>Mixed suppliers create stack-up errors, drawing revisions, and assembly delays.</p></div><div><div class="label">Suitable product</div><div class="chips"><span class="chip">CNC Machining Parts</span><span class="chip">Automation Hardware</span></div></div><div class="outcome"><div class="label">Outcome</div><p>Cleaner integration, consistent batches, and shorter build cycles for export programs.</p></div><a class="cta" href="/products/">View Product Options</a></article><article><div class="scene"><strong>Control cabinets & enclosures</strong><span class="tag">Fit + finish</span></div><div><div class="label">Pain point</div><p>Poor panel accuracy and weak edge quality slow wiring, mounting, and inspection.</p></div><div><div class="label">Suitable product</div><div class="chips"><span class="chip">Sheet Metal Fabrication</span><span class="chip">Automation Hardware</span></div></div><div class="outcome"><div class="label">Outcome</div><p>Better installation speed, cleaner routing, and durable finished assemblies.</p></div><a class="cta" href="/contact-us/">Discuss Your Application</a></article><article><div class="scene"><strong>Conveying & motion stations</strong><span class="tag">Wear + alignment</span></div><div><div class="label">Pain point</div><p>High-cycle motion exposes weak brackets, misalignment, and inconsistent hardware quality.</p></div><div><div class="label">Suitable product</div><div class="chips"><span class="chip">Automation Hardware</span><span class="chip">Sheet Metal Fabrication</span></div></div><div class="outcome"><div class="label">Outcome</div><p>Stronger station stability, easier servicing, and more dependable production flow.</p></div><a class="cta" href="/contact-us/">Discuss Your Application</a></article></div></div></section>
 GOODJOB_APPLICATIONS_HTML;
 $html_source = function_exists('get_field') ? get_field('html_source') : '';
 if (is_string($html_source) && trim($html_source) !== '') {
@@ -13,20 +13,72 @@ if (is_string($html_source) && trim($html_source) !== '') {
 }
 
 $eyebrow = function_exists('get_field') ? (get_field('eyebrow') ?: "Applications") : "Applications";
-$title = function_exists('get_field') ? (get_field('title') ?: "Scenario Paths Built Around Buyer Intent") : "Scenario Paths Built Around Buyer Intent";
-$intro = function_exists('get_field') ? (get_field('intro') ?: "Each application card previews one buyer situation, the product route that supports it, and the outcome your sales team should guide toward.") : "Each application card previews one buyer situation, the product route that supports it, and the outcome your sales team should guide toward.";
-$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: 'Request a Proposal') : 'Request a Proposal';
-$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: '/contact-us/') : '/contact-us/';
+$title = function_exists('get_field') ? (get_field('title') ?: "Export-ready parts matched to real operating environments") : "Export-ready parts matched to real operating environments";
+$intro = function_exists('get_field') ? (get_field('intro') ?: "InquiryCloud supports production buyers with practical fits for fluid control, machine builds, enclosures, and repeatable precision assemblies.") : "InquiryCloud supports production buyers with practical fits for fluid control, machine builds, enclosures, and repeatable precision assemblies.";
+$primary_label = function_exists('get_field') ? (get_field('primary_label') ?: "Request a Proposal") : "Request a Proposal";
+$primary_url = function_exists('get_field') ? (get_field('primary_url') ?: "/contact-us/") : "/contact-us/";
 $image = function_exists('get_field') ? get_field('image') : null;
 $image_url = is_array($image) && !empty($image['url']) ? $image['url'] : '';
-if (!$image_url) {
+$hero_bg_urls = array();
+foreach (array('hero_bg_1', 'hero_bg_2', 'hero_bg_3') as $hero_bg_field) {
+    $hero_bg = function_exists('get_field') ? get_field($hero_bg_field) : null;
+    $hero_bg_url = is_array($hero_bg) && !empty($hero_bg['url']) ? $hero_bg['url'] : (is_string($hero_bg) ? $hero_bg : '');
+    if ($hero_bg_url) {
+        $hero_bg_urls[] = $hero_bg_url;
+    }
+}
+$has_structured_edits = $image_url
+    || !empty($hero_bg_urls)
+    || $eyebrow !== "Applications"
+    || $title !== "Export-ready parts matched to real operating environments"
+    || $intro !== "InquiryCloud supports production buyers with practical fits for fluid control, machine builds, enclosures, and repeatable precision assemblies."
+    || $primary_label !== "Request a Proposal"
+    || $primary_url !== "/contact-us/";
+if (!$has_structured_edits) {
     echo $default_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    return;
+}
+if (!$image_url) {
+    $editable_html = $default_html;
+    if ($eyebrow !== "Applications") {
+        $editable_html = preg_replace_callback("/<(span|div)\\b([^>]*class=[\"'][^\"']*(?:eyebrow|badge|tag)[^\"']*[\"'][^>]*)>.*?<\\/\\1>/is", function ($matches) use ($eyebrow) {
+            return '<' . $matches[1] . $matches[2] . '>' . esc_html($eyebrow) . '</' . $matches[1] . '>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if ($title !== "Export-ready parts matched to real operating environments") {
+        $editable_html = preg_replace_callback('/<h([1-3])\b([^>]*)>.*?<\/h\1>/is', function ($matches) use ($title) {
+            return '<h' . $matches[1] . $matches[2] . '>' . esc_html($title) . '</h' . $matches[1] . '>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if ($intro !== "InquiryCloud supports production buyers with practical fits for fluid control, machine builds, enclosures, and repeatable precision assemblies.") {
+        $editable_html = preg_replace_callback('/<p\b([^>]*)>.*?<\/p>/is', function ($matches) use ($intro) {
+            return '<p' . $matches[1] . '>' . esc_html($intro) . '</p>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if ($primary_label !== "Request a Proposal" || $primary_url !== "/contact-us/") {
+        $editable_html = preg_replace_callback("/<a\\b([^>]*?)href=([\"']).*?\\2([^>]*)>.*?<\\/a>/is", function ($matches) use ($primary_label, $primary_url) {
+            return '<a' . $matches[1] . 'href="' . esc_url($primary_url) . '"' . $matches[3] . '>' . esc_html($primary_label) . '</a>';
+        }, $editable_html, 1) ?: $editable_html;
+    }
+    if (!empty($hero_bg_urls)) {
+        $hero_css = '<style data-goodjob-hero-acf-bg>';
+        foreach ($hero_bg_urls as $index => $hero_bg_url) {
+            $slide = $index + 1;
+            $safe_url = esc_url($hero_bg_url);
+            $hero_css .= '#home .bg' . $slide . ',#home [data-upload-slot="hero-background-' . $slide . '"],#home .hero-bg span:nth-child(' . $slide . '){background-image:url("' . $safe_url . '")!important;}';
+        }
+        $hero_css .= '</style>';
+        $editable_html .= $hero_css;
+    }
+    echo $editable_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     return;
 }
 ?>
 <section class="ai-section goodjob-acf-block goodjob-acf-block-<?php echo esc_attr('applications'); ?>" id="<?php echo esc_attr('applications'); ?>">
   <div class="ai-wrap goodjob-acf-block__inner">
-    <div class="goodjob-acf-block__media"><img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy" decoding="async"></div>
+    <?php if ($image_url) : ?>
+      <div class="goodjob-acf-block__media"><img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy" decoding="async"></div>
+    <?php endif; ?>
     <div class="goodjob-acf-block__content">
       <span class="ai-eyebrow"><?php echo esc_html($eyebrow); ?></span>
       <h2><?php echo esc_html($title); ?></h2>

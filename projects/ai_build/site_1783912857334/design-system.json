@@ -14,33 +14,35 @@
       "trustworthy"
     ],
     "customNotes": "",
-    "referenceSites": [],
+    "referenceSites": [
+      "https://www.fluidovalve.com/"
+    ],
     "avoid": [
       "do not force the old navy/red palette if form colors or style words point elsewhere",
       "do not repeat the same heading plus 3-card grid in every section"
     ],
     "palette": {
-      "brand": "#143A7B",
-      "accent": "#C8161C",
-      "surface": "#F4F6FA",
-      "brandDeep": "#091B39",
-      "brandWide": "#35568D",
-      "dark": "#061329"
+      "brand": "#1D4ED8",
+      "accent": "#D97706",
+      "surface": "#EFF6FF",
+      "brandDeep": "#1E3A8A",
+      "brandWide": "#3D67DD",
+      "dark": "#111827"
     },
     "summary": "professional industrial; balanced; industrial geometry; industrial navy/steel bands with controlled accent details; B2B industrial rhythm with varied vertical sections and practical proof modules"
   },
   "palette": {
-    "brand": "#143A7B",
-    "accent": "#C8161C",
-    "brandDeep": "#091B39",
-    "brandWide": "#35568D",
+    "brand": "#1D4ED8",
+    "accent": "#D97706",
+    "brandDeep": "#1E3A8A",
+    "brandWide": "#3D67DD",
     "ink": "#16202E",
     "body": "#3C4858",
     "muted": "#6B7686",
     "line": "#E2E7EE",
-    "surface": "#F4F6FA",
+    "surface": "#EFF6FF",
     "steel": "#EAEEF4",
-    "dark": "#061329",
+    "dark": "#111827",
     "light": "#ffffff"
   },
   "typography": {

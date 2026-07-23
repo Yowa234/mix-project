@@ -1,0 +1,86 @@
+{
+  "key": "group_goodjob_block_about-us",
+  "title": "GoodJob Block - About Us",
+  "fields": [
+    {
+      "key": "field_goodjob_about_us_eyebrow",
+      "label": "Eyebrow",
+      "name": "eyebrow",
+      "type": "text",
+      "default_value": "About Us",
+      "wrapper": {
+        "width": "33"
+      }
+    },
+    {
+      "key": "field_goodjob_about_us_title",
+      "label": "Title",
+      "name": "title",
+      "type": "text",
+      "default_value": "Applied marine research with disciplined industrial delivery",
+      "wrapper": {
+        "width": "67"
+      }
+    },
+    {
+      "key": "field_goodjob_about_us_intro",
+      "label": "Intro",
+      "name": "intro",
+      "type": "textarea",
+      "rows": 3,
+      "default_value": "Ocean supports buyers across marine fish, marine plants, water quality, and marine resource programs with a structured operating system for sampling, analysis, documentation, and export coordination. Our capability stack is built for clear technical communicat"
+    },
+    {
+      "key": "field_goodjob_about_us_primary_label",
+      "label": "Primary Button Label",
+      "name": "primary_label",
+      "type": "text",
+      "default_value": "Request a Proposal",
+      "wrapper": {
+        "width": "50"
+      }
+    },
+    {
+      "key": "field_goodjob_about_us_primary_url",
+      "label": "Primary Button URL",
+      "name": "primary_url",
+      "type": "url",
+      "default_value": "/contact-us/",
+      "wrapper": {
+        "width": "50"
+      }
+    },
+    {
+      "key": "field_goodjob_about_us_image",
+      "label": "Image",
+      "name": "image",
+      "type": "image",
+      "return_format": "array",
+      "preview_size": "medium",
+      "instructions": "Recommended upload size depends on the block: hero 1920x780, product 800x700, blog/case 800x600."
+    },
+    {
+      "key": "field_goodjob_about_us_html_source",
+      "label": "Advanced HTML Source",
+      "name": "html_source",
+      "type": "textarea",
+      "rows": 12,
+      "instructions": "Optional. Leave empty to use structured fields or theme fallback. Use only when the exact generated section needs manual HTML editing."
+    }
+  ],
+  "location": [
+    [
+      {
+        "param": "block",
+        "operator": "==",
+        "value": "acf/about-us"
+      }
+    ]
+  ],
+  "menu_order": 4,
+  "position": "normal",
+  "style": "default",
+  "label_placement": "top",
+  "instruction_placement": "label",
+  "active": true
+}

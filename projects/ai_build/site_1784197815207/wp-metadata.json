@@ -4,7 +4,7 @@
   "site_name": "SenZ离心机",
   "site_template": "b2b_industrial",
   "wp_mode": "block-theme",
-  "updated_at": "2026-07-17T03:53:29.795Z",
+  "updated_at": "2026-07-17T06:10:53.744Z",
   "design_system": {
     "version": "ai-site-design-system.v2-xinhai-industrial",
     "preset": "minimal-international",
@@ -572,7 +572,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 0,
-      "updated_at": "2026-07-17T03:53:29.790Z"
+      "updated_at": "2026-07-17T06:10:53.728Z"
     },
     {
       "section_key": "hero",
@@ -621,7 +621,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 1,
-      "updated_at": "2026-07-17T03:53:29.791Z"
+      "updated_at": "2026-07-17T06:10:53.728Z"
     },
     {
       "section_key": "products",
@@ -674,7 +674,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 2,
-      "updated_at": "2026-07-17T03:53:29.792Z"
+      "updated_at": "2026-07-17T06:10:53.731Z"
     },
     {
       "section_key": "applications",
@@ -727,7 +727,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 3,
-      "updated_at": "2026-07-17T03:53:29.792Z"
+      "updated_at": "2026-07-17T06:10:53.731Z"
     },
     {
       "section_key": "about_us",
@@ -778,7 +778,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 4,
-      "updated_at": "2026-07-17T03:53:29.792Z"
+      "updated_at": "2026-07-17T06:10:53.731Z"
     },
     {
       "section_key": "blog",
@@ -829,7 +829,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 5,
-      "updated_at": "2026-07-17T03:53:29.792Z"
+      "updated_at": "2026-07-17T06:10:53.732Z"
     },
     {
       "section_key": "contact_us",
@@ -883,7 +883,7 @@
       "status": "html_ready",
       "locked": false,
       "order_index": 6,
-      "updated_at": "2026-07-17T03:53:29.792Z"
+      "updated_at": "2026-07-17T06:10:53.732Z"
     },
     {
       "section_key": "footer",
@@ -934,7 +934,7 @@
       "status": "locked",
       "locked": true,
       "order_index": 7,
-      "updated_at": "2026-07-17T03:53:29.793Z"
+      "updated_at": "2026-07-17T06:10:53.732Z"
     }
   ],
   "next_stage": {

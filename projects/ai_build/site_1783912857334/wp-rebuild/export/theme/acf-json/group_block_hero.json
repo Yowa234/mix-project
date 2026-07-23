@@ -17,7 +17,7 @@
       "label": "Title",
       "name": "title",
       "type": "text",
-      "default_value": "Win More Global Buyer Inquiries with SEO-Led Trust Signals",
+      "default_value": "Win More Qualified Global Buyers Through Search Visibility",
       "wrapper": {
         "width": "67"
       }
@@ -28,7 +28,7 @@
       "name": "intro",
       "type": "textarea",
       "rows": 3,
-      "default_value": "InquiryCloud helps export-ready manufacturers improve visibility, strengthen buyer confidence, and convert more qualified B2B inquiries with a credible, industry-focused web presence."
+      "default_value": "InquiryCloud helps manufacturers build trust, strengthen export positioning, and convert more website traffic into serious B2B inquiries with SEO-led optimization."
     },
     {
       "key": "field_goodjob_hero_primary_label",
@@ -58,6 +58,42 @@
       "return_format": "array",
       "preview_size": "medium",
       "instructions": "Recommended upload size depends on the block: hero 1920x780, product 800x700, blog/case 800x600."
+    },
+    {
+      "key": "field_goodjob_hero_hero_bg_1",
+      "label": "Hero Background 1",
+      "name": "hero_bg_1",
+      "type": "image",
+      "return_format": "array",
+      "preview_size": "large",
+      "instructions": "Main hero carousel background. Recommended upload size: 1920x780 or larger.",
+      "wrapper": {
+        "width": "33"
+      }
+    },
+    {
+      "key": "field_goodjob_hero_hero_bg_2",
+      "label": "Hero Background 2",
+      "name": "hero_bg_2",
+      "type": "image",
+      "return_format": "array",
+      "preview_size": "large",
+      "instructions": "Second hero carousel background. Recommended upload size: 1920x780 or larger.",
+      "wrapper": {
+        "width": "33"
+      }
+    },
+    {
+      "key": "field_goodjob_hero_hero_bg_3",
+      "label": "Hero Background 3",
+      "name": "hero_bg_3",
+      "type": "image",
+      "return_format": "array",
+      "preview_size": "large",
+      "instructions": "Third hero carousel background. Recommended upload size: 1920x780 or larger.",
+      "wrapper": {
+        "width": "33"
+      }
     },
     {
       "key": "field_goodjob_hero_html_source",
